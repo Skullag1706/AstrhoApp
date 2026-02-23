@@ -188,9 +188,16 @@ export function CategoryManagement({ hasPermission }: CategoryManagementProps) {
       }
       setShowSuccessAlert(true);
       setShowEditModal(false);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error saving category:', err);
-      setErrorModalMessage('Error al guardar la categoría. Por favor, verifique que todos los campos sean válidos e intente de nuevo.');
+      const isDuplicate = err.message?.toLowerCase().includes('ya existe') ||
+        err.message?.toLowerCase().includes('already') ||
+        err.message?.includes('400') ||
+        err.message?.toLowerCase().includes('duplicate');
+
+      setErrorModalMessage(isDuplicate
+        ? 'Este registro ya existe. por favor ingrese otro diferente'
+        : 'Error al guardar la categoría. Por favor, verifique que todos los campos sean válidos e intente de nuevo.');
       setShowErrorModal(true);
     }
   };
@@ -427,7 +434,7 @@ export function CategoryManagement({ hasPermission }: CategoryManagementProps) {
 
       {/* Success Alert */}
       {showSuccessAlert && (
-        <div className="fixed top-4 right-4 z-[2000] animate-in slide-in-from-top-5 duration-300">
+        <div className="fixed top-24 right-4 z-[2147483647] animate-in slide-in-from-top-5 duration-300">
           <div className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center space-x-4 min-w-[320px]">
             <div className="flex-shrink-0">
               <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">

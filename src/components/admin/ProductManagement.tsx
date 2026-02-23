@@ -10,23 +10,55 @@ import { supplyCategoryService, Category as APICategory } from '../../services/s
 import { supplyService, Supply as APISupply } from '../../services/supplyService';
 import { brandService, Brand as APIBrand } from '../../services/brandService';
 
+interface Product {
+  id: number;
+  name: string;
+  description: string;
+  sku: string;
+  brand: string;
+  brandId: number;
+  category: string;
+  categoryId: number;
+  status: 'active' | 'inactive' | 'discontinued' | 'out_of_stock';
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 interface ProductManagementProps {
   hasPermission: (permission: string) => boolean;
 }
 
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case 'active': return 'bg-green-100 text-green-800';
+    case 'discontinued': return 'bg-red-100 text-red-800';
+    case 'out_of_stock': return 'bg-gray-100 text-gray-800';
+    default: return 'bg-gray-100 text-gray-800';
+  }
+};
+
+const getStatusLabel = (status: string) => {
+  switch (status) {
+    case 'active': return 'Activo';
+    case 'discontinued': return 'Descontinuado';
+    case 'out_of_stock': return 'Agotado';
+    default: return status;
+  }
+};
+
 export function ProductManagement({ hasPermission }: ProductManagementProps) {
 
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<APICategory[]>([]);
   const [brands, setBrands] = useState<APIBrand[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorModalMessage, setErrorModalMessage] = useState('');
-  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showProductModal, setShowProductModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [productToDelete, setProductToDelete] = useState<any>(null);
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(9);
@@ -35,14 +67,10 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
   const mapSupplyToUI = (supply: APISupply) => ({
     id: supply.insumoId,
     name: supply.nombre,
-    description: supply.descripcion,
+    description: supply.descripcion || '',
     sku: supply.sku,
-    brand: supply.marca,
-    costPrice: supply.precioCosto,
-    salePrice: 0, // Insumos typically don't have sale price in this view
-    stock: supply.stockActual,
-    minStock: supply.stockMinimo,
-    unit: supply.unidad,
+    brand: supply.marcaNombre || 'Sin marca',
+    brandId: supply.marcaId,
     category: supply.categoriaNombre || 'Sin categoría',
     categoryId: supply.categoriaId,
     status: supply.estado ? 'active' : 'inactive',
@@ -129,7 +157,7 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
     setShowDetailModal(true);
   };
 
-  const handleDeleteProduct = (product: any) => {
+  const handleDeleteProduct = (product: Product) => {
     setProductToDelete(product);
     setShowDeleteModal(true);
   };
@@ -154,21 +182,18 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
     }
   };
 
-  const mapUIToSupply = (uiData: any, id?: number): any => {
+  const mapUIToSupply = (uiData: any, id?: number): APISupply => {
     const categoryObj = categories.find(c => c.nombre === uiData.category);
+    const brandObj = brands.find(b => b.nombre === uiData.brand);
     return {
       insumoId: id || 0,
+      sku: uiData.sku,
       nombre: uiData.name,
       descripcion: uiData.description || '',
-      sku: uiData.sku,
-      marca: uiData.brand,
-      precioCosto: Number(uiData.costPrice) || 0,
-      stockActual: Number(uiData.stock) || 0,
-      stockMinimo: Number(uiData.minStock) || 0,
-      unidad: uiData.unit || 'unidad',
-      estado: uiData.status === 'active',
-      categoriaId: categoryObj?.categoriaId || 0
-    };
+      categoriaId: categoryObj?.categoriaId || 0,
+      marcaId: brandObj?.marcaId || 0,
+      estado: uiData.status === 'active'
+    } as APISupply;
   };
 
   const handleSaveProduct = async (productData: any) => {
@@ -196,29 +221,9 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
     }
   };
 
-  const getStockStatus = (product: any) => {
-    if (product.stock <= 0) return { color: 'text-red-600', label: 'Agotado' };
-    if (product.stock <= 10) return { color: 'text-yellow-600', label: 'Stock Bajo' };
-    return { color: 'text-green-600', label: 'En Stock' };
-  };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active': return 'bg-green-100 text-green-800';
-      case 'discontinued': return 'bg-red-100 text-red-800';
-      case 'out_of_stock': return 'bg-gray-100 text-gray-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
 
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'active': return 'Activo';
-      case 'discontinued': return 'Descontinuado';
-      case 'out_of_stock': return 'Agotado';
-      default: return status;
-    }
-  };
+
 
   return (
     <div className="p-8">
@@ -281,8 +286,6 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
 
                 <tbody className="divide-y divide-gray-100">
                   {paginatedProducts.map(product => {
-                    const stockStatus = getStockStatus(product);
-
                     return (
                       <tr key={product.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 font-semibold text-gray-800">{product.name}</td>
@@ -412,7 +415,15 @@ function ErrorModal({ message, onClose }: { message: string, onClose: () => void
 }
 
 // Modal para crear/editar insumo
-function ProductModal({ product, onClose, onSave, categories, brands }: any) {
+interface ProductModalProps {
+  product: any;
+  onClose: () => void;
+  onSave: (data: any) => void;
+  categories: APICategory[];
+  brands: APIBrand[];
+}
+
+function ProductModal({ product, onClose, onSave, categories, brands }: ProductModalProps) {
   const [formData, setFormData] = useState({
     name: product?.name || '',
     sku: product?.sku || '',
@@ -422,10 +433,10 @@ function ProductModal({ product, onClose, onSave, categories, brands }: any) {
     description: product?.description || ''
   });
 
-  const [errors, setErrors] = useState<any>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Filtrar solo categorías activas
-  const activeCategories = categories.filter((cat: any) => cat.estado === true);
+  const activeCategories = categories.filter((cat: APICategory) => cat.estado === true);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

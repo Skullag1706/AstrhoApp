@@ -1,4 +1,4 @@
-const BASE_URL = 'http://astrhoapp.somee.com/api';
+const BASE_URL = 'http://www.astrhoapp.somee.com/api';
 
 export const apiClient = {
     async get(endpoint: string) {
@@ -23,16 +23,23 @@ export const apiClient = {
 
     async post(endpoint: string, data: any) {
         try {
+            const isFormData = data instanceof FormData;
+            const headers: Record<string, string> = {
+                'Accept': 'application/json'
+            };
+
+            if (!isFormData) {
+                headers['Content-Type'] = 'application/json';
+            }
+
             const response = await fetch(`${BASE_URL}${endpoint}`, {
                 method: 'POST',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(data),
+                headers,
+                body: isFormData ? data : JSON.stringify(data),
             });
             if (!response.ok) {
                 const errorText = await response.text();
+                console.error(`POST Error Status: ${response.status}, Endpoint: ${endpoint}, Body:`, errorText);
                 throw new Error(`Error posting to ${endpoint} (${response.status}): ${errorText || response.statusText}`);
             }
             return response.json();
@@ -44,16 +51,23 @@ export const apiClient = {
 
     async put(endpoint: string, data: any) {
         try {
+            const isFormData = data instanceof FormData;
+            const headers: Record<string, string> = {
+                'Accept': 'application/json'
+            };
+
+            if (!isFormData) {
+                headers['Content-Type'] = 'application/json';
+            }
+
             const response = await fetch(`${BASE_URL}${endpoint}`, {
                 method: 'PUT',
-                headers: {
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(data),
+                headers,
+                body: isFormData ? data : JSON.stringify(data),
             });
             if (!response.ok) {
                 const errorText = await response.text();
+                console.error(`PUT Error Status: ${response.status}, Endpoint: ${endpoint}, Body:`, errorText);
                 throw new Error(`API PUT Error: ${endpoint} -> Status ${response.status}: ${errorText || response.statusText}`);
             }
             return response.json();

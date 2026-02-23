@@ -1,123 +1,11 @@
-import React, { useState } from 'react';
-import { 
-  Scissors, Droplets, Sparkles, Heart, Clock, Search, 
+import React, { useState, useEffect } from 'react';
+import {
+  Scissors, Droplets, Sparkles, Heart, Clock, Search,
   Eye, ChevronLeft, ChevronRight, Filter, Calendar, X
 } from 'lucide-react';
 
-const services = [
-  {
-    id: 1,
-    name: 'Corte y Peinado',
-    description: 'Corte personalizado según tu tipo de rostro y estilo',
-    price: 35000,
-    duration: 45,
-    rating: 4.9,
-    reviews: 124,
-    image: 'https://images.unsplash.com/photo-1562322140-8baeececf3df?w=400&h=300&fit=crop',
-    icon: Scissors,
-    color: 'from-pink-400 to-rose-500',
-    category: 'Cortes',
-    isActive: true
-  },
-  {
-    id: 2,
-    name: 'Tratamiento Capilar',
-    description: 'Hidratación profunda para cabello dañado y seco',
-    price: 55000,
-    duration: 60,
-    rating: 5.0,
-    reviews: 89,
-    image: 'https://images.unsplash.com/photo-1516975080664-ed2fc6a32937?w=400&h=300&fit=crop',
-    icon: Droplets,
-    color: 'from-purple-400 to-violet-500',
-    category: 'Tratamientos',
-    isActive: true
-  },
-  {
-    id: 3,
-    name: 'Coloración',
-    description: 'Tintes y mechas con productos de alta calidad',
-    price: 85000,
-    duration: 120,
-    rating: 4.8,
-    reviews: 203,
-    image: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=400&h=300&fit=crop',
-    icon: Sparkles,
-    color: 'from-pink-500 to-purple-600',
-    category: 'Coloración',
-    isActive: true
-  },
-  {
-    id: 4,
-    name: 'Peinado Especial',
-    description: 'Peinados para eventos especiales y ocasiones importantes',
-    price: 65000,
-    duration: 90,
-    rating: 4.9,
-    reviews: 67,
-    image: 'https://images.unsplash.com/photo-1580618672591-eb180b1a973f?w=400&h=300&fit=crop',
-    icon: Heart,
-    color: 'from-rose-400 to-pink-500',
-    category: 'Peinados',
-    isActive: true
-  },
-  {
-    id: 5,
-    name: 'Alisado Brasileño',
-    description: 'Alisado duradero con queratina natural',
-    price: 120000,
-    duration: 180,
-    rating: 4.7,
-    reviews: 156,
-    image: 'https://images.unsplash.com/photo-1559599101-f09722fb4948?w=400&h=300&fit=crop',
-    icon: Sparkles,
-    color: 'from-purple-500 to-indigo-500',
-    category: 'Tratamientos',
-    isActive: true
-  },
-  {
-    id: 6,
-    name: 'Manicure & Pedicure',
-    description: 'Cuidado completo de manos y pies',
-    price: 45000,
-    duration: 75,
-    rating: 4.8,
-    reviews: 91,
-    image: 'https://images.unsplash.com/photo-1604654894610-df63bc536371?w=400&h=300&fit=crop',
-    icon: Heart,
-    color: 'from-pink-400 to-purple-400',
-    category: 'Cuidado Corporal',
-    isActive: true
-  },
-  {
-    id: 7,
-    name: 'Mascarilla Facial',
-    description: 'Tratamiento facial hidratante y relajante',
-    price: 40000,
-    duration: 50,
-    rating: 4.6,
-    reviews: 78,
-    image: 'https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?w=400&h=300&fit=crop',
-    icon: Sparkles,
-    color: 'from-green-400 to-teal-500',
-    category: 'Tratamientos Faciales',
-    isActive: true
-  },
-  {
-    id: 8,
-    name: 'Extensiones de Cabello',
-    description: 'Aplicación profesional de extensiones naturales',
-    price: 95000,
-    duration: 150,
-    rating: 4.5,
-    reviews: 45,
-    image: 'https://images.unsplash.com/photo-1492106087820-71f1a00d2b11?w=400&h=300&fit=crop',
-    icon: Scissors,
-    color: 'from-amber-400 to-orange-500',
-    category: 'Extensiones',
-    isActive: true
-  }
-];
+import { toast } from 'sonner';
+import { serviceService, Service as APIService } from '../services/serviceService';
 
 const categories = ['Todos', 'Cortes', 'Tratamientos', 'Coloración', 'Peinados', 'Cuidado Corporal', 'Tratamientos Faciales', 'Extensiones'];
 
@@ -125,33 +13,244 @@ interface ServicesProps {
   onBookAppointment: (selectedService?: any) => void;
 }
 
+const API_ORIGIN = 'http://www.astrhoapp.somee.com';
+const DEFAULT_SERVICE_IMAGE = 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400&h=300&fit=crop';
+
+// Helper for image retry logic
+const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+  const target = e.target as HTMLImageElement;
+  const currentSrc = target.src;
+
+  if (target.dataset.triedAll === 'true') return;
+
+  console.log(`SuperMapper: Image load fail for ${currentSrc}, attempting recovery chain...`);
+
+  // Extraer el nombre del archivo
+  const parts = currentSrc.split('/');
+  const filename = parts[parts.length - 1];
+
+  switch (target.dataset.retryCount) {
+    case undefined:
+    case '0':
+      target.dataset.retryCount = '1';
+      target.src = `${API_ORIGIN}/imagenes/${filename}`;
+      break;
+    case '1':
+      target.dataset.retryCount = '2';
+      // Algunas veces en IIS subdirectorios, puede estar bajo /api/imagenes/
+      target.src = `${API_ORIGIN}/api/imagenes/${filename}`;
+      break;
+    case '2':
+      target.dataset.retryCount = '3';
+      // Fallback a wwwroot explicito si está mal configurado el router
+      target.src = `${API_ORIGIN}/wwwroot/imagenes/${filename}`;
+      break;
+    case '3':
+      target.dataset.retryCount = '4';
+      target.src = `${API_ORIGIN}/api/wwwroot/imagenes/${filename}`;
+      break;
+    default:
+      // Fallback final si nada funcionó
+      target.src = DEFAULT_SERVICE_IMAGE;
+      target.dataset.triedAll = 'true';
+      break;
+  }
+};
+
 export function Services({ onBookAppointment }: ServicesProps) {
+  const [services, setServices] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('Todos');
-  const [selectedService, setSelectedService] = useState(null);
+  const [selectedService, setSelectedService] = useState<any>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [favorites, setFavorites] = useState<number[]>([]);
+
+  // Helper avanzado para procesar cualquier formato de imagen del backend
+  const processImageSource = (raw: any): string => {
+    if (!raw) {
+      console.log('SuperMapper: Raw input is empty/null');
+      return '';
+    }
+
+    console.log('SuperMapper Debug [Input]:', typeof raw === 'string' && raw.length > 100 ? `${raw.substring(0, 50)}... [length: ${raw.length}]` : raw);
+
+    const PLACEHOLDER = DEFAULT_SERVICE_IMAGE;
+
+    if (raw && typeof raw === 'object' && raw.type !== 'Buffer' && !Array.isArray(raw)) {
+      console.log('SuperMapper: Detected unknown object type in image field:', Object.keys(raw));
+    }
+
+    // Caso 1: Objeto con Buffer
+    if (raw && typeof raw === 'object' && raw.type === 'Buffer' && Array.isArray(raw.data)) {
+      raw = raw.data;
+    }
+
+    // Caso 2: Array de bytes (byte[])
+    if (Array.isArray(raw)) {
+      try {
+        const uint8Array = new Uint8Array(raw);
+        let binary = '';
+        const chunk = 8192;
+        for (let i = 0; i < uint8Array.length; i += chunk) {
+          const sub = uint8Array.subarray(i, i + chunk);
+          binary += String.fromCharCode.apply(null, Array.from(sub));
+        }
+        return `data:image/png;base64,${btoa(binary)}`;
+      } catch (e) {
+        console.error('SuperMapper: Error en Byte Array:', e);
+        return PLACEHOLDER;
+      }
+    }
+
+    if (typeof raw !== 'string') return '';
+
+    let str = raw.trim();
+    if (!str) return '';
+
+    // Caso 3: URL Completa
+    if (str.startsWith('http')) return str;
+
+    // Caso 4: Data URI ya formado
+    if (str.startsWith('data:')) return str;
+
+    // Caso 5: Ruta de Disco Local (Filtro y Rescate)
+    if (str.match(/^[a-zA-Z]:\\/) || str.includes('\\')) {
+      const parts = str.split(/[\\/]/);
+      const fileName = parts[parts.length - 1];
+      if (fileName && fileName.includes('.')) {
+        return `${API_ORIGIN}/uploads/${fileName}`;
+      }
+      return PLACEHOLDER;
+    }
+
+    // Caso 6: Cadena HEXADECIMAL (0xFFD8...)
+    if (/^(0x)?[0-9a-fA-F]{100,}$/.test(str)) {
+      try {
+        const cleanHex = str.startsWith('0x') ? str.substring(2) : str;
+        const binary = cleanHex.match(/.{1,2}/g)?.map(byte => parseInt(byte, 16));
+        if (binary) {
+          const uint8 = new Uint8Array(binary);
+          let binStr = '';
+          for (let i = 0; i < uint8.length; i++) binStr += String.fromCharCode(uint8[i]);
+          const b64 = btoa(binStr);
+          let mime = 'image/png';
+          if (cleanHex.toLowerCase().startsWith('ffd8')) mime = 'image/jpeg';
+          return `data:${mime};base64,${b64}`;
+        }
+      } catch (e) {
+        console.error('SuperMapper: Error en Hex conversion:', e);
+      }
+    }
+
+    // Caso 7: Ruta relativa o solo nombre de archivo
+    if (str.length < 500 && (str.includes('.') || str.includes('/') || str.includes('\\'))) {
+      // Normalizar backslashes a forward slashes
+      const normalizedStr = str.replace(/\\/g, '/');
+      const path = normalizedStr.startsWith('/') ? normalizedStr : `/${normalizedStr}`;
+
+      // SIEMPRE priorizar /imagenes/ ya que el usuario confirmó que es donde se alojan
+      if (!path.includes('/imagenes/') && !path.includes('/uploads/') && !path.includes('/api/') && !path.includes('/Images/')) {
+        return `${API_ORIGIN}/imagenes${path}`;
+      }
+      return `${API_ORIGIN}${path}`;
+    }
+
+    // Caso 8: Base64 crudo
+    const cleanB64 = str.replace(/[\s\n\r"']/g, '');
+    if (cleanB64.length > 50) {
+      let mimeType = 'image/png';
+      if (cleanB64.startsWith('/9j/') || cleanB64.startsWith('/9J/')) mimeType = 'image/jpeg';
+      else if (cleanB64.startsWith('iVBORw0KGgo')) mimeType = 'image/png';
+      else if (cleanB64.startsWith('R0lGOD')) mimeType = 'image/gif';
+      else if (cleanB64.startsWith('UklGR')) mimeType = 'image/webp';
+
+      return `data:${mimeType};base64,${cleanB64}`;
+    }
+
+    return PLACEHOLDER;
+  };
+
+  const mapAPIServiceToUI = (service: any) => {
+    // INTROSPECCIÓN DESESPERADA: Log de todas las llaves para encontrar el campo oculto
+    console.log(`Public SuperMapper: Keys for service ${service.nombre || service.Nombre || '?'}:`, Object.keys(service).join(', '));
+
+    const rawImage =
+      service.imagen || service.Imagen ||
+      service.foto || service.Foto ||
+      service.image || service.Image ||
+      service.imageUrl || service.image_url ||
+      service.urlImagen || service.UrlImagen ||
+      service.rutaImagen || service.RutaImagen ||
+      service.pathImagen || service.PathImagen ||
+      service.linkImagen || service.LinkImagen ||
+      service.archivo || service.Archivo ||
+      service.icono || service.Icono ||
+      service.imagenPrincipal || service.ImagenPrincipal;
+
+    const imageUrl = processImageSource(rawImage);
+
+    console.log(`SuperMapper Debug [Result] for ${service.nombre || service.Nombre || 'unknown'}:`,
+      imageUrl ? (imageUrl.startsWith('data:') ? 'base64 data...' : imageUrl) : 'No image produced - Check keys above!');
+
+    return {
+      id: service.servicioId || service.ServicioId || service.id,
+      name: service.nombre || service.Nombre || 'Sin nombre',
+      description: service.descripcion || service.Descripcion || '',
+      price: service.precio || service.Precio || 0,
+      duration: service.duracion || service.Duracion || 0,
+      rating: 5.0, // Default rating
+      reviews: Math.floor(Math.random() * 50) + 10,
+      image: imageUrl || DEFAULT_SERVICE_IMAGE,
+      icon: Scissors,
+      color: 'from-pink-400 to-rose-500',
+      category: service.categoriaNombre || service.CategoriaNombre || 'General',
+      // Default category
+      isActive: (service.estado !== undefined ? service.estado : (service.Estado !== undefined ? service.Estado : (service.activo !== undefined ? service.activo : service.Activo)))
+    };
+  };
+
+  const fetchServices = async () => {
+    setIsLoading(true);
+    try {
+      const data = await serviceService.getServices();
+      console.log('Raw API Data:', data);
+      console.log('Services API Data (Public):', data);
+
+      const servicesArray = Array.isArray(data) ? data : (data as any).data || [];
+      setServices(servicesArray.map(mapAPIServiceToUI));
+    } catch (error) {
+      console.error('Error fetching services:', error);
+      toast.error('Error al cargar servicios');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchServices();
+  }, []);
 
   // Filter services
   const filteredServices = services.filter(service => {
     const matchesSearch = service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         service.description.toLowerCase().includes(searchTerm.toLowerCase());
+      service.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = filterCategory === 'Todos' || service.category === filterCategory;
     return matchesSearch && matchesCategory && service.isActive;
   });
 
-  const handleServiceBooking = (service) => {
+  const handleServiceBooking = (service: any) => {
     onBookAppointment(service);
   };
 
-  const handleViewDetails = (service) => {
+  const handleViewDetails = (service: any) => {
     setSelectedService(service);
     setShowDetailModal(true);
   };
 
   const toggleFavorite = (serviceId: number) => {
-    setFavorites(prev => 
-      prev.includes(serviceId) 
+    setFavorites((prev: number[]) =>
+      prev.includes(serviceId)
         ? prev.filter(id => id !== serviceId)
         : [...prev, serviceId]
     );
@@ -166,7 +265,7 @@ export function Services({ onBookAppointment }: ServicesProps) {
             Nuestros Servicios
           </h2>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            Ofrecemos una amplia gama de servicios de belleza profesionales 
+            Ofrecemos una amplia gama de servicios de belleza profesionales
             con los mejores productos y técnicas del mercado
           </p>
         </div>
@@ -186,6 +285,7 @@ export function Services({ onBookAppointment }: ServicesProps) {
                     src={service.image}
                     alt={service.name}
                     className="w-full h-full object-cover"
+                    onError={handleImageError}
                   />
                   <div className={`absolute inset-0 bg-gradient-to-t ${service.color} opacity-60`}></div>
                   <div className="absolute top-4 right-4">
@@ -252,7 +352,7 @@ export function Services({ onBookAppointment }: ServicesProps) {
               Contáctanos y te ayudaremos a encontrar el servicio perfecto para ti
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <button 
+              <button
                 onClick={() => onBookAppointment()}
                 className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-8 py-3 rounded-xl font-semibold hover:shadow-lg transition-all duration-300"
               >
@@ -279,7 +379,13 @@ export function Services({ onBookAppointment }: ServicesProps) {
 }
 
 // Service Detail Modal Component
-function ServiceDetailModal({ service, onClose, onBookAppointment }) {
+interface ServiceDetailModalProps {
+  service: any;
+  onClose: () => void;
+  onBookAppointment: (service: any) => void;
+}
+
+function ServiceDetailModal({ service, onClose, onBookAppointment }: ServiceDetailModalProps) {
   const Icon = service.icon;
 
   return (
@@ -313,6 +419,7 @@ function ServiceDetailModal({ service, onClose, onBookAppointment }) {
               src={service.image}
               alt={service.name}
               className="w-full h-48 object-cover rounded-xl shadow-lg"
+              onError={handleImageError}
             />
           </div>
 

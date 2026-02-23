@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
-import { 
+import React, { useState, useEffect } from 'react';
+import {
   Calendar, Clock, User, ChevronLeft, ChevronRight, Plus,
-  ArrowLeft, ArrowRight, CheckCircle, X, Save
+  ArrowLeft, ArrowRight, CheckCircle, X, Save, Scissors
 } from 'lucide-react';
+import { serviceService } from '../services/serviceService';
 
-const services = [
+const FALLBACK_SERVICES = [
   { id: 1, name: 'Corte y Peinado', duration: 45, price: 35000, color: 'bg-blue-500' },
   { id: 2, name: 'Tratamiento Capilar', duration: 60, price: 55000, color: 'bg-green-500' },
   { id: 3, name: 'Coloración', duration: 120, price: 85000, color: 'bg-purple-500' },
@@ -56,20 +57,64 @@ const existingAppointments = [
   }
 ];
 
-interface AppointmentBookingProps {
-  currentUser: any;
-  onBookingComplete?: (appointment: any) => void;
-  onBack?: () => void;
+interface Professional {
+  id: number;
+  name: string;
+  role: string;
+  rating: number;
+  image: string;
+  availability: string[];
 }
 
-export function AppointmentBooking({ currentUser, onBookingComplete, onBack }: AppointmentBookingProps) {
-  const [currentWeek, setCurrentWeek] = useState(new Date());
-  const [selectedServices, setSelectedServices] = useState<any[]>([]);
+interface AppointmentBookingProps {
+  currentUser?: any;
+  onBookingComplete?: (appointment: any) => void;
+  onBack?: () => void;
+  initialService?: any;
+}
+
+export function AppointmentBooking({ currentUser, onBookingComplete, onBack, initialService }: AppointmentBookingProps) {
+  const [step, setStep] = useState(initialService ? 2 : 1);
+  const [selectedServices, setSelectedServices] = useState<any[]>(initialService ? [initialService] : []);
   const [selectedProfessional, setSelectedProfessional] = useState<any>(null);
   const [selectedDate, setSelectedDate] = useState<string>('');
   const [selectedTime, setSelectedTime] = useState<string>('');
+  const [services, setServices] = useState<any[]>([]);
+  const [isLoadingServices, setIsLoadingServices] = useState(true);
+  const [currentWeek, setCurrentWeek] = useState(new Date());
   const [showBookingModal, setShowBookingModal] = useState(false);
-  const [step, setStep] = useState(1); // 1: Select services, 2: Calendar view, 3: Confirm
+
+  useEffect(() => {
+    const fetchServices = async () => {
+      try {
+        const data = await serviceService.getServices();
+        console.log('Services API Data (Booking):', data);
+
+        const servicesArray = Array.isArray(data) ? data : (data as any).data || [];
+
+        const activeServices = servicesArray
+          .filter((s: any) => (s.estado !== undefined ? s.estado : s.Estado))
+          .map((s: any) => ({
+            id: s.servicioId || s.ServicioId,
+            name: s.nombre || s.Nombre || 'Sin nombre',
+            description: s.descripcion || s.Descripcion || '',
+            price: s.precio || s.Precio || 0,
+            duration: s.duracion || s.Duracion || 0,
+            category: 'General',
+            icon: Scissors,
+            image: 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400&h=300&fit=crop',
+            color: 'bg-pink-500'
+          }));
+
+        setServices(activeServices);
+      } catch (error) {
+        console.error('Error fetching services for booking:', error);
+      } finally {
+        setIsLoadingServices(false);
+      }
+    };
+    fetchServices();
+  }, []);
 
   // Get current week dates
   const getWeekDates = (date: Date) => {
@@ -128,7 +173,7 @@ export function AppointmentBooking({ currentUser, onBookingComplete, onBack }: A
 
   // Check if time slot is available
   const isTimeSlotAvailable = (date: string, time: string, professionalId: number, duration: number) => {
-    const appointments = existingAppointments.filter(apt => 
+    const appointments = existingAppointments.filter(apt =>
       apt.date === date && apt.professionalId === professionalId
     );
 
@@ -150,21 +195,21 @@ export function AppointmentBooking({ currentUser, onBookingComplete, onBack }: A
   const getAppointmentForSlot = (date: string, time: string, professionalId: number) => {
     return existingAppointments.find(apt => {
       if (apt.date !== date || apt.professionalId !== professionalId) return false;
-      
+
       const [hours, minutes] = time.split(':').map(Number);
       const slotTime = hours * 60 + minutes;
-      
+
       const [aptHours, aptMinutes] = apt.time.split(':').map(Number);
       const aptStart = aptHours * 60 + aptMinutes;
       const aptEnd = aptStart + apt.duration;
-      
+
       return slotTime >= aptStart && slotTime < aptEnd;
     });
   };
 
   const handleTimeSlotClick = (date: string, time: string, professionalId: number) => {
     if (selectedServices.length === 0) return;
-    
+
     const totalDuration = getTotalDuration();
     if (isTimeSlotAvailable(date, time, professionalId, totalDuration)) {
       setSelectedDate(date);
@@ -224,19 +269,17 @@ export function AppointmentBooking({ currentUser, onBookingComplete, onBack }: A
                   <div
                     key={service.id}
                     onClick={() => toggleServiceSelection(service)}
-                    className={`p-6 rounded-2xl border-2 cursor-pointer transition-all duration-300 hover:shadow-lg ${
-                      isSelected 
-                        ? 'border-pink-500 bg-pink-50 shadow-lg scale-105' 
-                        : 'border-gray-200 hover:border-pink-300'
-                    }`}
+                    className={`p-6 rounded-2xl border-2 cursor-pointer transition-all duration-300 hover:shadow-lg ${isSelected
+                      ? 'border-pink-500 bg-pink-50 shadow-lg scale-105'
+                      : 'border-gray-200 hover:border-pink-300'
+                      }`}
                   >
                     <div className="flex items-start space-x-4">
                       <div className="mt-1">
-                        <div className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-all ${
-                          isSelected 
-                            ? 'bg-pink-500 border-pink-500' 
-                            : 'border-gray-300'
-                        }`}>
+                        <div className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-all ${isSelected
+                          ? 'bg-pink-500 border-pink-500'
+                          : 'border-gray-300'
+                          }`}>
                           {isSelected && <CheckCircle className="w-5 h-5 text-white" />}
                         </div>
                       </div>
@@ -298,7 +341,7 @@ export function AppointmentBooking({ currentUser, onBookingComplete, onBack }: A
                   <span>Volver a Mis Citas</span>
                 </button>
               )}
-              
+
               {selectedServices.length > 0 && (
                 <button
                   onClick={() => setStep(2)}
@@ -402,11 +445,10 @@ export function AppointmentBooking({ currentUser, onBookingComplete, onBack }: A
                   <div className="font-semibold text-gray-800">
                     {date.toLocaleDateString('es-ES', { weekday: 'short' })}
                   </div>
-                  <div className={`text-2xl font-bold ${
-                    date.toDateString() === new Date().toDateString() 
-                      ? 'text-pink-600' 
-                      : 'text-gray-700'
-                  }`}>
+                  <div className={`text-2xl font-bold ${date.toDateString() === new Date().toDateString()
+                    ? 'text-pink-600'
+                    : 'text-gray-700'
+                    }`}>
                     {date.getDate()}
                   </div>
                 </div>
@@ -423,21 +465,21 @@ export function AppointmentBooking({ currentUser, onBookingComplete, onBack }: A
                   <div className="p-3 text-center text-sm font-medium text-gray-600 bg-gray-50">
                     {time}
                   </div>
-                  
+
                   {/* Time Slots for each day */}
                   {weekDates.map((date, dayIndex) => {
                     const dateString = date.toISOString().split('T')[0];
                     const isPastDate = date < new Date(new Date().setHours(0, 0, 0, 0));
-                    
+
                     return (
                       <div key={dayIndex} className="relative">
                         {professionals.map((professional) => {
                           const appointment = getAppointmentForSlot(dateString, time, professional.id);
                           const isAvailable = !isPastDate && isTimeSlotAvailable(dateString, time, professional.id, getTotalDuration());
-                          
+
                           if (appointment) {
                             // Show existing appointment
-                            const service = services.find(s => s.id === appointment.serviceId);
+                            const service = services.find(s => s.id === appointment.serviceId) || FALLBACK_SERVICES.find(s => s.id === appointment.serviceId);
                             return (
                               <div
                                 key={professional.id}
@@ -447,17 +489,16 @@ export function AppointmentBooking({ currentUser, onBookingComplete, onBack }: A
                               </div>
                             );
                           }
-                          
+
                           return (
                             <button
                               key={professional.id}
                               onClick={() => isAvailable && handleTimeSlotClick(dateString, time, professional.id)}
                               disabled={!isAvailable}
-                              className={`h-12 m-0.5 text-xs rounded transition-all ${
-                                isAvailable
-                                  ? 'bg-green-50 hover:bg-green-100 border border-green-200 text-green-700 hover:border-green-300'
-                                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                              }`}
+                              className={`h-12 m-0.5 text-xs rounded transition-all ${isAvailable
+                                ? 'bg-green-50 hover:bg-green-100 border border-green-200 text-green-700 hover:border-green-300'
+                                : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                }`}
                             >
                               {isAvailable && (
                                 <span className="flex flex-col items-center">
@@ -579,15 +620,15 @@ export function AppointmentBooking({ currentUser, onBookingComplete, onBack }: A
             <div className="w-20 h-20 bg-gradient-to-r from-green-400 to-green-500 rounded-full flex items-center justify-center mx-auto mb-6">
               <CheckCircle className="w-12 h-12 text-white" />
             </div>
-            
+
             <h2 className="text-3xl font-bold text-gray-800 mb-4">
               ¡Cita Confirmada!
             </h2>
-            
+
             <p className="text-xl text-gray-600 mb-8">
               Tu cita ha sido agendada exitosamente. Te enviaremos un recordatorio por email.
             </p>
-            
+
             <div className="bg-gradient-to-r from-pink-50 to-purple-50 rounded-2xl p-6 mb-8 text-left">
               <h4 className="font-bold text-gray-800 mb-4">Detalles de tu Cita</h4>
               <div className="space-y-3">
@@ -634,7 +675,7 @@ export function AppointmentBooking({ currentUser, onBookingComplete, onBack }: A
                 </div>
               </div>
             </div>
-            
+
             <div className="flex space-x-4">
               <button
                 onClick={resetBooking}

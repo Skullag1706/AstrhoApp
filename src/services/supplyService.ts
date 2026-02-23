@@ -2,18 +2,14 @@ import { apiClient } from './apiClient';
 
 export interface Supply {
     insumoId: number;
-    nombre: string;
-    descripcion: string;
     sku: string;
-    marca: string;
-    precioCosto: number;
-    stockActual: number;
-    stockMinimo: number;
-    stockMaximo?: number;
-    unidad: string;
-    estado: boolean;
+    nombre: string;
+    descripcion?: string;
     categoriaId: number;
     categoriaNombre?: string;
+    marcaId: number;
+    marcaNombre?: string;
+    estado: boolean;
     fechaCreacion?: string;
     fechaActualizacion?: string;
 }
