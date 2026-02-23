@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { X, Mail, Lock, User, Eye, EyeOff, IdCard, Phone, ArrowLeft, CheckCircle } from 'lucide-react';
+import { X, Mail, Lock, User, Eye, EyeOff, IdCard, Phone, ArrowLeft, CheckCircle, Loader2 } from 'lucide-react';
+import { authService } from '../services/authService';
 
 interface AuthModalProps {
   onClose: () => void;
@@ -21,6 +22,13 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const [codeError, setCodeError] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [apiError, setApiError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  // Tokens for the password recovery flow
+  const [recoveryToken, setRecoveryToken] = useState('');
+  const [resetToken, setResetToken] = useState('');
+
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -31,39 +39,96 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
     confirmPassword: ''
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // ── LOGIN ──
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Simulate authentication
-    let role = 'customer';
-    let userName = '';
-    
-    if (formData.email === 'astrid@asthroapp.com') {
-      role = 'admin';
-      userName = 'Astrid Eugenia Hoyos';
-    } else if (formData.email === 'maria@asthroapp.com') {
-      role = 'asistente';
-      userName = 'María Fernanda Gómez';
-    } else if (formData.email === 'carmen@asthroapp.com') {
-      role = 'asistente';
-      userName = 'Carmen Rosa Jiménez';
-    } else {
-      userName = isLogin ? 'Usuario' : `${formData.firstName} ${formData.lastName}`;
+    setApiError('');
+    setLoading(true);
+
+    try {
+      const data = await authService.login(formData.email, formData.password);
+      const user = authService.buildUserFromLoginResponse(data);
+      onLogin(user);
+      onClose();
+    } catch (err: any) {
+      console.error('Login error:', err);
+      setApiError('Credenciales inválidas. Verifica tu correo y contraseña.');
+    } finally {
+      setLoading(false);
     }
-    
-    const user = {
-      id: role === 'admin' ? 1 : role === 'asistente' ? 2 : 999,
-      name: userName,
-      firstName: formData.firstName || (role === 'admin' ? 'Astrid Eugenia' : role === 'asistente' ? 'María Fernanda' : ''),
-      lastName: formData.lastName || (role === 'admin' ? 'Hoyos' : role === 'asistente' ? 'Gómez' : ''),
-      documentId: formData.documentId || '12345678',
-      email: formData.email,
-      phone: formData.phone || '+57 304 123 4567',
-      role: role
-    };
-    
-    onLogin(user);
-    onClose();
+  };
+
+  // ── REGISTER ──
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setApiError('');
+
+    // Validate passwords match
+    if (formData.password !== formData.confirmPassword) {
+      setApiError('Las contraseñas no coinciden');
+      return;
+    }
+    if (formData.password.length < 6) {
+      setApiError('La contraseña debe tener al menos 6 caracteres');
+      return;
+    }
+
+    const nombreUsuario = `${formData.firstName} ${formData.lastName}`.trim();
+    if (!nombreUsuario) {
+      setApiError('Ingresa tu nombre completo');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // Check duplicates
+      const { usernameExists, emailExists } = await authService.checkDuplicates(
+        nombreUsuario,
+        formData.email
+      );
+
+      if (usernameExists) {
+        setApiError('El nombre de usuario ya está en uso');
+        setLoading(false);
+        return;
+      }
+      if (emailExists) {
+        setApiError('El correo ya está registrado');
+        setLoading(false);
+        return;
+      }
+
+      // Register
+      await authService.register({
+        nombreUsuario,
+        email: formData.email,
+        contrasena: formData.password,
+        confirmarContrasena: formData.confirmPassword,
+      });
+
+      setApiError('');
+      // Show success and switch to login
+      setShowSuccessMessage(true);
+      setTimeout(() => {
+        setShowSuccessMessage(false);
+        setIsLogin(true);
+        setFormData({ ...formData, password: '', confirmPassword: '' });
+      }, 2000);
+    } catch (err: any) {
+      console.error('Register error:', err);
+      setApiError('Error al crear la cuenta. Intenta nuevamente.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    if (isLogin) {
+      handleLogin(e);
+    } else {
+      handleRegister(e);
+    }
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -71,57 +136,91 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
       ...formData,
       [e.target.name]: e.target.value
     });
+    setApiError(''); // Clear error on input change
   };
 
-  const handleForgotPassword = (e: React.FormEvent) => {
+  // ── FORGOT PASSWORD ──
+  const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!forgotEmail.trim()) return;
-    
-    // Mostrar modal de código de recuperación
-    setShowForgotPassword(false);
-    setShowCodeModal(true);
-  };
+    setApiError('');
+    setLoading(true);
 
-  const handleVerifyCode = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Verificar el código (por defecto 123456)
-    if (recoveryCode === '123456') {
-      setCodeError('');
-      setShowCodeModal(false);
-      setShowResetPasswordForm(true);
-    } else {
-      setCodeError('Código de recuperación incorrecto');
+    try {
+      const response = await authService.requestPasswordRecovery(forgotEmail);
+      // The API returns a token needed for code validation
+      const token = typeof response === 'string' ? response : response?.token || response;
+      setRecoveryToken(token);
+      setShowForgotPassword(false);
+      setShowCodeModal(true);
+    } catch (err: any) {
+      console.error('Recovery error:', err);
+      setApiError('Error al enviar código de recuperación. Verifica tu correo.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleResetPassword = (e: React.FormEvent) => {
+  // ── VERIFY CODE ──
+  const handleVerifyCode = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Validar que las contraseñas coincidan
+    if (!recoveryCode.trim()) {
+      setCodeError('Ingresa el código de recuperación');
+      return;
+    }
+    setCodeError('');
+    setLoading(true);
+
+    try {
+      const result = await authService.validateRecoveryCode(recoveryToken, recoveryCode);
+
+      if (result && (result.valid === true || result.resetToken)) {
+        setResetToken(result.resetToken || result);
+        setShowCodeModal(false);
+        setShowResetPasswordForm(true);
+      } else {
+        setCodeError('Código de recuperación incorrecto');
+      }
+    } catch (err: any) {
+      console.error('Code validation error:', err);
+      setCodeError('Código de recuperación incorrecto');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── RESET PASSWORD ──
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+
     if (newPassword !== confirmNewPassword) {
       setPasswordError('Las contraseñas no coinciden');
       return;
     }
-    
     if (newPassword.length < 6) {
       setPasswordError('La contraseña debe tener al menos 6 caracteres');
       return;
     }
-    
-    // Resetear todos los estados y mostrar mensaje de éxito
+
     setPasswordError('');
-    setShowResetPasswordForm(false);
-    setShowSuccessMessage(true);
-    
-    // Después de 2 segundos, volver al login
-    setTimeout(() => {
-      setShowSuccessMessage(false);
-      setForgotEmail('');
-      setRecoveryCode('');
-      setNewPassword('');
-      setConfirmNewPassword('');
-    }, 2000);
+    setLoading(true);
+
+    try {
+      await authService.resetPassword(resetToken, newPassword, confirmNewPassword);
+
+      setShowResetPasswordForm(false);
+      setShowSuccessMessage(true);
+
+      setTimeout(() => {
+        setShowSuccessMessage(false);
+        resetForgotPasswordState();
+      }, 2000);
+    } catch (err: any) {
+      console.error('Reset password error:', err);
+      setPasswordError('Error al cambiar la contraseña. Intenta nuevamente.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleViewPasswordRecovery = () => {
@@ -143,14 +242,19 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
     setConfirmNewPassword('');
     setCodeError('');
     setPasswordError('');
+    setApiError('');
+    setRecoveryToken('');
+    setResetToken('');
   };
 
   // Handle view title and subtitle
   const getHeaderContent = () => {
     if (showSuccessMessage) {
       return {
-        title: 'Cambio Exitoso',
-        subtitle: 'Tu contraseña ha sido restablecida correctamente'
+        title: isLogin ? 'Cambio Exitoso' : '¡Cuenta Creada!',
+        subtitle: isLogin
+          ? 'Tu contraseña ha sido restablecida correctamente'
+          : 'Tu cuenta ha sido creada exitosamente. Ahora puedes iniciar sesión.'
       };
     } else if (showResetPasswordForm) {
       return {
@@ -175,8 +279,8 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
     } else {
       return {
         title: isLogin ? 'Iniciar Sesión' : 'Crear Cuenta',
-        subtitle: isLogin 
-          ? 'Accede a tu cuenta de AsthroApp' 
+        subtitle: isLogin
+          ? 'Accede a tu cuenta de AsthroApp'
           : 'Únete a nuestra comunidad de belleza'
       };
     }
@@ -217,6 +321,13 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
 
         {/* Content */}
         <div className="p-5">
+          {/* API Error Message */}
+          {apiError && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+              {apiError}
+            </div>
+          )}
+
           {/* Success Message for Reset Email */}
           {resetEmailSent ? (
             <div className="text-center space-y-6">
@@ -262,8 +373,8 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
                   <Mail className="w-8 h-8 text-pink-600" />
                 </div>
                 <p className="text-gray-600">
-                  Ingresa el correo electrónico asociado a tu cuenta y te enviaremos 
-                  un enlace para restablecer tu contraseña.
+                  Ingresa el correo electrónico asociado a tu cuenta y te enviaremos
+                  un código para restablecer tu contraseña.
                 </p>
               </div>
 
@@ -276,8 +387,9 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
                   <input
                     type="email"
                     value={forgotEmail}
-                    onChange={(e) => setForgotEmail(e.target.value)}
+                    onChange={(e) => { setForgotEmail(e.target.value); setApiError(''); }}
                     required
+                    disabled={loading}
                     className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
                     placeholder="tu@email.com"
                   />
@@ -286,9 +398,14 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
 
               <button
                 type="submit"
-                className="w-full bg-gradient-to-r from-pink-400 to-purple-500 text-white py-3 rounded-xl font-semibold hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-300"
+                disabled={loading}
+                className="w-full bg-gradient-to-r from-pink-400 to-purple-500 text-white py-3 rounded-xl font-semibold hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-60 flex items-center justify-center"
               >
-                Enviar enlace de recuperación
+                {loading ? (
+                  <><Loader2 className="w-5 h-5 animate-spin mr-2" /> Enviando...</>
+                ) : (
+                  'Enviar código de recuperación'
+                )}
               </button>
 
               <div className="text-center">
@@ -325,10 +442,11 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
                   <input
                     type="text"
                     value={recoveryCode}
-                    onChange={(e) => setRecoveryCode(e.target.value)}
+                    onChange={(e) => { setRecoveryCode(e.target.value); setCodeError(''); }}
                     required
+                    disabled={loading}
                     className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
-                    placeholder="123456"
+                    placeholder="Ingresa el código"
                   />
                 </div>
                 {codeError && <p className="text-red-500 text-sm mt-1">{codeError}</p>}
@@ -336,9 +454,14 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
 
               <button
                 type="submit"
-                className="w-full bg-gradient-to-r from-pink-400 to-purple-500 text-white py-3 rounded-xl font-semibold hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-300"
+                disabled={loading}
+                className="w-full bg-gradient-to-r from-pink-400 to-purple-500 text-white py-3 rounded-xl font-semibold hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-60 flex items-center justify-center"
               >
-                Verificar Código
+                {loading ? (
+                  <><Loader2 className="w-5 h-5 animate-spin mr-2" /> Verificando...</>
+                ) : (
+                  'Verificar Código'
+                )}
               </button>
 
               <div className="text-center">
@@ -356,7 +479,7 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
             <form onSubmit={handleResetPassword} className="space-y-6">
               <div className="text-center space-y-2">
                 <div className="w-16 h-16 bg-pink-100 rounded-full flex items-center justify-center mx-auto">
-                  <Mail className="w-8 h-8 text-pink-600" />
+                  <Lock className="w-8 h-8 text-pink-600" />
                 </div>
                 <p className="text-gray-600">
                   Ingresa tu nueva contraseña:
@@ -375,8 +498,9 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
                   <input
                     type={showPassword ? 'text' : 'password'}
                     value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
+                    onChange={(e) => { setNewPassword(e.target.value); setPasswordError(''); }}
                     required
+                    disabled={loading}
                     className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
                     placeholder="Tu nueva contraseña"
                   />
@@ -400,8 +524,9 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
                   <input
                     type={showPassword ? 'text' : 'password'}
                     value={confirmNewPassword}
-                    onChange={(e) => setConfirmNewPassword(e.target.value)}
+                    onChange={(e) => { setConfirmNewPassword(e.target.value); setPasswordError(''); }}
                     required
+                    disabled={loading}
                     className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
                     placeholder="Confirma tu nueva contraseña"
                   />
@@ -418,9 +543,14 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
 
               <button
                 type="submit"
-                className="w-full bg-gradient-to-r from-pink-400 to-purple-500 text-white py-3 rounded-xl font-semibold hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-300"
+                disabled={loading}
+                className="w-full bg-gradient-to-r from-pink-400 to-purple-500 text-white py-3 rounded-xl font-semibold hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-60 flex items-center justify-center"
               >
-                Restablecer Contraseña
+                {loading ? (
+                  <><Loader2 className="w-5 h-5 animate-spin mr-2" /> Cambiando...</>
+                ) : (
+                  'Restablecer Contraseña'
+                )}
               </button>
 
               <div className="text-center">
@@ -434,17 +564,19 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
               </div>
             </form>
           ) : showSuccessMessage ? (
-            /* Success Message for Reset Password */
+            /* Success Message */
             <div className="text-center space-y-6">
               <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto">
                 <CheckCircle className="w-10 h-10 text-green-600" />
               </div>
               <div className="space-y-3">
                 <h3 className="text-xl font-bold text-gray-800">
-                  ¡Contraseña restablecida exitosamente!
+                  {isLogin ? '¡Contraseña restablecida exitosamente!' : '¡Cuenta creada exitosamente!'}
                 </h3>
                 <p className="text-gray-600">
-                  Tu contraseña ha sido restablecida con éxito. Ahora puedes iniciar sesión con tu nueva contraseña.
+                  {isLogin
+                    ? 'Tu contraseña ha sido restablecida con éxito. Ahora puedes iniciar sesión con tu nueva contraseña.'
+                    : 'Tu cuenta ha sido creada. Ahora puedes iniciar sesión.'}
                 </p>
               </div>
               <div className="space-y-3">
@@ -460,159 +592,166 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
           ) : (
             /* Login/Register Form */
             <form onSubmit={handleSubmit} className="space-y-4">
-          {!isLogin && (
-            <>
-              {/* Names Row */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Nombres *
-                  </label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                    <input
-                      type="text"
-                      name="firstName"
-                      value={formData.firstName}
-                      onChange={handleInputChange}
-                      required={!isLogin}
-                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-sm"
-                      placeholder="Tus nombres"
-                    />
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                    Apellidos *
-                  </label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                    <input
-                      type="text"
-                      name="lastName"
-                      value={formData.lastName}
-                      onChange={handleInputChange}
-                      required={!isLogin}
-                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-sm"
-                      placeholder="Tus apellidos"
-                    />
-                  </div>
-                </div>
-              </div>
+              {!isLogin && (
+                <>
+                  {/* Names Row */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                        Nombres *
+                      </label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                        <input
+                          type="text"
+                          name="firstName"
+                          value={formData.firstName}
+                          onChange={handleInputChange}
+                          required={!isLogin}
+                          disabled={loading}
+                          className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-sm"
+                          placeholder="Tus nombres"
+                        />
+                      </div>
+                    </div>
 
-              {/* Document ID */}
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                        Apellidos *
+                      </label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                        <input
+                          type="text"
+                          name="lastName"
+                          value={formData.lastName}
+                          onChange={handleInputChange}
+                          required={!isLogin}
+                          disabled={loading}
+                          className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-sm"
+                          placeholder="Tus apellidos"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Document ID */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                      Documento de Identidad *
+                    </label>
+                    <div className="relative">
+                      <IdCard className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <input
+                        type="text"
+                        name="documentId"
+                        value={formData.documentId}
+                        onChange={handleInputChange}
+                        required={!isLogin}
+                        disabled={loading}
+                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-sm"
+                        placeholder="Número de documento"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Phone */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                      Teléfono *
+                    </label>
+                    <div className="relative">
+                      <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <input
+                        type="tel"
+                        name="phone"
+                        value={formData.phone}
+                        onChange={handleInputChange}
+                        required={!isLogin}
+                        disabled={loading}
+                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-sm"
+                        placeholder="+57 300 123 4567"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Email */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                  Documento de Identidad *
+                  Correo Electrónico *
                 </label>
                 <div className="relative">
-                  <IdCard className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <input
-                    type="text"
-                    name="documentId"
-                    value={formData.documentId}
+                    type="email"
+                    name="email"
+                    value={formData.email}
                     onChange={handleInputChange}
-                    required={!isLogin}
+                    required
+                    disabled={loading}
                     className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-sm"
-                    placeholder="Número de documento"
+                    placeholder="tu@email.com"
                   />
                 </div>
               </div>
 
-              {/* Phone */}
+              {/* Password */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                  Teléfono *
+                  Contraseña *
                 </label>
                 <div className="relative">
-                  <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <input
-                    type="tel"
-                    name="phone"
-                    value={formData.phone}
+                    type={showPassword ? 'text' : 'password'}
+                    name="password"
+                    value={formData.password}
                     onChange={handleInputChange}
-                    required={!isLogin}
-                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-sm"
-                    placeholder="+57 300 123 4567"
+                    required
+                    disabled={loading}
+                    className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-sm"
+                    placeholder="Tu contraseña"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
-            </>
-          )}
 
-          {/* Email */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-              Correo Electrónico *
-            </label>
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                required
-                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-sm"
-                placeholder="tu@email.com"
-              />
-            </div>
-          </div>
-
-          {/* Password */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-              Contraseña *
-            </label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <input
-                type={showPassword ? 'text' : 'password'}
-                name="password"
-                value={formData.password}
-                onChange={handleInputChange}
-                required
-                className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-sm"
-                placeholder="Tu contraseña"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-          </div>
-
-          {/* Confirm Password */}
-          {!isLogin && (
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                Confirmar Contraseña *
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  name="confirmPassword"
-                  value={formData.confirmPassword}
-                  onChange={handleInputChange}
-                  required={!isLogin}
-                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-sm"
-                  placeholder="Confirma tu contraseña"
-                />
-              </div>
-            </div>
-          )}
+              {/* Confirm Password */}
+              {!isLogin && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                    Confirmar Contraseña *
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      name="confirmPassword"
+                      value={formData.confirmPassword}
+                      onChange={handleInputChange}
+                      required={!isLogin}
+                      disabled={loading}
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-sm"
+                      placeholder="Confirma tu contraseña"
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Forgot Password Link - Only show on login */}
               {isLogin && (
                 <div className="text-center -mt-1">
                   <button
                     type="button"
-                    onClick={() => setShowForgotPassword(true)}
+                    onClick={() => { setShowForgotPassword(true); setApiError(''); }}
                     className="text-pink-600 font-semibold hover:text-pink-700 transition-colors text-sm"
                   >
                     ¿Olvidaste tu contraseña?
@@ -623,9 +762,14 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
               {/* Submit Button */}
               <button
                 type="submit"
-                className="w-full bg-gradient-to-r from-pink-400 to-purple-500 text-white py-2.5 rounded-xl font-semibold hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-300"
+                disabled={loading}
+                className="w-full bg-gradient-to-r from-pink-400 to-purple-500 text-white py-2.5 rounded-xl font-semibold hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-60 flex items-center justify-center"
               >
-                {isLogin ? 'Iniciar Sesión' : 'Crear Cuenta'}
+                {loading ? (
+                  <><Loader2 className="w-5 h-5 animate-spin mr-2" /> {isLogin ? 'Ingresando...' : 'Registrando...'}</>
+                ) : (
+                  isLogin ? 'Iniciar Sesión' : 'Crear Cuenta'
+                )}
               </button>
 
               {/* Toggle Mode */}
@@ -635,7 +779,7 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
                 </p>
                 <button
                   type="button"
-                  onClick={() => setIsLogin(!isLogin)}
+                  onClick={() => { setIsLogin(!isLogin); setApiError(''); }}
                   className="text-pink-600 font-semibold hover:text-pink-700 transition-colors text-sm"
                 >
                   {isLogin ? 'Crear cuenta gratis' : 'Iniciar sesión'}
