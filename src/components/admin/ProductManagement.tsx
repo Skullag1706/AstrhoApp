@@ -1,27 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import {
   Package, Plus, Edit, Trash2, Search,
-  DollarSign, Save, X, Eye, AlertCircle
+  DollarSign, Save, X, Eye, AlertCircle, CheckCircle
 } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
 import { mockProducts } from '../../data/management';
 import { SimplePagination } from '../ui/simple-pagination';
 import { supplyCategoryService, Category as APICategory } from '../../services/supplyCategoryService';
 import { supplyService, Supply as APISupply } from '../../services/supplyService';
-import { brandService, Brand as APIBrand } from '../../services/brandService';
 
 interface Product {
   id: number;
   name: string;
   description: string;
   sku: string;
-  brand: string;
-  brandId: number;
   category: string;
   categoryId: number;
-  status: 'active' | 'inactive' | 'discontinued' | 'out_of_stock';
-  createdAt?: string;
-  updatedAt?: string;
+  status: 'active' | 'inactive';
 }
 
 interface ProductManagementProps {
@@ -31,8 +25,7 @@ interface ProductManagementProps {
 const getStatusColor = (status: string) => {
   switch (status) {
     case 'active': return 'bg-green-100 text-green-800';
-    case 'discontinued': return 'bg-red-100 text-red-800';
-    case 'out_of_stock': return 'bg-gray-100 text-gray-800';
+    case 'inactive': return 'bg-red-100 text-red-800';
     default: return 'bg-gray-100 text-gray-800';
   }
 };
@@ -40,8 +33,7 @@ const getStatusColor = (status: string) => {
 const getStatusLabel = (status: string) => {
   switch (status) {
     case 'active': return 'Activo';
-    case 'discontinued': return 'Descontinuado';
-    case 'out_of_stock': return 'Agotado';
+    case 'inactive': return 'Inactivo';
     default: return status;
   }
 };
@@ -50,7 +42,6 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
 
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<APICategory[]>([]);
-  const [brands, setBrands] = useState<APIBrand[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorModalMessage, setErrorModalMessage] = useState('');
@@ -62,34 +53,30 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(9);
+  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
+  const [alertMessage, setAlertMessage] = useState('');
 
   // Map API Supply to UI model
-  const mapSupplyToUI = (supply: APISupply) => ({
+  const mapSupplyToUI = (supply: APISupply, fallbackCategory?: string): Product => ({
     id: supply.insumoId,
     name: supply.nombre,
     description: supply.descripcion || '',
     sku: supply.sku,
-    brand: supply.marcaNombre || 'Sin marca',
-    brandId: supply.marcaId,
-    category: supply.categoriaNombre || 'Sin categoría',
+    category: supply.categoriaNombre || fallbackCategory || 'Sin categoría',
     categoryId: supply.categoriaId,
-    status: supply.estado ? 'active' : 'inactive',
-    createdAt: supply.fechaCreacion,
-    updatedAt: supply.fechaActualizacion
+    status: supply.estado ? 'active' : 'inactive'
   });
 
   const fetchInitialData = async () => {
     setIsLoading(true);
     try {
-      const [suppliesData, categoriesData, brandsData] = await Promise.all([
+      const [suppliesData, categoriesData] = await Promise.all([
         supplyService.getSupplies(),
-        supplyCategoryService.getCategories(),
-        brandService.getBrands()
+        supplyCategoryService.getCategories()
       ]);
 
       console.log('Supplies data received:', suppliesData);
       console.log('Categories data received:', categoriesData);
-      console.log('Brands data received:', brandsData);
 
       if (!Array.isArray(suppliesData)) {
         console.error('Supplies data is not an array:', suppliesData);
@@ -98,7 +85,6 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
 
       setProducts(suppliesData.map(mapSupplyToUI));
       setCategories(categoriesData);
-      setBrands(brandsData);
     } catch (error: any) {
       console.error('Error fetching initial data:', error);
       setErrorModalMessage(error.message || 'No se pudieron cargar los datos. Por favor, intente de nuevo.');
@@ -116,12 +102,21 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
     setCurrentPage(1);
   }, [searchTerm]);
 
+  // Auto-hide success alert after 4 seconds
+  useEffect(() => {
+    if (showSuccessAlert) {
+      const timer = setTimeout(() => {
+        setShowSuccessAlert(false);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [showSuccessAlert]);
+
   const matchesSearch = (product: any, term: string) => {
     const normalized = term.toLowerCase();
     return (
       product.name.toLowerCase().includes(normalized) ||
-      product.sku.toLowerCase().includes(normalized) ||
-      product.brand.toLowerCase().includes(normalized)
+      product.sku.toLowerCase().includes(normalized)
     );
   };
 
@@ -171,7 +166,8 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
     try {
       await supplyService.deleteSupply(productId);
       setProducts(products.filter(p => p.id !== productId));
-      toast.success(`Insumo "${productName}" eliminado correctamente`);
+      setAlertMessage(`Insumo "${productName}" eliminado correctamente`);
+      setShowSuccessAlert(true);
     } catch (error) {
       console.error('Error deleting supply:', error);
       setErrorModalMessage('No se pudo eliminar el insumo. Por favor, intente de nuevo.');
@@ -183,17 +179,38 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
   };
 
   const mapUIToSupply = (uiData: any, id?: number): APISupply => {
-    const categoryObj = categories.find(c => c.nombre === uiData.category);
-    const brandObj = brands.find(b => b.nombre === uiData.brand);
     return {
       insumoId: id || 0,
       sku: uiData.sku,
       nombre: uiData.name,
       descripcion: uiData.description || '',
-      categoriaId: categoryObj?.categoriaId || 0,
-      marcaId: brandObj?.marcaId || 0,
+      categoriaId: Number(uiData.categoryId) || 0,
       estado: uiData.status === 'active'
     } as APISupply;
+  };
+
+  // Toggle status directly from listing
+  const handleToggleStatus = async (product: Product) => {
+    const newStatus = product.status === 'active' ? 'inactive' : 'active';
+    // Optimistic update immediately in UI
+    const optimisticProduct: Product = { ...product, status: newStatus };
+    setProducts(prev => prev.map(p => p.id === product.id ? optimisticProduct : p));
+    try {
+      const apiData = mapUIToSupply({ ...product, status: newStatus }, product.id);
+      const updatedSupply = await supplyService.updateSupply(product.id, apiData);
+      // Sync with API response, preserving category name if API doesn't return it
+      setProducts(prev => prev.map(p =>
+        p.id === product.id ? mapSupplyToUI(updatedSupply, product.category) : p
+      ));
+      setAlertMessage(`Estado de "${product.name}" cambiado a ${newStatus === 'active' ? 'Activo' : 'Inactivo'}`);
+      setShowSuccessAlert(true);
+    } catch (error) {
+      // Revert optimistic update on failure
+      setProducts(prev => prev.map(p => p.id === product.id ? product : p));
+      console.error('Error toggling status:', error);
+      setErrorModalMessage('No se pudo cambiar el estado. Por favor, intente de nuevo.');
+      setShowErrorModal(true);
+    }
   };
 
   const handleSaveProduct = async (productData: any) => {
@@ -201,22 +218,39 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
       if (selectedProduct) {
         const apiData = mapUIToSupply(productData, selectedProduct.id);
         const updatedSupply = await supplyService.updateSupply(selectedProduct.id, apiData);
-        setProducts(products.map(p =>
-          p.id === selectedProduct.id ? mapSupplyToUI(updatedSupply) : p
+        // Find the category name from the loaded categories list
+        const categoryName = categories.find(
+          (c) => c.categoriaId === Number(productData.categoryId)
+        )?.nombre || selectedProduct.category;
+        setProducts(prev => prev.map(p =>
+          p.id === selectedProduct.id ? mapSupplyToUI(updatedSupply, categoryName) : p
         ));
-        toast.success(`Insumo "${productData.name}" actualizado correctamente`);
+        setAlertMessage(`Insumo "${productData.name}" actualizado correctamente`);
+        setShowSuccessAlert(true);
       } else {
         const apiData = mapUIToSupply(productData);
         // Omit insumoId for creation if the service expects Omit<Supply, 'insumoId'>
         const { insumoId, ...createData } = apiData;
         const newSupply = await supplyService.createSupply(createData);
-        setProducts([mapSupplyToUI(newSupply), ...products]);
-        toast.success(`Insumo "${productData.name}" registrado correctamente`);
+        // Find the category name from the loaded categories list
+        const categoryName = categories.find(
+          (c) => c.categoriaId === Number(productData.categoryId)
+        )?.nombre || 'Sin categoría';
+        setProducts(prev => [mapSupplyToUI(newSupply, categoryName), ...prev]);
+        setAlertMessage(`Insumo "${productData.name}" registrado correctamente`);
+        setShowSuccessAlert(true);
       }
       setShowProductModal(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving supply:', error);
-      setErrorModalMessage('No se pudo guardar el insumo. Por favor, intente de nuevo.');
+      const isDuplicate = error.message?.toLowerCase().includes('ya existe') ||
+        error.message?.toLowerCase().includes('already') ||
+        error.message?.includes('400') ||
+        error.message?.toLowerCase().includes('duplicate');
+
+      setErrorModalMessage(isDuplicate
+        ? 'Este registro ya existe. por favor ingrese otro diferente'
+        : 'Error al guardar el insumo. Por favor, verifique que todos los campos sean válidos e intente de nuevo.');
       setShowErrorModal(true);
     }
   };
@@ -261,7 +295,7 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
                 type="text"
-                placeholder="Buscar por nombre, SKU o marca..."
+                placeholder="Buscar por nombre o SKU..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
@@ -277,7 +311,6 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
                   <tr>
                     <th className="px-6 py-4 text-left font-semibold text-gray-800">Nombre</th>
                     <th className="px-6 py-4 text-left font-semibold text-gray-800">SKU</th>
-                    <th className="px-6 py-4 text-left font-semibold text-gray-800">Marca</th>
                     <th className="px-6 py-4 text-left font-semibold text-gray-800">Categoría</th>
                     <th className="px-6 py-4 text-left font-semibold text-gray-800">Estado</th>
                     <th className="px-6 py-4 text-left font-semibold text-gray-800">Acciones</th>
@@ -290,12 +323,24 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
                       <tr key={product.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4 font-semibold text-gray-800">{product.name}</td>
                         <td className="px-6 py-4 text-gray-700">{product.sku}</td>
-                        <td className="px-6 py-4 text-gray-700">{product.brand}</td>
                         <td className="px-6 py-4 text-gray-700">{product.category}</td>
                         <td className="px-6 py-4">
-                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(product.status)}`}>
-                            {getStatusLabel(product.status)}
-                          </span>
+                          <div className="flex items-center space-x-3">
+                            <label className="relative inline-flex items-center cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={product.status === 'active'}
+                                onChange={() => handleToggleStatus(product)}
+                                className="sr-only peer"
+                                disabled={!hasPermission('manage_products')}
+                              />
+                              <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-pink-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-pink-400 peer-checked:to-purple-500"></div>
+                              <span className={`ml-3 text-sm font-medium ${product.status === 'active' ? 'text-green-600' : 'text-red-600'
+                                }`}>
+                                {product.status === 'active' ? 'Activo' : 'Inactivo'}
+                              </span>
+                            </label>
+                          </div>
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex space-x-2">
@@ -358,7 +403,6 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
           onClose={() => setShowProductModal(false)}
           onSave={handleSaveProduct}
           categories={categories}
-          brands={brands}
         />
       )}
 
@@ -387,6 +431,28 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
         />
       )}
 
+      {/* Success Alert - rendered at root level for highest z-index */}
+      {showSuccessAlert && (
+        <div className="fixed top-24 right-4 z-[2147483647] animate-in slide-in-from-top-5 duration-300">
+          <div className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center space-x-4 min-w-[320px]">
+            <div className="flex-shrink-0">
+              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                <CheckCircle className="w-6 h-6 text-white" />
+              </div>
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold">{alertMessage}</p>
+            </div>
+            <button
+              onClick={() => setShowSuccessAlert(false)}
+              className="flex-shrink-0 w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -394,7 +460,7 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
 // Error Modal Component
 function ErrorModal({ message, onClose }: { message: string, onClose: () => void }) {
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[3000] flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" style={{ zIndex: 99999 }}>
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md animate-in zoom-in-95 duration-200">
         <div className="p-8 text-center">
           <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -420,15 +486,13 @@ interface ProductModalProps {
   onClose: () => void;
   onSave: (data: any) => void;
   categories: APICategory[];
-  brands: APIBrand[];
 }
 
-function ProductModal({ product, onClose, onSave, categories, brands }: ProductModalProps) {
+function ProductModal({ product, onClose, onSave, categories }: ProductModalProps) {
   const [formData, setFormData] = useState({
     name: product?.name || '',
     sku: product?.sku || '',
-    brand: product?.brand || '',
-    category: product?.category || '',
+    categoryId: product?.categoryId || '',
     status: product?.status || 'active',
     description: product?.description || ''
   });
@@ -444,7 +508,6 @@ function ProductModal({ product, onClose, onSave, categories, brands }: ProductM
     const newErrors: any = {};
     if (!formData.name.trim()) newErrors.name = 'El nombre es requerido';
     if (!formData.sku.trim()) newErrors.sku = 'El SKU es requerido';
-    if (!formData.brand.trim()) newErrors.brand = 'La marca es requerida';
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -467,7 +530,7 @@ function ProductModal({ product, onClose, onSave, categories, brands }: ProductM
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[1000] flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
         <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-6 text-white rounded-t-3xl">
           <div className="flex items-center justify-between">
@@ -497,13 +560,14 @@ function ProductModal({ product, onClose, onSave, categories, brands }: ProductM
                 name="name"
                 value={formData.name}
                 onChange={handleInputChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
+                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${errors.name ? 'border-red-300' : 'border-gray-300'}`}
                 placeholder="Ej: Shampoo Keratina"
               />
               {errors.name && (
-                <p className="text-red-500 text-sm mt-1 flex items-center gap-1">
-                  <AlertCircle className="w-4 h-4" /> {errors.name}
-                </p>
+                <div className="flex items-center space-x-1 mt-1 text-red-600">
+                  <AlertCircle className="w-4 h-4" />
+                  <span className="text-sm">{errors.name}</span>
+                </div>
               )}
             </div>
 
@@ -516,13 +580,14 @@ function ProductModal({ product, onClose, onSave, categories, brands }: ProductM
                 name="sku"
                 value={formData.sku}
                 onChange={handleInputChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
+                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${errors.sku ? 'border-red-300' : 'border-gray-300'}`}
                 placeholder="Ej: SHP-KER-001"
               />
               {errors.sku && (
-                <p className="text-red-500 text-sm mt-1 flex items-center gap-1">
-                  <AlertCircle className="w-4 h-4" /> {errors.sku}
-                </p>
+                <div className="flex items-center space-x-1 mt-1 text-red-600">
+                  <AlertCircle className="w-4 h-4" />
+                  <span className="text-sm">{errors.sku}</span>
+                </div>
               )}
             </div>
           </div>
@@ -530,62 +595,43 @@ function ProductModal({ product, onClose, onSave, categories, brands }: ProductM
           <div className="grid md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Marca *
-              </label>
-              <select
-                name="brand"
-                value={formData.brand}
-                onChange={handleInputChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
-              >
-                <option value="">Seleccionar marca</option>
-                {brands.map((brand: any) => (
-                  <option key={brand.marcaId} value={brand.nombre}>
-                    {brand.nombre}
-                  </option>
-                ))}
-              </select>
-              {errors.brand && (
-                <p className="text-red-500 text-sm mt-1 flex items-center gap-1">
-                  <AlertCircle className="w-4 h-4" /> {errors.brand}
-                </p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Categoría
               </label>
               <select
-                name="category"
-                value={formData.category}
+                name="categoryId"
+                value={formData.categoryId}
                 onChange={handleInputChange}
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
               >
                 <option value="">Seleccionar categoría</option>
                 {activeCategories.map((cat: any) => (
-                  <option key={cat.categoriaId} value={cat.nombre}>
+                  <option key={cat.categoriaId} value={cat.categoriaId}>
                     {cat.nombre}
                   </option>
                 ))}
               </select>
             </div>
-          </div>
 
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Estado
-            </label>
-            <select
-              name="status"
-              value={formData.status}
-              onChange={handleInputChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
-            >
-              <option value="active">Activo</option>
-              <option value="discontinued">Descontinuado</option>
-              <option value="out_of_stock">Agotado</option>
-            </select>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Estado
+              </label>
+              <div className="flex items-center space-x-3 h-[50px]">
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.status === 'active'}
+                    onChange={() => setFormData({ ...formData, status: formData.status === 'active' ? 'inactive' : 'active' })}
+                    className="sr-only peer"
+                  />
+                  <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-pink-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-pink-400 peer-checked:to-purple-500"></div>
+                  <span className={`ml-3 text-sm font-medium ${formData.status === 'active' ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                    {formData.status === 'active' ? 'Activo' : 'Inactivo'}
+                  </span>
+                </label>
+              </div>
+            </div>
           </div>
 
           <div>
@@ -621,6 +667,8 @@ function ProductModal({ product, onClose, onSave, categories, brands }: ProductM
           </div>
         </form>
       </div>
+
+
     </div>
   );
 }
@@ -657,15 +705,9 @@ function ProductDetailModal({ product, onClose }: any) {
             </div>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm text-gray-600">Marca</p>
-              <p className="text-lg font-semibold text-gray-800">{product.brand}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Categoría</p>
-              <p className="text-lg font-semibold text-gray-800">{product.category}</p>
-            </div>
+          <div>
+            <p className="text-sm text-gray-600">Categoría</p>
+            <p className="text-lg font-semibold text-gray-800">{product.category}</p>
           </div>
 
           <div>
