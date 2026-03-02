@@ -10,7 +10,7 @@ import {
 
 import { DashboardOverview } from './admin/DashboardOverview';
 import { UserManagement } from './admin/UserManagement';
-import { ClientManagement } from './admin/ClientManagement';
+import { PersonManagement } from './admin/PersonManagement';
 import { ScheduleManagement } from './admin/ScheduleManagement';
 import { ServiceManagement } from './admin/ServiceManagement';
 import { ProductManagement } from './admin/ProductManagement';
@@ -42,8 +42,8 @@ export function AdminPanel({ currentUser, hasPermission }: AdminPanelProps) {
         return <UserManagement hasPermission={hasPermission} />;
       case 'roles':
         return <RoleManagement hasPermission={hasPermission} />;
-      case 'clients':
-        return <ClientManagement hasPermission={hasPermission} />;
+      case 'persons':
+        return <PersonManagement hasPermission={hasPermission} />;
       case 'appointments':
         return <AppointmentManagement hasPermission={hasPermission} currentUser={currentUser} />;
       case 'schedules':
@@ -92,7 +92,7 @@ export function AdminPanel({ currentUser, hasPermission }: AdminPanelProps) {
               )}
             </button>
           </div>
-          
+
           <TooltipProvider delayDuration={0}>
             <nav className="p-4">
               <ul className="space-y-4">
@@ -112,11 +112,10 @@ export function AdminPanel({ currentUser, hasPermission }: AdminPanelProps) {
                         const button = (
                           <button
                             onClick={() => setActiveTab(item.id)}
-                            className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-3 rounded-xl text-left transition-all duration-200 ${
-                              activeTab === item.id
+                            className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-3 rounded-xl text-left transition-all duration-200 ${activeTab === item.id
                                 ? 'bg-gradient-to-r from-pink-400 to-purple-500 text-white shadow-lg'
                                 : 'text-gray-900 hover:bg-pink-50 hover:text-pink-600'
-                            }`}
+                              }`}
                           >
                             <Icon className={`w-5 h-5 flex-shrink-0 ${activeTab === item.id ? 'text-white stroke-white' : 'text-gray-900 stroke-gray-900'}`} />
                             {!isSidebarCollapsed && <span className="font-medium">{item.label}</span>}

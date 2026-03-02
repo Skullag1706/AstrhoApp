@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { clearAuthToken } from "./services/apiClient";
 import { AlertCircle, LogOut } from "lucide-react";
 import { Navigation } from "./components/Navigation";
 import { Hero } from "./components/Hero";
@@ -153,6 +154,7 @@ function App() {
   };
 
   const confirmLogout = () => {
+    clearAuthToken();
     setCurrentUser(null);
     setCurrentView("home");
     setIsClientView(false);

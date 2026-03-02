@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Mail, Lock, User, Eye, EyeOff, IdCard, Phone, ArrowLeft, CheckCircle, Loader2 } from 'lucide-react';
 import { authService } from '../services/authService';
+import { setAuthToken } from '../services/apiClient';
 
 interface AuthModalProps {
   onClose: () => void;
@@ -48,6 +49,7 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
     try {
       const data = await authService.login(formData.email, formData.password);
       const user = authService.buildUserFromLoginResponse(data);
+      setAuthToken(data.token);
       onLogin(user);
       onClose();
     } catch (err: any) {
@@ -83,16 +85,10 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
 
     try {
       // Check duplicates
-      const { usernameExists, emailExists } = await authService.checkDuplicates(
-        nombreUsuario,
+      const { emailExists } = await authService.checkDuplicates(
         formData.email
       );
 
-      if (usernameExists) {
-        setApiError('El nombre de usuario ya está en uso');
-        setLoading(false);
-        return;
-      }
       if (emailExists) {
         setApiError('El correo ya está registrado');
         setLoading(false);
@@ -101,7 +97,6 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
 
       // Register
       await authService.register({
-        nombreUsuario,
         email: formData.email,
         contrasena: formData.password,
         confirmarContrasena: formData.confirmPassword,

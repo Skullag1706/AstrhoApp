@@ -1,16 +1,36 @@
 const BASE_URL = 'http://www.astrhoapp.somee.com/api';
 
+// ── JWT Token Management ──
+let _token: string | null = null;
+
+export function setAuthToken(token: string) {
+    _token = token;
+}
+
+export function clearAuthToken() {
+    _token = null;
+}
+
+/** Build headers for every request, injecting Bearer token when available */
+function getHeaders(extra?: Record<string, string>): Record<string, string> {
+    const headers: Record<string, string> = {
+        'Accept': 'application/json',
+        ...extra,
+    };
+    if (_token) {
+        headers['Authorization'] = `Bearer ${_token}`;
+    }
+    return headers;
+}
+
 export const apiClient = {
     async get(endpoint: string) {
         try {
             const response = await fetch(`${BASE_URL}${endpoint}`, {
-                headers: {
-                    'Accept': 'application/json'
-                }
+                headers: getHeaders()
             });
             if (!response.ok) {
                 const errorText = await response.text();
-                // Extremely verbose logging for 500 debugging
                 console.error(`Status: ${response.status}, Endpoint: ${endpoint}, Body:`, errorText);
                 throw new Error(`API GET Error: ${endpoint} -> Status ${response.status}: ${errorText || response.statusText}`);
             }
@@ -24,17 +44,15 @@ export const apiClient = {
     async post(endpoint: string, data: any) {
         try {
             const isFormData = data instanceof FormData;
-            const headers: Record<string, string> = {
-                'Accept': 'application/json'
-            };
+            const extra: Record<string, string> = {};
 
             if (!isFormData) {
-                headers['Content-Type'] = 'application/json';
+                extra['Content-Type'] = 'application/json';
             }
 
             const response = await fetch(`${BASE_URL}${endpoint}`, {
                 method: 'POST',
-                headers,
+                headers: getHeaders(extra),
                 body: isFormData ? data : JSON.stringify(data),
             });
             if (!response.ok) {
@@ -52,17 +70,15 @@ export const apiClient = {
     async put(endpoint: string, data: any) {
         try {
             const isFormData = data instanceof FormData;
-            const headers: Record<string, string> = {
-                'Accept': 'application/json'
-            };
+            const extra: Record<string, string> = {};
 
             if (!isFormData) {
-                headers['Content-Type'] = 'application/json';
+                extra['Content-Type'] = 'application/json';
             }
 
             const response = await fetch(`${BASE_URL}${endpoint}`, {
                 method: 'PUT',
-                headers,
+                headers: getHeaders(extra),
                 body: isFormData ? data : JSON.stringify(data),
             });
             if (!response.ok) {
@@ -70,7 +86,15 @@ export const apiClient = {
                 console.error(`PUT Error Status: ${response.status}, Endpoint: ${endpoint}, Body:`, errorText);
                 throw new Error(`API PUT Error: ${endpoint} -> Status ${response.status}: ${errorText || response.statusText}`);
             }
-            return response.json();
+            // Handle 204 No Content
+            if (response.status === 204 || response.headers.get('content-length') === '0') {
+                return null;
+            }
+            const text = await response.text();
+            if (!text || text.trim() === '') {
+                return null;
+            }
+            return JSON.parse(text);
         } catch (error) {
             console.error(`API PUT error on ${endpoint}:`, error);
             throw error;
@@ -81,9 +105,7 @@ export const apiClient = {
         try {
             const response = await fetch(`${BASE_URL}${endpoint}`, {
                 method: 'DELETE',
-                headers: {
-                    'Accept': 'application/json'
-                }
+                headers: getHeaders()
             });
             if (!response.ok) {
                 const errorText = await response.text();

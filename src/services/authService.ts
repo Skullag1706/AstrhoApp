@@ -17,13 +17,12 @@ export interface LoginResponse {
     token: string;
     rol: string;
     usuarioId: number;
-    nombreUsuario: string;
     email: string;
     [key: string]: any; // allow extra fields from API
 }
 
 export interface RegisterData {
-    nombreUsuario: string;
+    rolId?: number;
     email: string;
     contrasena: string;
     confirmarContrasena: string;
@@ -31,7 +30,6 @@ export interface RegisterData {
 
 export interface UsuarioListItem {
     usuarioId: number;
-    nombreUsuario: string;
     email: string;
     estado: boolean;
     rolNombre: string;
@@ -53,12 +51,11 @@ export const authService = {
 
     /**
      * Register a new user: POST /api/Usuarios
-     * Registers with rolId = 2 (Cliente) by default
+     * Registers with dynamic rolId; defaults to 2 (Cliente) if not provided.
      */
     async register(data: RegisterData): Promise<any> {
         const response = await apiClient.post('/Usuarios', {
-            rolId: 2,
-            nombreUsuario: data.nombreUsuario.trim(),
+            rolId: data.rolId || 2,
             email: data.email.trim().toLowerCase(),
             contrasena: data.contrasena,
             confirmarContrasena: data.confirmarContrasena,
@@ -67,25 +64,21 @@ export const authService = {
     },
 
     /**
-     * Check if username or email already exists: GET /api/Usuarios
-     * Returns { usernameExists, emailExists }
+     * Check if email already exists: GET /api/Usuarios
+     * Returns { emailExists }
      */
     async checkDuplicates(
-        nombreUsuario: string,
         email: string
-    ): Promise<{ usernameExists: boolean; emailExists: boolean }> {
+    ): Promise<{ emailExists: boolean }> {
         try {
             const users: UsuarioListItem[] = await apiClient.get('/Usuarios');
-            const usernameExists = users.some(
-                (u) => u.nombreUsuario?.toLowerCase() === nombreUsuario.trim().toLowerCase()
-            );
             const emailExists = users.some(
                 (u) => u.email?.toLowerCase() === email.trim().toLowerCase()
             );
-            return { usernameExists, emailExists };
+            return { emailExists };
         } catch {
             // If the check fails, allow registration attempt (the API will reject duplicates)
-            return { usernameExists: false, emailExists: false };
+            return { emailExists: false };
         }
     },
 
@@ -133,10 +126,11 @@ export const authService = {
      */
     buildUserFromLoginResponse(data: LoginResponse): any {
         const role = mapRole(data.rol);
+        const derivedName = data.email ? data.email.split('@')[0] : '';
         return {
             id: data.usuarioId,
-            name: data.nombreUsuario || '',
-            firstName: data.nombreUsuario || '',
+            name: derivedName,
+            firstName: derivedName,
             lastName: '',
             documentId: '',
             email: data.email || '',

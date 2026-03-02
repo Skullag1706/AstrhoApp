@@ -1,5 +1,5 @@
-import { 
-  BarChart3, Users, Calendar, ShoppingCart, Package, 
+import {
+  BarChart3, Users, Calendar, ShoppingCart, Package,
   UserCheck, Settings, Truck, Tag, FileText, Send, Wrench, DollarSign, Scissors, CalendarPlus
 } from 'lucide-react';
 
@@ -70,8 +70,8 @@ export const ADMIN_MENU_ITEMS: MenuItem[] = [
     category: 'VENTAS'
   },
   {
-    id: 'clients',
-    label: 'Clientes',
+    id: 'persons',
+    label: 'Personas',
     icon: UserCheck,
     permission: 'manage_clients',
     category: 'VENTAS'
@@ -121,7 +121,7 @@ export const getVisibleMenuItems = (menuItems: MenuItem[], hasPermission: (permi
 export const getMenuItemsByCategory = (menuItems: MenuItem[], hasPermission: (permission: string) => boolean): MenuCategory[] => {
   const visibleItems = getVisibleMenuItems(menuItems, hasPermission);
   const categories: MenuCategory[] = [];
-  
+
   // Dashboard sin categoría
   const dashboardItem = visibleItems.find(item => item.id === 'dashboard');
   if (dashboardItem) {
@@ -130,10 +130,10 @@ export const getMenuItemsByCategory = (menuItems: MenuItem[], hasPermission: (pe
       items: [dashboardItem]
     });
   }
-  
+
   // Agrupar por categorías en el orden deseado
   const categoryOrder = ['CONFIGURACIÓN', 'AGENDA', 'VENTAS', 'COMPRAS'];
-  
+
   categoryOrder.forEach(categoryName => {
     const categoryItems = visibleItems.filter(item => item.category === categoryName);
     if (categoryItems.length > 0) {
@@ -143,6 +143,6 @@ export const getMenuItemsByCategory = (menuItems: MenuItem[], hasPermission: (pe
       });
     }
   });
-  
+
   return categories;
 };
