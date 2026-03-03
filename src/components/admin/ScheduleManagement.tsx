@@ -1,280 +1,251 @@
-import React, { useState } from 'react';
-import { 
-  Calendar, Clock, Users, ChevronLeft, ChevronRight, Plus, 
-  CheckCircle, AlertCircle, XCircle, Edit, Eye, Filter, Trash2,
-  Save, X
+import React, { useState, useEffect } from 'react';
+import {
+  Calendar, Clock, Users, Plus,
+  AlertCircle, Edit, Eye, Trash2,
+  Save, X, Loader2, RefreshCw
 } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
-import { mockAppointments, mockUsers, mockServices } from '../../data/management';
 import { SimplePagination } from '../ui/simple-pagination';
-import { Switch } from '../ui/switch';
+import {
+  horarioService, horarioEmpleadoService, empleadoService,
+  Horario, HorarioEmpleado, Empleado, CreateHorarioData, CreateHorarioEmpleadoData
+} from '../../services/scheduleService';
 
 interface ScheduleManagementProps {
   hasPermission: (permission: string) => boolean;
 }
 
-// Mock schedules data with individual day schedules
-const mockSchedules = [
-  {
-    id: 1,
-    name: 'Horario Regular Lunes-Viernes',
-    days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
-    schedule: {
-      monday: { startTime: '08:00', endTime: '18:00' },
-      tuesday: { startTime: '08:00', endTime: '18:00' },
-      wednesday: { startTime: '08:00', endTime: '18:00' },
-      thursday: { startTime: '08:00', endTime: '18:00' },
-      friday: { startTime: '08:00', endTime: '18:00' }
-    },
-    status: 'active',
-    createdAt: '2024-01-10',
-    employees: [1, 2]
-  },
-  {
-    id: 2,
-    name: 'Horario Sábados',
-    days: ['saturday'],
-    schedule: {
-      saturday: { startTime: '09:00', endTime: '16:00' }
-    },
-    status: 'active',
-    createdAt: '2024-01-10',
-    employees: [1]
-  },
-  {
-    id: 3,
-    name: 'Horario Especial Diciembre',
-    days: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'],
-    schedule: {
-      monday: { startTime: '08:00', endTime: '20:00' },
-      tuesday: { startTime: '08:00', endTime: '20:00' },
-      wednesday: { startTime: '08:00', endTime: '20:00' },
-      thursday: { startTime: '08:00', endTime: '20:00' },
-      friday: { startTime: '08:00', endTime: '20:00' },
-      saturday: { startTime: '09:00', endTime: '18:00' }
-    },
-    status: 'inactive',
-    createdAt: '2024-01-05',
-    employees: [1, 2, 3]
-  }
+// ── Helpers ──
+
+const DIAS_SEMANA_OPTIONS = [
+  'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'
 ];
 
 export function ScheduleManagement({ hasPermission }: ScheduleManagementProps) {
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [viewMode, setViewMode] = useState('schedules'); // 'day', 'week', 'schedules'
-  const [filterEmployee, setFilterEmployee] = useState('all');
-  const [schedules, setSchedules] = useState(mockSchedules);
+  // Data states
+  const [horarios, setHorarios] = useState<Horario[]>([]);
+  const [horarioEmpleados, setHorarioEmpleados] = useState<HorarioEmpleado[]>([]);
+  const [empleados, setEmpleados] = useState<Empleado[]>([]);
+
+  // UI states
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [selectedSchedule, setSelectedSchedule] = useState(null);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [selectedHorario, setSelectedHorario] = useState<Horario | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
 
-  // Generate time slots from 8:00 AM to 8:00 PM
-  const generateTimeSlots = () => {
-    const slots = [];
-    for (let hour = 8; hour < 20; hour++) {
-      slots.push(`${hour.toString().padStart(2, '0')}:00`);
-      slots.push(`${hour.toString().padStart(2, '0')}:30`);
-    }
-    return slots;
-  };
+  // Alert state
+  const [alert, setAlert] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
 
-  const timeSlots = generateTimeSlots();
+  // ── Data Loading ──
 
-  // Get appointments for selected date
-  const getAppointmentsForDate = (date) => {
-    return mockAppointments.filter(apt => apt.date === date);
-  };
-
-  // Get appointment for specific time slot
-  const getAppointmentForSlot = (date, time) => {
-    const appointments = getAppointmentsForDate(date);
-    return appointments.find(apt => {
-      const aptTime = apt.time;
-      const aptEndTime = calculateEndTime(apt.time, apt.duration);
-      return time >= aptTime && time < aptEndTime;
-    });
-  };
-
-  // Calculate end time based on start time and duration
-  const calculateEndTime = (startTime, duration) => {
-    const [hours, minutes] = startTime.split(':').map(Number);
-    const totalMinutes = hours * 60 + minutes + duration;
-    const endHours = Math.floor(totalMinutes / 60);
-    const endMins = totalMinutes % 60;
-    return `${endHours.toString().padStart(2, '0')}:${endMins.toString().padStart(2, '0')}`;
-  };
-
-  // Get user name by ID
-  const getUserName = (userId) => {
-    const user = mockUsers.find(u => u.id === userId);
-    return user ? user.name : 'Usuario desconocido';
-  };
-
-  // Get service name by ID
-  const getServiceName = (serviceId) => {
-    const service = mockServices.find(s => s.id === serviceId);
-    return service ? service.name : 'Servicio desconocido';
-  };
-
-  // Get status color
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'confirmed': return 'bg-green-100 text-green-800 border-green-200';
-      case 'pending': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'in_progress': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'completed': return 'bg-purple-100 text-purple-800 border-purple-200';
-      case 'cancelled': return 'bg-red-100 text-red-800 border-red-200';
-      case 'no_show': return 'bg-gray-100 text-gray-800 border-gray-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [horariosData, asignacionesData, empleadosData] = await Promise.all([
+        horarioService.getAll(),
+        horarioEmpleadoService.getAll(),
+        empleadoService.getAll()
+      ]);
+      setHorarios(Array.isArray(horariosData) ? horariosData : []);
+      setHorarioEmpleados(Array.isArray(asignacionesData) ? asignacionesData : []);
+      setEmpleados(Array.isArray(empleadosData) ? empleadosData : []);
+    } catch (error) {
+      console.error('Error loading schedule data:', error);
+      showAlert('error', 'Error al cargar los datos de horarios');
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Get status icon
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'confirmed': return <CheckCircle className="w-4 h-4" />;
-      case 'pending': return <AlertCircle className="w-4 h-4" />;
-      case 'cancelled': return <XCircle className="w-4 h-4" />;
-      default: return <Clock className="w-4 h-4" />;
-    }
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  // ── Alert Helper ──
+
+  const showAlert = (type: 'success' | 'error' | 'info', message: string) => {
+    setAlert({ type, message });
+    setTimeout(() => setAlert(null), 4000);
   };
 
-  // Navigation functions
-  const goToPreviousDay = () => {
-    const date = new Date(selectedDate);
-    date.setDate(date.getDate() - 1);
-    setSelectedDate(date.toISOString().split('T')[0]);
-  };
+  // ── CRUD Handlers ──
 
-  const goToNextDay = () => {
-    const date = new Date(selectedDate);
-    date.setDate(date.getDate() + 1);
-    setSelectedDate(date.toISOString().split('T')[0]);
-  };
-
-  const goToToday = () => {
-    setSelectedDate(new Date().toISOString().split('T')[0]);
-  };
-
-  // Schedule management functions
   const handleCreateSchedule = () => {
-    setSelectedSchedule(null);
+    setSelectedHorario(null);
     setShowScheduleModal(true);
   };
 
-  const handleEditSchedule = (schedule) => {
-    setSelectedSchedule(schedule);
+  const handleEditSchedule = (horario: Horario) => {
+    setSelectedHorario(horario);
     setShowScheduleModal(true);
   };
 
-  const handleViewScheduleDetail = (schedule) => {
-    setSelectedSchedule(schedule);
+  const handleViewDetail = (horario: Horario) => {
+    setSelectedHorario(horario);
     setShowDetailModal(true);
   };
 
-  const handleDeleteSchedule = (scheduleId) => {
-    const schedule = schedules.find(s => s.id === scheduleId);
-    setSelectedSchedule(schedule);
+  const handleDeleteSchedule = (horario: Horario) => {
+    setSelectedHorario(horario);
     setShowDeleteModal(true);
   };
 
-  const confirmDeleteSchedule = () => {
-    if (selectedSchedule) {
-      setSchedules(schedules.filter(s => s.id !== selectedSchedule.id));
-      toast.success(`Horario "${selectedSchedule.name}" eliminado correctamente`);
+  const handleAssignEmployee = (horario: Horario) => {
+    setSelectedHorario(horario);
+    setShowAssignModal(true);
+  };
+
+  const confirmDeleteSchedule = async () => {
+    if (!selectedHorario) return;
+    setSaving(true);
+    try {
+      await horarioService.delete(selectedHorario.horarioId);
+      showAlert('success', `Horario del ${selectedHorario.diaSemana} eliminado correctamente`);
       setShowDeleteModal(false);
-      setSelectedSchedule(null);
+      setSelectedHorario(null);
+      await loadData();
+    } catch (error) {
+      console.error('Error deleting schedule:', error);
+      showAlert('error', 'Error al eliminar el horario');
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleToggleScheduleStatus = (scheduleId) => {
-    const schedule = schedules.find(s => s.id === scheduleId);
-    const newStatus = schedule.status === 'active' ? 'inactive' : 'active';
-    setSchedules(schedules.map(s => 
-      s.id === scheduleId 
-        ? { ...s, status: newStatus }
-        : s
-    ));
-    
-    if (newStatus === 'active') {
-      toast.success(`Horario "${schedule.name}" activado correctamente`);
-    } else {
-      toast.info(`Horario "${schedule.name}" inactivado correctamente`);
-    }
-  };
-
-  const handleSaveSchedule = (scheduleData) => {
-    if (selectedSchedule) {
-      setSchedules(schedules.map(s => 
-        s.id === selectedSchedule.id 
-          ? { ...s, ...scheduleData }
-          : s
-      ));
-      toast.success(`Horario "${scheduleData.name}" actualizado correctamente`);
-    } else {
-      const newSchedule = {
-        id: Math.max(...schedules.map(s => s.id), 0) + 1,
-        ...scheduleData,
-        createdAt: new Date().toISOString().split('T')[0]
+  const handleToggleStatus = async (horario: Horario) => {
+    try {
+      const updatedData: CreateHorarioData = {
+        diaSemana: horario.diaSemana,
+        horaInicio: horario.horaInicio,
+        horaFin: horario.horaFin,
+        estado: !horario.estado
       };
-      setSchedules([...schedules, newSchedule]);
-      toast.success(`Horario "${scheduleData.name}" registrado correctamente`);
+      await horarioService.update(horario.horarioId, updatedData);
+      showAlert(
+        horario.estado ? 'info' : 'success',
+        `Horario del ${horario.diaSemana} ${!horario.estado ? 'activado' : 'inactivado'} correctamente`
+      );
+      await loadData();
+    } catch (error) {
+      console.error('Error toggling schedule status:', error);
+      showAlert('error', 'Error al cambiar el estado del horario');
     }
-    setShowScheduleModal(false);
   };
 
-  const appointmentsForDate = getAppointmentsForDate(selectedDate);
-  const employees = mockUsers.filter(user => user.role === 'asistente' || user.role === 'admin');
-
-  // Filter appointments by employee if selected
-  const filteredAppointments = filterEmployee === 'all' 
-    ? appointmentsForDate 
-    : appointmentsForDate.filter(apt => apt.employeeId === parseInt(filterEmployee));
-
-  const getDayName = (day) => {
-    const days = {
-      monday: 'Lunes',
-      tuesday: 'Martes',
-      wednesday: 'Miércoles',
-      thursday: 'Jueves',
-      friday: 'Viernes',
-      saturday: 'Sábado',
-      sunday: 'Domingo'
-    };
-    return days[day] || day;
-  };
-
-  const getScheduleTimeRange = (schedule) => {
-    const times = [];
-    schedule.days.forEach(day => {
-      if (schedule.schedule[day]) {
-        times.push(`${schedule.schedule[day].startTime} - ${schedule.schedule[day].endTime}`);
+  const handleSaveSchedule = async (data: CreateHorarioData) => {
+    setSaving(true);
+    try {
+      if (selectedHorario) {
+        await horarioService.update(selectedHorario.horarioId, data);
+        showAlert('success', `Horario del ${data.diaSemana} actualizado correctamente`);
+      } else {
+        await horarioService.create(data);
+        showAlert('success', `Horario del ${data.diaSemana} registrado correctamente`);
       }
-    });
-    // Remove duplicates and return the most common range
-    const uniqueTimes = [...new Set(times)];
-    return uniqueTimes.length === 1 ? uniqueTimes[0] : 'Horarios variables';
+      setShowScheduleModal(false);
+      setSelectedHorario(null);
+      await loadData();
+    } catch (error) {
+      console.error('Error saving schedule:', error);
+      showAlert('error', 'Error al guardar el horario');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  // Pagination for schedules
-  const totalPages = Math.ceil(schedules.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedSchedules = schedules.slice(startIndex, startIndex + itemsPerPage);
+  const handleSaveAssignment = async (data: CreateHorarioEmpleadoData) => {
+    setSaving(true);
+    try {
+      await horarioEmpleadoService.create(data);
+      showAlert('success', 'Empleado asignado correctamente');
+      setShowAssignModal(false);
+      await loadData();
+    } catch (error) {
+      console.error('Error assigning employee:', error);
+      showAlert('error', 'Error al asignar el empleado');
+    } finally {
+      setSaving(false);
+    }
+  };
 
-  if (viewMode === 'schedules') {
+  const handleRemoveAssignment = async (assignmentId: number) => {
+    try {
+      await horarioEmpleadoService.delete(assignmentId);
+      showAlert('info', 'Asignación eliminada correctamente');
+      await loadData();
+    } catch (error) {
+      console.error('Error removing assignment:', error);
+      showAlert('error', 'Error al eliminar la asignación');
+    }
+  };
+
+  // ── Helpers ──
+
+  const getAssignmentsForHorario = (horarioId: number) => {
+    return horarioEmpleados.filter(he => he.horarioId === horarioId);
+  };
+
+  // Pagination
+  const totalPages = Math.ceil(horarios.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedHorarios = horarios.slice(startIndex, startIndex + itemsPerPage);
+
+  // ── Loading State ──
+
+  if (loading) {
     return (
-      <div className="p-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h2 className="text-3xl font-bold text-gray-800">Gestión de Horarios</h2>
-            <p className="text-gray-600">
-              Administra los horarios de trabajo semanales del salón
-            </p>
-          </div>
+      <div className="p-8 flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-purple-500 animate-spin mx-auto mb-4" />
+          <p className="text-gray-600 text-lg">Cargando horarios...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-8">
+      {/* ── Alert Banner ── */}
+      {alert && (
+        <div
+          className={`fixed top-6 left-1/2 -translate-x-1/2 z-[9999] px-6 py-4 rounded-2xl shadow-2xl flex items-center space-x-3 text-white font-semibold min-w-[340px] max-w-[600px] animate-fade-in ${alert.type === 'success'
+              ? 'bg-gradient-to-r from-green-500 to-emerald-600'
+              : alert.type === 'error'
+                ? 'bg-gradient-to-r from-red-500 to-pink-600'
+                : 'bg-gradient-to-r from-blue-500 to-cyan-600'
+            }`}
+        >
+          {alert.type === 'success' && <Save className="w-5 h-5 flex-shrink-0" />}
+          {alert.type === 'error' && <AlertCircle className="w-5 h-5 flex-shrink-0" />}
+          {alert.type === 'info' && <AlertCircle className="w-5 h-5 flex-shrink-0" />}
+          <span className="flex-1">{alert.message}</span>
+          <button onClick={() => setAlert(null)} className="ml-2 hover:opacity-80">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h2 className="text-3xl font-bold text-gray-800">Gestión de Horarios</h2>
+          <p className="text-gray-600">
+            Administra los horarios de trabajo semanales del salón
+          </p>
+        </div>
+
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={loadData}
+            className="p-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors"
+            title="Recargar datos"
+          >
+            <RefreshCw className="w-5 h-5" />
+          </button>
 
           {hasPermission('manage_schedules') && (
             <button
@@ -286,102 +257,133 @@ export function ScheduleManagement({ hasPermission }: ScheduleManagementProps) {
             </button>
           )}
         </div>
+      </div>
 
-        {/* Schedules List */}
-        <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-          <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-6 border-b border-gray-100">
-            <h3 className="text-xl font-bold text-gray-800">Horarios Configurados</h3>
-            <p className="text-gray-600">
-              {schedules.length} horario{schedules.length !== 1 ? 's' : ''} configurado{schedules.length !== 1 ? 's' : ''}
-            </p>
-          </div>
+      {/* ── Schedules List ── */}
+      <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+        <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-6 border-b border-gray-100">
+          <h3 className="text-xl font-bold text-gray-800">Horarios Configurados</h3>
+          <p className="text-gray-600">
+            {horarios.length} horario{horarios.length !== 1 ? 's' : ''} configurado{horarios.length !== 1 ? 's' : ''}
+          </p>
+        </div>
 
-          <div className="p-6">
-            <div className="space-y-4">
-              {paginatedSchedules.map((schedule) => (
-                <div key={schedule.id} className="border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-all">
+        <div className="p-6">
+          <div className="space-y-4">
+            {paginatedHorarios.map((horario) => {
+              const assignments = getAssignmentsForHorario(horario.horarioId);
+
+              return (
+                <div key={horario.horarioId} className="border border-gray-200 rounded-2xl p-6 hover:shadow-lg transition-all">
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
                       <div className="flex items-center space-x-3 mb-3">
-                        <h4 className="text-xl font-bold text-gray-800">{schedule.name}</h4>
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          schedule.status === 'active' 
-                            ? 'bg-green-100 text-green-800' 
+                        <h4 className="text-xl font-bold text-gray-800">{horario.diaSemana}</h4>
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${horario.estado
+                            ? 'bg-green-100 text-green-800'
                             : 'bg-gray-100 text-gray-800'
-                        }`}>
-                          {schedule.status === 'active' ? 'Activo' : 'Inactivo'}
+                          }`}>
+                          {horario.estado ? 'Activo' : 'Inactivo'}
                         </span>
                       </div>
 
                       <div className="grid md:grid-cols-3 gap-4 text-sm">
                         <div>
-                          <div className="text-gray-600 mb-1">Días:</div>
-                          <div className="font-semibold text-gray-800">
-                            {schedule.days.map(day => getDayName(day)).join(', ')}
+                          <div className="text-gray-600 mb-1">Hora Inicio:</div>
+                          <div className="font-semibold text-gray-800 flex items-center space-x-1">
+                            <Clock className="w-4 h-4 text-purple-500" />
+                            <span>{horario.horaInicio}</span>
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-gray-600 mb-1">Hora Fin:</div>
+                          <div className="font-semibold text-gray-800 flex items-center space-x-1">
+                            <Clock className="w-4 h-4 text-pink-500" />
+                            <span>{horario.horaFin}</span>
                           </div>
                         </div>
                         <div>
                           <div className="text-gray-600 mb-1">Horario:</div>
                           <div className="font-semibold text-gray-800">
-                            {getScheduleTimeRange(schedule)}
+                            {horario.horaInicio} - {horario.horaFin}
                           </div>
                         </div>
                       </div>
 
+                      {/* Assigned employees */}
                       <div className="mt-3">
                         <div className="text-gray-600 text-sm mb-1">Empleados asignados:</div>
                         <div className="flex flex-wrap gap-2">
-                          {schedule.employees.map(empId => {
-                            const employee = employees.find(e => e.id === empId);
-                            return employee ? (
-                              <span key={empId} className="px-2 py-1 bg-blue-100 text-blue-800 rounded-lg text-xs">
-                                {employee.name}
+                          {assignments.length > 0 ? (
+                            assignments.map(a => (
+                              <span key={a.horarioEmpleadoId} className="px-2 py-1 bg-blue-100 text-blue-800 rounded-lg text-xs flex items-center space-x-1">
+                                <span>{a.empleadoNombre || a.documentoEmpleado}</span>
+                                {hasPermission('manage_schedules') && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleRemoveAssignment(a.horarioEmpleadoId); }}
+                                    className="ml-1 text-blue-600 hover:text-red-600 transition-colors"
+                                    title="Quitar asignación"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                )}
                               </span>
-                            ) : null;
-                          })}
+                            ))
+                          ) : (
+                            <span className="text-gray-400 text-xs">Sin empleados asignados</span>
+                          )}
+                          {hasPermission('manage_schedules') && (
+                            <button
+                              onClick={() => handleAssignEmployee(horario)}
+                              className="px-2 py-1 bg-purple-100 text-purple-700 rounded-lg text-xs hover:bg-purple-200 transition-colors flex items-center space-x-1"
+                              title="Asignar empleado"
+                            >
+                              <Plus className="w-3 h-3" />
+                              <span>Asignar</span>
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
 
                     {hasPermission('manage_schedules') && (
                       <div className="flex items-center space-x-2 ml-6">
-                        {/* Estado - Toggle Switch como en categorías */}
+                        {/* Estado Toggle */}
                         <label className="relative inline-flex items-center cursor-pointer">
                           <input
                             type="checkbox"
-                            checked={schedule.status === 'active'}
-                            onChange={() => handleToggleScheduleStatus(schedule.id)}
+                            checked={horario.estado}
+                            onChange={() => handleToggleStatus(horario)}
                             className="sr-only peer"
                           />
                           <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-pink-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-pink-400 peer-checked:to-purple-500"></div>
-                          <span className={`ml-3 text-sm font-medium ${
-                            schedule.status === 'active' ? 'text-green-600' : 'text-red-600'
-                          }`}>
-                            {schedule.status === 'active' ? 'Activo' : 'Inactivo'}
+                          <span className={`ml-3 text-sm font-medium ${horario.estado ? 'text-green-600' : 'text-red-600'
+                            }`}>
+                            {horario.estado ? 'Activo' : 'Inactivo'}
                           </span>
                         </label>
-                        
+
                         {/* Ver detalle */}
                         <button
-                          onClick={() => handleViewScheduleDetail(schedule)}
+                          onClick={() => handleViewDetail(horario)}
                           className="p-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
                           title="Ver detalle"
                         >
                           <Eye className="w-5 h-5" />
                         </button>
-                        
+
                         {/* Editar */}
                         <button
-                          onClick={() => handleEditSchedule(schedule)}
+                          onClick={() => handleEditSchedule(horario)}
                           className="p-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
                           title="Editar horario"
                         >
                           <Edit className="w-5 h-5" />
                         </button>
-                        
+
                         {/* Eliminar */}
                         <button
-                          onClick={() => handleDeleteSchedule(schedule.id)}
+                          onClick={() => handleDeleteSchedule(horario)}
                           className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
                           title="Eliminar horario"
                         >
@@ -391,430 +393,133 @@ export function ScheduleManagement({ hasPermission }: ScheduleManagementProps) {
                     )}
                   </div>
                 </div>
-              ))}
+              );
+            })}
 
-              {schedules.length === 0 && (
-                <div className="text-center py-12">
-                  <Calendar className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-gray-600 mb-2">No hay horarios configurados</h3>
-                  <p className="text-gray-500 mb-6">Crea el primer horario para organizar el trabajo del salón</p>
-                  {hasPermission('manage_schedules') && (
-                    <button
-                      onClick={handleCreateSchedule}
-                      className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all"
-                    >
-                      Crear Primer Horario
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Pagination */}
-            {schedules.length > 0 && (
-              <div className="mt-8 pt-6 border-t border-gray-200">
-                <SimplePagination 
-                  currentPage={currentPage}
-                  totalPages={Math.max(1, totalPages)}
-                  onPageChange={setCurrentPage}
-                />
+            {horarios.length === 0 && (
+              <div className="text-center py-12">
+                <Calendar className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-gray-600 mb-2">No hay horarios configurados</h3>
+                <p className="text-gray-500 mb-6">Crea el primer horario para organizar el trabajo del salón</p>
+                {hasPermission('manage_schedules') && (
+                  <button
+                    onClick={handleCreateSchedule}
+                    className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all"
+                  >
+                    Crear Primer Horario
+                  </button>
+                )}
               </div>
             )}
           </div>
-        </div>
 
-        {/* Schedule Modal */}
-        {showScheduleModal && (
-          <ScheduleModal
-            schedule={selectedSchedule}
-            employees={employees}
-            onClose={() => setShowScheduleModal(false)}
-            onSave={handleSaveSchedule}
-          />
-        )}
-
-        {/* Detail Modal */}
-        {showDetailModal && selectedSchedule && (
-          <ScheduleDetailModal
-            schedule={selectedSchedule}
-            employees={employees}
-            onClose={() => setShowDetailModal(false)}
-          />
-        )}
-
-        {/* Delete Modal */}
-        {showDeleteModal && selectedSchedule && (
-          <DeleteScheduleModal
-            schedule={selectedSchedule}
-            onClose={() => setShowDeleteModal(false)}
-            onConfirm={confirmDeleteSchedule}
-          />
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div className="p-8">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h2 className="text-3xl font-bold text-gray-800">Gestión de Horarios y Citas</h2>
-          <p className="text-gray-600">
-            Visualiza y gestiona los horarios ocupados y la disponibilidad del salón
-          </p>
-        </div>
-
-        <div className="flex items-center space-x-4">
-          <button
-            onClick={() => setViewMode('schedules')}
-            className="px-4 py-2 bg-purple-100 text-purple-700 rounded-lg font-semibold hover:bg-purple-200 transition-colors"
-          >
-            Gestionar Horarios
-          </button>
-          {hasPermission('manage_appointments') && (
-            <button className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all flex items-center space-x-2">
-              <Plus className="w-5 h-5" />
-              <span>Nueva Cita</span>
-            </button>
+          {/* Pagination */}
+          {horarios.length > 0 && (
+            <div className="mt-8 pt-6 border-t border-gray-200">
+              <SimplePagination
+                currentPage={currentPage}
+                totalPages={Math.max(1, totalPages)}
+                onPageChange={setCurrentPage}
+              />
+            </div>
           )}
         </div>
       </div>
 
-      {/* Date Navigation and Filters */}
-      <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          {/* Date Navigation */}
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={goToPreviousDay}
-              className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            
-            <div className="text-center">
-              <h3 className="text-xl font-bold text-gray-800">
-                {new Date(selectedDate).toLocaleDateString('es-ES', {
-                  weekday: 'long',
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric'
-                })}
-              </h3>
-              <p className="text-sm text-gray-600">
-                {filteredAppointments.length} citas programadas
-              </p>
-            </div>
-            
-            <button
-              onClick={goToNextDay}
-              className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          </div>
+      {/* ── Modals ── */}
 
-          {/* Quick Actions */}
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={goToToday}
-              className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg font-semibold hover:bg-blue-200 transition-colors"
-            >
-              Hoy
-            </button>
-            
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-300 focus:border-transparent"
-            />
+      {showScheduleModal && (
+        <ScheduleModal
+          horario={selectedHorario}
+          onClose={() => setShowScheduleModal(false)}
+          onSave={handleSaveSchedule}
+          saving={saving}
+        />
+      )}
 
-            {/* Employee Filter */}
-            <div className="flex items-center space-x-2">
-              <Filter className="w-5 h-5 text-gray-400" />
-              <select
-                value={filterEmployee}
-                onChange={(e) => setFilterEmployee(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-300 focus:border-transparent"
-              >
-                <option value="all">Todos los profesionales</option>
-                {employees.map(employee => (
-                  <option key={employee.id} value={employee.id}>
-                    {employee.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
-      </div>
+      {showDetailModal && selectedHorario && (
+        <ScheduleDetailModal
+          horario={selectedHorario}
+          assignments={getAssignmentsForHorario(selectedHorario.horarioId)}
+          onClose={() => setShowDetailModal(false)}
+        />
+      )}
 
-      {/* Schedule Grid */}
-      <div className="grid lg:grid-cols-4 gap-8">
-        {/* Time Slots Column */}
-        <div className="lg:col-span-3">
-          <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-            <div className="bg-gradient-to-r from-pink-50 to-purple-50 p-4 border-b border-gray-100">
-              <h3 className="text-lg font-bold text-gray-800">Horarios del Día</h3>
-              <p className="text-sm text-gray-600">
-                Horario de atención: 8:00 AM - 8:00 PM
-              </p>
-            </div>
-            
-            <div className="p-6">
-              <div className="space-y-1">
-                {timeSlots.map((time) => {
-                  const appointment = getAppointmentForSlot(selectedDate, time);
-                  const isOccupied = !!appointment;
-                  
-                  return (
-                    <div key={time} className="flex items-center">
-                      {/* Time Label */}
-                      <div className="w-20 text-sm font-medium text-gray-600 pr-4">
-                        {time}
-                      </div>
-                      
-                      {/* Time Slot */}
-                      <div className={`flex-1 h-12 border border-gray-200 rounded-lg transition-all ${
-                        isOccupied 
-                          ? 'bg-gradient-to-r from-pink-100 to-purple-100 border-pink-300' 
-                          : 'bg-gray-50 hover:bg-green-50 hover:border-green-300'
-                      }`}>
-                        {isOccupied ? (
-                          <div className="h-full flex items-center justify-between px-4">
-                            <div className="flex items-center space-x-3">
-                              <div className="w-8 h-8 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full flex items-center justify-center">
-                                <Users className="w-4 h-4 text-white" />
-                              </div>
-                              <div>
-                                <div className="font-semibold text-gray-800">
-                                  {getUserName(appointment.customerId)}
-                                </div>
-                                <div className="text-xs text-gray-600">
-                                  {getServiceName(appointment.serviceId)} • {appointment.duration} min
-                                </div>
-                              </div>
-                            </div>
-                            
-                            <div className="flex items-center space-x-2">
-                              <span className={`px-2 py-1 rounded-full text-xs font-semibold border ${getStatusColor(appointment.status)}`}>
-                                {appointment.status === 'confirmed' ? 'Confirmada' :
-                                 appointment.status === 'pending' ? 'Pendiente' :
-                                 appointment.status === 'in_progress' ? 'En Progreso' :
-                                 appointment.status === 'completed' ? 'Completada' :
-                                 appointment.status === 'cancelled' ? 'Cancelada' : 'No Show'}
-                              </span>
-                              
-                              {hasPermission('update_appointments') && (
-                                <button className="p-1 text-blue-600 hover:bg-blue-100 rounded">
-                                  <Edit className="w-3 h-3" />
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="h-full flex items-center justify-center text-gray-400">
-                            <span className="text-sm">Disponible</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
+      {showDeleteModal && selectedHorario && (
+        <DeleteScheduleModal
+          horario={selectedHorario}
+          onClose={() => setShowDeleteModal(false)}
+          onConfirm={confirmDeleteSchedule}
+          saving={saving}
+        />
+      )}
 
-        {/* Daily Summary Sidebar */}
-        <div className="space-y-6">
-          {/* Daily Stats */}
-          <div className="bg-white rounded-2xl shadow-lg p-6">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">Resumen del Día</h3>
-            
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
-                <div>
-                  <div className="text-sm text-green-600">Total Citas</div>
-                  <div className="text-xl font-bold text-green-700">{appointmentsForDate.length}</div>
-                </div>
-                <Calendar className="w-8 h-8 text-green-600" />
-              </div>
-              
-              <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-                <div>
-                  <div className="text-sm text-blue-600">Confirmadas</div>
-                  <div className="text-xl font-bold text-blue-700">
-                    {appointmentsForDate.filter(apt => apt.status === 'confirmed').length}
-                  </div>
-                </div>
-                <CheckCircle className="w-8 h-8 text-blue-600" />
-              </div>
-              
-              <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg">
-                <div>
-                  <div className="text-sm text-yellow-600">Pendientes</div>
-                  <div className="text-xl font-bold text-yellow-700">
-                    {appointmentsForDate.filter(apt => apt.status === 'pending').length}
-                  </div>
-                </div>
-                <AlertCircle className="w-8 h-8 text-yellow-600" />
-              </div>
-              
-              <div className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
-                <div>
-                  <div className="text-sm text-purple-600">Ingresos Est.</div>
-                  <div className="text-xl font-bold text-purple-700">
-                    ${appointmentsForDate.reduce((sum, apt) => sum + apt.totalCost, 0).toLocaleString()}
-                  </div>
-                </div>
-                <div className="text-purple-600">$</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Upcoming Appointments */}
-          <div className="bg-white rounded-2xl shadow-lg p-6">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">Próximas Citas</h3>
-            
-            <div className="space-y-3 max-h-64 overflow-y-auto">
-              {filteredAppointments
-                .filter(apt => apt.time >= new Date().toTimeString().slice(0, 5))
-                .sort((a, b) => a.time.localeCompare(b.time))
-                .map((appointment) => (
-                  <div key={appointment.id} className="p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center space-x-1">
-                        {getStatusIcon(appointment.status)}
-                        <span className="font-semibold text-gray-800">{appointment.time}</span>
-                      </div>
-                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(appointment.status)}`}>
-                        {appointment.status === 'confirmed' ? 'Confirmada' : 'Pendiente'}
-                      </span>
-                    </div>
-                    
-                    <div className="text-sm">
-                      <div className="font-medium text-gray-800">
-                        {getUserName(appointment.customerId)}
-                      </div>
-                      <div className="text-gray-600">
-                        {getServiceName(appointment.serviceId)}
-                      </div>
-                      <div className="text-gray-500">
-                        con {getUserName(appointment.employeeId)}
-                      </div>
-                    </div>
-                    
-                    {hasPermission('update_appointments') && (
-                      <div className="flex items-center space-x-2 mt-3">
-                        <button className="flex-1 bg-blue-100 text-blue-700 px-3 py-1 rounded-lg text-xs font-semibold hover:bg-blue-200 transition-colors">
-                          Ver Detalles
-                        </button>
-                        <button className="flex-1 bg-purple-100 text-purple-700 px-3 py-1 rounded-lg text-xs font-semibold hover:bg-purple-200 transition-colors">
-                          Editar
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-                
-              {filteredAppointments.filter(apt => apt.time >= new Date().toTimeString().slice(0, 5)).length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  <Clock className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                  <p>No hay más citas hoy</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+      {showAssignModal && selectedHorario && (
+        <AssignEmployeeModal
+          horario={selectedHorario}
+          empleados={empleados}
+          existingAssignments={getAssignmentsForHorario(selectedHorario.horarioId)}
+          onClose={() => setShowAssignModal(false)}
+          onSave={handleSaveAssignment}
+          saving={saving}
+        />
+      )}
     </div>
   );
 }
 
-// Schedule Modal Component
-function ScheduleModal({ schedule, employees, onClose, onSave }) {
-  const [formData, setFormData] = useState({
-    name: schedule?.name || '',
-    days: schedule?.days || [],
-    schedule: schedule?.schedule || {},
-    status: schedule?.status || 'active',
-    employees: schedule?.employees || []
+// ══════════════════════════════════════════
+// ScheduleModal — Create / Edit a Horario
+// ══════════════════════════════════════════
+
+interface ScheduleModalProps {
+  horario: Horario | null;
+  onClose: () => void;
+  onSave: (data: CreateHorarioData) => void;
+  saving: boolean;
+}
+
+function ScheduleModal({ horario, onClose, onSave, saving }: ScheduleModalProps) {
+  const [formData, setFormData] = useState<CreateHorarioData>({
+    diaSemana: horario?.diaSemana || 'Lunes',
+    horaInicio: horario?.horaInicio || '08:00',
+    horaFin: horario?.horaFin || '18:00',
+    estado: horario?.estado ?? true
   });
 
-  const daysOfWeek = [
-    { key: 'monday', label: 'Lunes' },
-    { key: 'tuesday', label: 'Martes' },
-    { key: 'wednesday', label: 'Miércoles' },
-    { key: 'thursday', label: 'Jueves' },
-    { key: 'friday', label: 'Viernes' },
-    { key: 'saturday', label: 'Sábado' },
-    { key: 'sunday', label: 'Domingo' }
-  ];
+  const [validationError, setValidationError] = useState<string | null>(null);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setValidationError(null);
+
+    if (!formData.diaSemana) {
+      setValidationError('Selecciona un día de la semana');
+      return;
+    }
+    if (!formData.horaInicio || !formData.horaFin) {
+      setValidationError('Las horas de inicio y fin son obligatorias');
+      return;
+    }
+    if (formData.horaInicio >= formData.horaFin) {
+      setValidationError('La hora de inicio debe ser menor que la hora de fin');
+      return;
+    }
+
     onSave(formData);
-  };
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value
-    });
-  };
-
-  const handleDayToggle = (dayKey) => {
-    const newDays = formData.days.includes(dayKey)
-      ? formData.days.filter(d => d !== dayKey)
-      : [...formData.days, dayKey];
-    
-    setFormData({
-      ...formData,
-      days: newDays,
-      schedule: newDays.reduce((acc, day) => {
-        acc[day] = formData.schedule[day] || { startTime: '08:00', endTime: '18:00' };
-        return acc;
-      }, {})
-    });
-  };
-
-  const handleScheduleChange = (dayKey, field, value) => {
-    setFormData({
-      ...formData,
-      schedule: {
-        ...formData.schedule,
-        [dayKey]: {
-          ...formData.schedule[dayKey],
-          [field]: value
-        }
-      }
-    });
-  };
-
-  const handleEmployeeToggle = (employeeId) => {
-    setFormData({
-      ...formData,
-      employees: formData.employees.includes(employeeId)
-        ? formData.employees.filter(id => id !== employeeId)
-        : [...formData.employees, employeeId]
-    });
   };
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-6 text-white rounded-t-3xl">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-2xl font-bold">
-                {schedule ? 'Editar Horario' : 'Nuevo Horario'}
+                {horario ? 'Editar Horario' : 'Nuevo Horario'}
               </h3>
               <p className="text-pink-100">
-                {schedule ? 'Actualiza el horario semanal' : 'Crea un nuevo horario semanal'}
+                {horario ? 'Actualiza el horario' : 'Crea un nuevo horario'}
               </p>
             </div>
             <button
@@ -827,129 +532,91 @@ function ScheduleModal({ schedule, employees, onClose, onSave }) {
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {/* Validation error */}
+          {validationError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center space-x-2">
+              <AlertCircle className="w-5 h-5 flex-shrink-0" />
+              <span className="text-sm font-medium">{validationError}</span>
+            </div>
+          )}
+
+          {/* Día de la Semana */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Nombre del Horario *
+              Día de la Semana *
+            </label>
+            <select
+              value={formData.diaSemana}
+              onChange={(e) => setFormData({ ...formData, diaSemana: e.target.value })}
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
+              required
+            >
+              {DIAS_SEMANA_OPTIONS.map(dia => (
+                <option key={dia} value={dia}>{dia}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Hora Inicio */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Hora de Inicio *
             </label>
             <input
-              type="text"
-              name="name"
-              value={formData.name}
-              onChange={handleInputChange}
+              type="time"
+              value={formData.horaInicio}
+              onChange={(e) => setFormData({ ...formData, horaInicio: e.target.value })}
               className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
-              placeholder="Ej: Horario Regular Lunes-Viernes"
               required
             />
           </div>
 
+          {/* Hora Fin */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-3">
-              Días de la Semana *
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Hora de Fin *
             </label>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {daysOfWeek.map((day) => (
-                <label key={day.key} className="flex items-center space-x-2 cursor-pointer p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
-                  <input
-                    type="checkbox"
-                    checked={formData.days.includes(day.key)}
-                    onChange={() => handleDayToggle(day.key)}
-                    className="w-4 h-4 text-pink-600 bg-gray-100 border-gray-300 rounded focus:ring-pink-500"
-                  />
-                  <span className="text-sm text-gray-700 font-medium">{day.label}</span>
-                </label>
-              ))}
-            </div>
+            <input
+              type="time"
+              value={formData.horaFin}
+              onChange={(e) => setFormData({ ...formData, horaFin: e.target.value })}
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
+              required
+            />
           </div>
 
-          {/* Individual Day Schedules */}
-          {formData.days.length > 0 && (
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-3">
-                Horarios por Día
-              </label>
-              <div className="space-y-4">
-                {formData.days.map((dayKey) => {
-                  const dayLabel = daysOfWeek.find(d => d.key === dayKey)?.label;
-                  return (
-                    <div key={dayKey} className="border border-gray-200 rounded-lg p-4">
-                      <h4 className="font-semibold text-gray-800 mb-3">{dayLabel}</h4>
-                      <div className="grid md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm text-gray-600 mb-1">Hora de Inicio</label>
-                          <input
-                            type="time"
-                            value={formData.schedule[dayKey]?.startTime || '08:00'}
-                            onChange={(e) => handleScheduleChange(dayKey, 'startTime', e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-300 focus:border-transparent"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm text-gray-600 mb-1">Hora de Fin</label>
-                          <input
-                            type="time"
-                            value={formData.schedule[dayKey]?.endTime || '18:00'}
-                            onChange={(e) => handleScheduleChange(dayKey, 'endTime', e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-300 focus:border-transparent"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-3">
-              Empleados Asignados
-            </label>
-            <div className="space-y-2">
-              {employees.map((employee) => (
-                <label key={employee.id} className="flex items-center space-x-3 p-3 border border-gray-200 rounded-xl hover:bg-gray-50 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.employees.includes(employee.id)}
-                    onChange={() => handleEmployeeToggle(employee.id)}
-                    className="w-4 h-4 text-pink-600 bg-gray-100 border-gray-300 rounded focus:ring-pink-500"
-                  />
-                  <div className="flex-1">
-                    <div className="font-semibold text-gray-800">{employee.name}</div>
-                    <div className="text-sm text-gray-600">{employee.role === 'admin' ? 'Administrador' : 'Asistente'}</div>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-
+          {/* Estado */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
               Estado
             </label>
             <select
-              name="status"
-              value={formData.status}
-              onChange={handleInputChange}
+              value={formData.estado ? 'true' : 'false'}
+              onChange={(e) => setFormData({ ...formData, estado: e.target.value === 'true' })}
               className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
             >
-              <option value="active">Activo</option>
-              <option value="inactive">Inactivo</option>
+              <option value="true">Activo</option>
+              <option value="false">Inactivo</option>
             </select>
           </div>
 
+          {/* Buttons */}
           <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
             <button
               type="button"
               onClick={onClose}
               className="px-6 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-semibold"
+              disabled={saving}
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all font-semibold"
+              disabled={saving}
+              className="px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all font-semibold flex items-center space-x-2 disabled:opacity-60"
             >
-              {schedule ? 'Actualizar Horario' : 'Crear Horario'}
+              {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+              <span>{horario ? 'Actualizar Horario' : 'Crear Horario'}</span>
             </button>
           </div>
         </form>
@@ -958,21 +625,17 @@ function ScheduleModal({ schedule, employees, onClose, onSave }) {
   );
 }
 
-// Schedule Detail Modal Component
-function ScheduleDetailModal({ schedule, employees, onClose }) {
-  const getDayName = (day) => {
-    const days = {
-      monday: 'Lunes',
-      tuesday: 'Martes',
-      wednesday: 'Miércoles',
-      thursday: 'Jueves',
-      friday: 'Viernes',
-      saturday: 'Sábado',
-      sunday: 'Domingo'
-    };
-    return days[day] || day;
-  };
+// ══════════════════════════════════════════
+// ScheduleDetailModal
+// ══════════════════════════════════════════
 
+interface ScheduleDetailModalProps {
+  horario: Horario;
+  assignments: HorarioEmpleado[];
+  onClose: () => void;
+}
+
+function ScheduleDetailModal({ horario, assignments, onClose }: ScheduleDetailModalProps) {
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -980,7 +643,7 @@ function ScheduleDetailModal({ schedule, employees, onClose }) {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-2xl font-bold">Detalle del Horario</h3>
-              <p className="text-blue-100">{schedule.name}</p>
+              <p className="text-blue-100">{horario.diaSemana}</p>
             </div>
             <button
               onClick={onClose}
@@ -994,68 +657,57 @@ function ScheduleDetailModal({ schedule, employees, onClose }) {
         <div className="p-6 space-y-6">
           {/* General Info */}
           <div className="bg-gray-50 rounded-xl p-4">
-            <h4 className="font-semibold text-gray-800 mb-2">Información General</h4>
-            <div className="space-y-2 text-sm">
-              <div><span className="text-gray-600">Nombre:</span> <span className="font-semibold">{schedule.name}</span></div>
-              <div><span className="text-gray-600">Estado:</span> 
-                <span className={`ml-2 px-2 py-1 rounded-full text-xs font-semibold ${
-                  schedule.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                }`}>
-                  {schedule.status === 'active' ? 'Activo' : 'Inactivo'}
+            <h4 className="font-semibold text-gray-800 mb-3">Información General</h4>
+            <div className="grid md:grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-gray-600">ID:</span>{' '}
+                <span className="font-semibold">{horario.horarioId}</span>
+              </div>
+              <div>
+                <span className="text-gray-600">Día:</span>{' '}
+                <span className="font-semibold">{horario.diaSemana}</span>
+              </div>
+              <div>
+                <span className="text-gray-600">Hora Inicio:</span>{' '}
+                <span className="font-semibold">{horario.horaInicio}</span>
+              </div>
+              <div>
+                <span className="text-gray-600">Hora Fin:</span>{' '}
+                <span className="font-semibold">{horario.horaFin}</span>
+              </div>
+              <div>
+                <span className="text-gray-600">Estado:</span>{' '}
+                <span className={`ml-2 px-2 py-1 rounded-full text-xs font-semibold ${horario.estado ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                  }`}>
+                  {horario.estado ? 'Activo' : 'Inactivo'}
                 </span>
               </div>
-              <div><span className="text-gray-600">Creado:</span> <span className="font-semibold">{schedule.createdAt}</span></div>
-            </div>
-          </div>
-
-          {/* Daily Schedule */}
-          <div>
-            <h4 className="font-semibold text-gray-800 mb-4">Horarios por Día</h4>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {schedule.days.map((dayKey) => (
-                <div key={dayKey} className="border border-gray-200 rounded-xl p-4">
-                  <h5 className="font-semibold text-gray-800 mb-2">{getDayName(dayKey)}</h5>
-                  {schedule.schedule[dayKey] ? (
-                    <div className="text-sm">
-                      <div className="flex items-center space-x-1">
-                        <Clock className="w-4 h-4 text-gray-400" />
-                        <span className="text-gray-600">Inicio:</span>
-                        <span className="font-semibold">{schedule.schedule[dayKey].startTime}</span>
-                      </div>
-                      <div className="flex items-center space-x-1 mt-1">
-                        <Clock className="w-4 h-4 text-gray-400" />
-                        <span className="text-gray-600">Fin:</span>
-                        <span className="font-semibold">{schedule.schedule[dayKey].endTime}</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <span className="text-gray-400 text-sm">Sin horario configurado</span>
-                  )}
-                </div>
-              ))}
             </div>
           </div>
 
           {/* Assigned Employees */}
           <div>
             <h4 className="font-semibold text-gray-800 mb-4">Empleados Asignados</h4>
-            <div className="grid md:grid-cols-2 gap-4">
-              {schedule.employees.map(empId => {
-                const employee = employees.find(e => e.id === empId);
-                return employee ? (
-                  <div key={empId} className="flex items-center space-x-3 p-4 border border-gray-200 rounded-xl">
+            {assignments.length > 0 ? (
+              <div className="grid md:grid-cols-2 gap-4">
+                {assignments.map(a => (
+                  <div key={a.horarioEmpleadoId} className="flex items-center space-x-3 p-4 border border-gray-200 rounded-xl">
                     <div className="w-10 h-10 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full flex items-center justify-center">
                       <Users className="w-5 h-5 text-white" />
                     </div>
                     <div>
-                      <div className="font-semibold text-gray-800">{employee.name}</div>
-                      <div className="text-sm text-gray-600">{employee.role === 'admin' ? 'Administrador' : 'Asistente'}</div>
-                      <div className="text-sm text-gray-500">{employee.email}</div>
+                      <div className="font-semibold text-gray-800">{a.empleadoNombre || 'Empleado'}</div>
+                      <div className="text-sm text-gray-600">Doc: {a.documentoEmpleado}</div>
                     </div>
                   </div>
-                ) : null;
-              })}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-gray-400">
+                <Users className="w-8 h-8 mx-auto mb-2" />
+                <p>No hay empleados asignados a este horario</p>
+              </div>
+            )}
           </div>
 
           {/* Close Button */}
@@ -1073,12 +725,21 @@ function ScheduleDetailModal({ schedule, employees, onClose }) {
   );
 }
 
-// Delete Schedule Modal Component
-function DeleteScheduleModal({ schedule, onClose, onConfirm }) {
+// ══════════════════════════════════════════
+// DeleteScheduleModal
+// ══════════════════════════════════════════
+
+interface DeleteScheduleModalProps {
+  horario: Horario;
+  onClose: () => void;
+  onConfirm: () => void;
+  saving: boolean;
+}
+
+function DeleteScheduleModal({ horario, onClose, onConfirm, saving }: DeleteScheduleModalProps) {
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md">
-        {/* Modal Header */}
         <div className="bg-gradient-to-r from-red-400 to-pink-500 p-6 text-white rounded-t-3xl">
           <div className="flex items-center justify-between">
             <div>
@@ -1100,28 +761,149 @@ function DeleteScheduleModal({ schedule, onClose, onConfirm }) {
               <AlertCircle className="w-8 h-8 text-red-600" />
             </div>
             <h4 className="text-lg font-bold text-gray-800 mb-2">
-              ¿Eliminar horario \"{schedule.name}\"?
+              ¿Eliminar horario del {horario.diaSemana}?
             </h4>
             <p className="text-gray-600">
-              Esta acción eliminará permanentemente el horario. Los empleados asignados no se eliminarán.
+              Se eliminará el horario de {horario.horaInicio} a {horario.horaFin}. Los empleados asignados no serán eliminados.
             </p>
           </div>
 
           <div className="flex space-x-3">
             <button
               onClick={onClose}
+              disabled={saving}
               className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
             >
               Cancelar
             </button>
             <button
               onClick={onConfirm}
-              className="flex-1 bg-gradient-to-r from-red-500 to-red-600 text-white px-4 py-3 rounded-xl font-semibold hover:shadow-lg transition-all"
+              disabled={saving}
+              className="flex-1 bg-gradient-to-r from-red-500 to-red-600 text-white px-4 py-3 rounded-xl font-semibold hover:shadow-lg transition-all flex items-center justify-center space-x-2 disabled:opacity-60"
             >
-              Eliminar
+              {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+              <span>Eliminar</span>
             </button>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════
+// AssignEmployeeModal
+// ══════════════════════════════════════════
+
+interface AssignEmployeeModalProps {
+  horario: Horario;
+  empleados: Empleado[];
+  existingAssignments: HorarioEmpleado[];
+  onClose: () => void;
+  onSave: (data: CreateHorarioEmpleadoData) => void;
+  saving: boolean;
+}
+
+function AssignEmployeeModal({ horario, empleados, existingAssignments, onClose, onSave, saving }: AssignEmployeeModalProps) {
+  const [selectedEmpleado, setSelectedEmpleado] = useState<string>('');
+
+  // Filter out already-assigned employees
+  const assignedDocs = existingAssignments.map(a => a.documentoEmpleado);
+  const availableEmpleados = empleados.filter(
+    e => e.estado && !assignedDocs.includes(e.documentoEmpleado)
+  );
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedEmpleado) return;
+
+    onSave({
+      horarioId: horario.horarioId,
+      documentoEmpleado: selectedEmpleado
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg">
+        <div className="bg-gradient-to-r from-purple-400 to-indigo-500 p-6 text-white rounded-t-3xl">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-xl font-bold">Asignar Empleado</h3>
+              <p className="text-purple-100 text-sm">
+                Horario: {horario.diaSemana} ({horario.horaInicio} - {horario.horaFin})
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {availableEmpleados.length > 0 ? (
+            <div className="space-y-3">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Seleccionar Empleado *
+              </label>
+              {availableEmpleados.map(emp => (
+                <label
+                  key={emp.documentoEmpleado}
+                  className={`flex items-center space-x-3 p-4 border rounded-xl cursor-pointer transition-all ${selectedEmpleado === emp.documentoEmpleado
+                      ? 'border-purple-400 bg-purple-50 ring-2 ring-purple-200'
+                      : 'border-gray-200 hover:bg-gray-50'
+                    }`}
+                >
+                  <input
+                    type="radio"
+                    name="empleado"
+                    value={emp.documentoEmpleado}
+                    checked={selectedEmpleado === emp.documentoEmpleado}
+                    onChange={(e) => setSelectedEmpleado(e.target.value)}
+                    className="w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500"
+                  />
+                  <div className="w-10 h-10 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full flex items-center justify-center">
+                    <Users className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-semibold text-gray-800">{emp.nombre}</div>
+                    <div className="text-sm text-gray-600">Doc: {emp.documentoEmpleado}</div>
+                  </div>
+                </label>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <Users className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+              <p className="font-medium">No hay empleados disponibles para asignar</p>
+              <p className="text-sm mt-1">Todos los empleados activos ya están asignados a este horario</p>
+            </div>
+          )}
+
+          <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-6 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-semibold"
+              disabled={saving}
+            >
+              Cancelar
+            </button>
+            {availableEmpleados.length > 0 && (
+              <button
+                type="submit"
+                disabled={saving || !selectedEmpleado}
+                className="px-6 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl hover:shadow-lg transition-all font-semibold flex items-center space-x-2 disabled:opacity-60"
+              >
+                {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+                <span>Asignar</span>
+              </button>
+            )}
+          </div>
+        </form>
       </div>
     </div>
   );
