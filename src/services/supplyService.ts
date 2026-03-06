@@ -8,6 +8,7 @@ export interface Supply {
     categoriaId: number;
     categoriaNombre?: string;
     estado: boolean;
+    cantidad: number;
 }
 
 export const supplyService = {

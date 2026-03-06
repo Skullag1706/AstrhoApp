@@ -3,18 +3,69 @@ import {
   Send, Plus, Calendar, Filter, Search, CheckCircle, Clock,
   X, Save, AlertCircle, Package, User, MapPin, FileText, Eye, Edit, Ban, Trash2
 } from 'lucide-react';
-import { mockSupplies, mockUsers } from '../../data/management';
 import { SimplePagination } from '../ui/simple-pagination';
-import { supplyDeliveryService, SupplyDelivery } from '../../services/supplyDeliveryService';
-import { toast } from 'sonner@2.0.3';
+import { deliveryService, Delivery } from '../../services/deliveryService';
+import { supplyService, Supply } from '../../services/supplyService';
+import { personService, Person } from '../../services/personService';
+import { authService } from '../../services/authService';
+import { Loader2 } from 'lucide-react';
 
 interface SupplyDeliveryManagementProps {
   hasPermission: (permission: string) => boolean;
 }
 
 export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManagementProps) {
+  const [deliveries, setDeliveries] = useState<Delivery[]>([]);
+  const [supplies, setSupplies] = useState<Supply[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedDelivery, setSelectedDelivery] = useState<Delivery | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterResponsible, setFilterResponsible] = useState('all');
+  const [dateRange, setDateRange] = useState({ start: '', end: '' });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [deliveryToCancel, setDeliveryToCancel] = useState<Delivery | null>(null);
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // Fetch data on mount
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const [deliveriesData, suppliesData, employeesData] = await Promise.all([
+          deliveryService.getDeliveries(),
+          supplyService.getSupplies(),
+          personService.getPersons('employee')
+        ]);
+
+        setDeliveries(deliveriesData);
+        setSupplies(suppliesData);
+
+        // Map employees to the format expected by the component (u.id, u.name, u.role)
+        const mappedEmployees = employeesData.map(emp => ({
+          id: emp.documentId, // Using documentId as ID for simple mapping
+          name: emp.name,
+          role: 'employee',
+          email: emp.phone // Using phone as fallback if email not available in person model
+        }));
+        setUsers(mappedEmployees);
+      } catch (error) {
+        console.error('Error fetching delivery data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   // Auto-hide success alert after 4 seconds
   useEffect(() => {
@@ -26,50 +77,22 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
     }
   }, [showSuccessAlert]);
 
-  const [deliveries, setDeliveries] = useState<SupplyDelivery[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedDelivery, setSelectedDelivery] = useState(null);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showDetailModal, setShowDetailModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [filterResponsible, setFilterResponsible] = useState('all');
-  const [dateRange, setDateRange] = useState({ start: '', end: '' });
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
-  const [showCancelModal, setShowCancelModal] = useState(false);
-  const [deliveryToCancel, setDeliveryToCancel] = useState<any>(null);
-
-  const loadDeliveries = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const data = await supplyDeliveryService.getDeliveries();
-      setDeliveries(data);
-    } catch (err) {
-      console.error('Error loading deliveries:', err);
-      setError('Error al cargar las entregas. Por favor, intente de nuevo.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadDeliveries();
-  }, []);
-
   const filteredDeliveries = deliveries.filter(delivery => {
-    const supply = mockSupplies.find(s => s.id === delivery.supplyId);
-    const responsible = mockUsers.find(u => u.id === delivery.responsibleId);
+    // For search, we check the responsible name and the items' names
+    const responsible = users.find(u => u.id === delivery.documentoEmpleado);
 
-    const matchesSearch = supply?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      delivery.destination?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      responsible?.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = filterStatus === 'all' || delivery.status === filterStatus;
-    const matchesResponsible = filterResponsible === 'all' || delivery.responsibleId === parseInt(filterResponsible);
-    const matchesDate = !dateRange.start || delivery.deliveryDate >= dateRange.start;
+    const productNames = delivery.detalles?.map(d => {
+      const s = supplies.find(sup => sup.insumoId === d.insumoId);
+      return (s?.nombre || '').toLowerCase();
+    }) || [];
+
+    const matchesSearch = productNames.some(name => name.includes(searchTerm.toLowerCase())) ||
+      responsible?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      delivery.id.toString().includes(searchTerm);
+
+    const matchesStatus = filterStatus === 'all' || delivery.estado.toLowerCase() === filterStatus.toLowerCase();
+    const matchesResponsible = filterResponsible === 'all' || delivery.documentoEmpleado === filterResponsible;
+    const matchesDate = !dateRange.start || delivery.fechaEntrega.split('T')[0] >= dateRange.start;
 
     return matchesSearch && matchesStatus && matchesResponsible && matchesDate;
   });
@@ -81,40 +104,47 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
     currentPage * itemsPerPage
   );
 
-  const goToPage = (page) => {
+  const goToPage = (page: number) => {
     setCurrentPage(page);
   };
 
-  const getSupplyInfo = (supplyId) => {
-    return mockSupplies.find(s => s.id === supplyId);
+  const getSupplyInfo = (insumoId: number) => {
+    return supplies.find(s => s.insumoId === insumoId);
   };
 
-  const getUserInfo = (userId) => {
-    return mockUsers.find(u => u.id === userId);
+  const getUserInfo = (documentoEmpleado: string) => {
+    return users.find(u => u.id === documentoEmpleado);
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'completed': return 'bg-green-100 text-green-800';
-      case 'cancelled': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
+  const getStatusColor = (status: string) => {
+    const s = status?.toLowerCase();
+    if (s.includes('pendiente')) return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+    if (s.includes('completado') || s.includes('entregado')) return 'bg-green-100 text-green-700 border-green-200';
+    if (s.includes('cancelado')) return 'bg-red-100 text-red-700 border-red-200';
+    return 'bg-gray-100 text-gray-700 border-gray-200';
   };
 
-  const getStatusIcon = (status) => {
-    switch (status) {
+  const getStatusIcon = (status: string) => {
+    const s = status?.toLowerCase();
+    switch (s) {
+      case 'pendiente':
       case 'pending': return <Clock className="w-4 h-4" />;
+      case 'completado':
       case 'completed': return <CheckCircle className="w-4 h-4" />;
+      case 'cancelado':
       case 'cancelled': return <X className="w-4 h-4" />;
-      default: return <Clock className="w-4 h-4" />;
+      default: return <AlertCircle className="w-4 h-4" />;
     }
   };
 
-  const getStatusLabel = (status) => {
-    switch (status) {
+  const getStatusLabel = (status: string) => {
+    const s = status?.toLowerCase();
+    switch (s) {
+      case 'pendiente':
       case 'pending': return 'Pendiente';
+      case 'completado':
       case 'completed': return 'Completado';
+      case 'cancelado':
       case 'cancelled': return 'Cancelado';
       default: return status;
     }
@@ -137,15 +167,10 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
 
   const confirmCancelDelivery = async () => {
     if (deliveryToCancel) {
-      try {
-        await updateDeliveryStatus(deliveryToCancel.id, 'cancelled');
-        setShowCancelModal(false);
-        setDeliveryToCancel(null);
-        toast.success('Entrega cancelada exitosamente');
-      } catch (err) {
-        console.error('Error cancelling delivery:', err);
-        toast.error('Error al cancelar la entrega.');
-      }
+      const id = deliveryToCancel.id;
+      setShowCancelModal(false);
+      setDeliveryToCancel(null);
+      await updateDeliveryStatus(id, 'cancelado');
     }
   };
 
@@ -155,50 +180,99 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
 
   const handleSaveDelivery = async (deliveryData: any) => {
     try {
-      const dataToSave = {
-        supplyId: deliveryData.items[0]?.supplyId || 0, // Fallback if single supplyId expected
-        deliveryDate: deliveryData.deliveryDate,
-        quantity: deliveryData.items[0]?.quantity || 0,
-        destination: deliveryData.destination,
-        responsiblePerson: deliveryData.responsiblePerson,
-        responsibleId: deliveryData.responsibleId,
-        status: 'pending' as const,
-        notes: deliveryData.notes,
-        createdBy: 1, // Current user
-        createdAt: new Date().toISOString().split('T')[0],
-        items: deliveryData.items
+      setIsProcessing(true);
+      // Format data for the backend API - matching CrearEntregaDto exactly
+      const payload = {
+        documentoEmpleado: deliveryData.responsibleId.toString(),
+        detalles: deliveryData.items.map((item: any) => ({
+          insumoId: Number(item.supplyId),
+          cantidad: Number(item.quantity)
+        }))
       };
 
-      const savedDelivery = await supplyDeliveryService.createDelivery(dataToSave);
-      setDeliveries([...deliveries, savedDelivery]);
+      await deliveryService.createDelivery(payload);
+
+      // Refresh deliveries
+      const updatedDeliveries = await deliveryService.getDeliveries();
+      setDeliveries(updatedDeliveries);
+
       setShowCreateModal(false);
-      toast.success('Entrega creada exitosamente');
-      // Reload completely to ensure relations are fetched
-      loadDeliveries();
-    } catch (err: any) {
-      console.error('Error saving delivery:', err);
-      console.error('API Error Response:', err.response?.data || err.message || err);
-      toast.error('Error al crear la entrega.');
+      setAlertMessage('Entrega creada exitosamente');
+      setShowSuccessAlert(true);
+    } catch (error: any) {
+      console.error('Error creating delivery:', error);
+      const errorMessage = error.message || 'Error desconocido';
+      setAlertMessage(`Error al crear la entrega: ${errorMessage}`);
+      setShowSuccessAlert(true);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   const updateDeliveryStatus = async (deliveryId: number, newStatus: string) => {
-    try {
-      const completedAt = newStatus === 'completed' ? new Date().toISOString().split('T')[0] : undefined;
-      const updatedDelivery = await supplyDeliveryService.updateDelivery(deliveryId, { status: newStatus as any, completedAt });
+    // 1. Determine terminology (API usually expects capitalized Spanish for enums)
+    let apiStatus = '';
+    const s = newStatus.toLowerCase();
+    if (s.includes('completado') || s.includes('entregado')) apiStatus = 'Completado';
+    else if (s.includes('cancelado')) apiStatus = 'Cancelado';
+    else apiStatus = 'Pendiente';
 
-      setDeliveries(deliveries.map(delivery =>
-        delivery.id === deliveryId ? { ...delivery, status: newStatus as any, completedAt } : delivery
-      ));
-    } catch (err) {
-      console.error('Error updating delivery status:', err);
-      throw err; // Re-throw to be caught by the caller
+    // 2. Local mapping for backend technically naming preference
+    const apiStatusForBackend = apiStatus === 'Completado' ? 'entregado' : (apiStatus === 'Cancelado' ? 'cancelado' : 'pendiente');
+
+    // 3. Optimistic local update
+    const previousDeliveries = [...deliveries];
+    setDeliveries(prev => prev.map(d =>
+      d.id === deliveryId ? { ...d, estado: apiStatus } : d
+    ));
+
+    try {
+      setIsProcessing(true);
+      const delivery = deliveries.find(d => d.id === deliveryId);
+      if (!delivery) {
+        console.error('Delivery not found in local state:', deliveryId);
+        setIsProcessing(false);
+        return;
+      }
+
+      const payload = {
+        documentoEmpleado: delivery.documentoEmpleado || '',
+        estado: apiStatusForBackend,
+        detalles: delivery.detalles?.map(d => ({
+          insumoId: d.insumoId,
+          cantidad: d.cantidad
+        })) || []
+      };
+
+      const updatedDelivery = await deliveryService.updateDelivery(deliveryId, payload);
+
+      // Update state with server data if valid, otherwise keep optimistic
+      if (updatedDelivery && (updatedDelivery.id !== undefined || updatedDelivery.estado)) {
+        setDeliveries(prev => prev.map(d =>
+          d.id === deliveryId ? { ...d, ...updatedDelivery, estado: updatedDelivery.estado || apiStatus } : d
+        ));
+
+        // Success feedback
+        if (apiStatus === 'Completado' || apiStatus === 'Cancelado') {
+          const actionWord = apiStatus.toLowerCase() === 'completado' ? 'completada' : 'cancelada';
+          setAlertMessage(`Entrega ${actionWord} exitosamente`);
+          setShowSuccessAlert(true);
+        }
+      }
+
+    } catch (error) {
+      console.error('Error updating delivery status:', error);
+      // Only rollback on real API failure (e.g., non-2xx response)
+      setDeliveries(previousDeliveries);
+      setAlertMessage('Error al actualizar el estado. Por favor intenta de nuevo.');
+      setShowSuccessAlert(true);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
-  const handlePrintDeliveryPDF = (delivery) => {
-    const supply = getSupplyInfo(delivery.supplyId);
-    const responsible = getUserInfo(delivery.responsibleId);
+  const handlePrintDeliveryPDF = (delivery: Delivery) => {
+    const responsible = getUserInfo(delivery.documentoEmpleado);
 
     const pdfContent = `
       <div style="max-width: 800px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif;">
@@ -215,26 +289,28 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
               <strong>Entrega #:</strong> ${delivery.id}
             </div>
             <div>
-              <strong>Fecha:</strong> ${delivery.deliveryDate}
+              <strong>Fecha:</strong> ${delivery.fechaEntrega.split('T')[0]}
             </div>
           </div>
           <div style="margin-bottom: 10px;">
             <strong>Estado:</strong> 
-            <span style="padding: 4px 12px; border-radius: 20px; background-color: ${delivery.status === 'completed' ? '#d4edda' :
-        delivery.status === 'pending' ? '#fff3cd' : '#f8d7da'
-      }; color: ${delivery.status === 'completed' ? '#155724' :
-        delivery.status === 'pending' ? '#856404' : '#721c24'
+            <span style="padding: 4px 12px; border-radius: 20px; border: 1px solid ${delivery.estado.toLowerCase() === 'completado' || delivery.estado.toLowerCase() === 'completed' ? '#28a745' :
+        delivery.estado.toLowerCase() === 'pendiente' || delivery.estado.toLowerCase() === 'pending' ? '#ffc107' : '#dc3545'
+      }; background-color: ${delivery.estado.toLowerCase() === 'completado' || delivery.estado.toLowerCase() === 'completed' ? '#d4edda' :
+        delivery.estado.toLowerCase() === 'pendiente' || delivery.estado.toLowerCase() === 'pending' ? '#fff3cd' : '#f8d7da'
+      }; color: ${delivery.estado.toLowerCase() === 'completado' || delivery.estado.toLowerCase() === 'completed' ? '#155724' :
+        delivery.estado.toLowerCase() === 'pendiente' || delivery.estado.toLowerCase() === 'pending' ? '#856404' : '#721c24'
       };">
-              ${getStatusLabel(delivery.status)}
+              ${getStatusLabel(delivery.estado)}
             </span>
           </div>
         </div>
 
         <div style="margin-bottom: 20px; padding: 15px; background-color: #f5f5f5; border-radius: 8px;">
           <h3 style="color: #333; margin-top: 0;">Responsable</h3>
-          <p><strong>Nombre:</strong> ${responsible?.name}</p>
-          <p><strong>Rol:</strong> ${responsible?.role === 'admin' ? 'Administrador' : 'Asistente'}</p>
-          <p><strong>Email:</strong> ${responsible?.email}</p>
+          <p><strong>Nombre:</strong> ${responsible?.name || delivery.documentoEmpleado}</p>
+          <p><strong>Rol:</strong> Empleado</p>
+          <p><strong>ID:</strong> ${delivery.documentoEmpleado}</p>
         </div>
 
         <div style="margin-bottom: 20px;">
@@ -245,24 +321,17 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
                 <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Producto</th>
                 <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">SKU</th>
                 <th style="padding: 10px; text-align: center; border: 1px solid #ddd;">Cantidad</th>
-                <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Unidad</th>
               </tr>
             </thead>
             <tbody>
-              ${delivery.items ? delivery.items.map(item => {
-        const product = mockSupplies.find(s => s.id === item.supplyId);
+              ${delivery.detalles?.map(item => {
+        const product = getSupplyInfo(item.insumoId);
         return `<tr>
-                  <td style="padding: 10px; border: 1px solid #ddd;">${product?.name}</td>
-                  <td style="padding: 10px; border: 1px solid #ddd;">${product?.sku}</td>
-                  <td style="padding: 10px; text-align: center; border: 1px solid #ddd; font-weight: bold;">${item.quantity}</td>
-                  <td style="padding: 10px; border: 1px solid #ddd;">${product?.unit}</td>
+                  <td style="padding: 10px; border: 1px solid #ddd;">${product?.name || 'Insumo'}</td>
+                  <td style="padding: 10px; border: 1px solid #ddd;">${product?.sku || '-'}</td>
+                  <td style="padding: 10px; text-align: center; border: 1px solid #ddd; font-weight: bold;">${item.cantidad} ${product?.unit || ''}</td>
                 </tr>`;
-      }).join('') : `<tr>
-                <td style="padding: 10px; border: 1px solid #ddd;">${supply?.name}</td>
-                <td style="padding: 10px; border: 1px solid #ddd;">${supply?.sku}</td>
-                <td style="padding: 10px; text-align: center; border: 1px solid #ddd; font-weight: bold;">${delivery.quantity}</td>
-                <td style="padding: 10px; border: 1px solid #ddd;">${supply?.unit}</td>
-              </tr>`}
+      }).join('')}
             </tbody>
           </table>
         </div>
@@ -282,60 +351,35 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
     `;
 
     const newWindow = window.open('', '_blank');
-    if (newWindow) {
-      newWindow.document.write(`
-        <html>
-          <head>
-            <title>Entrega de Insumos - ${delivery.id}</title>
-          </head>
-          <body>
-            ${pdfContent}
-            <script>
-              window.onload = function() {
-                window.print();
-              };
-            </script>
-          </body>
-        </html>
-      `);
-      newWindow.document.close();
-    } else {
-      toast.error('Por favor, permite las ventanas emergentes (pop-ups) para generar el PDF');
-    }
+    newWindow.document.write(`
+      <html>
+        <head>
+          <title>Entrega de Insumos - ${delivery.id}</title>
+        </head>
+        <body>
+          ${pdfContent}
+          <script>
+            window.onload = function() {
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    newWindow.document.close();
   };
 
   // Calculate statistics
   const totalDeliveries = deliveries.length;
-  const pendingDeliveries = deliveries.filter(d => d.status === 'pending').length;
-  const completedDeliveries = deliveries.filter(d => d.status === 'completed').length;
-  const todayDeliveries = deliveries.filter(d => d.deliveryDate === new Date().toISOString().split('T')[0]).length;
+  const pendingDeliveries = deliveries.filter(d => d.estado.toLowerCase() === 'pendiente').length;
+  const completedDeliveries = deliveries.filter(d => d.estado.toLowerCase() === 'completado').length;
+  const todayDeliveries = deliveries.filter(d => d.fechaEntrega.split('T')[0] === new Date().toISOString().split('T')[0]).length;
 
-  if (isLoading) {
+  if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500"></div>
-
-      {/* Success Alert */}
-      {showSuccessAlert && (
-        <div className="fixed top-4 right-4 z-[9999] animate-in slide-in-from-top-5 duration-300">
-          <div className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center space-x-4 min-w-[320px]">
-            <div className="flex-shrink-0">
-              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                <CheckCircle className="w-6 h-6 text-white" />
-              </div>
-            </div>
-            <div className="flex-1">
-              <p className="font-semibold">{alertMessage}</p>
-            </div>
-            <button
-              onClick={() => setShowSuccessAlert(false)}
-              className="flex-shrink-0 w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      )}
+      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+        <Loader2 className="w-12 h-12 text-pink-500 animate-spin" />
+        <p className="text-gray-600 font-medium italic">Cargando entregas...</p>
       </div>
     );
   }
@@ -345,7 +389,7 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h2 className="text-3xl font-bold text-gray-800">Entregas de insumo</h2>
+          <h2 className="text-3xl font-bold text-gray-800">Entregas de insumos</h2>
           <p className="text-gray-600">
             Control de entregas internas de insumos y materiales
           </p>
@@ -391,8 +435,7 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
             </thead>
             <tbody className="divide-y divide-gray-100">
               {paginatedDeliveries.map((delivery) => {
-                const supply = getSupplyInfo(delivery.supplyId);
-                const responsible = getUserInfo(delivery.responsibleId);
+                const responsible = getUserInfo(delivery.documentoEmpleado);
 
                 return (
                   <tr key={delivery.id} className="hover:bg-gray-50">
@@ -410,61 +453,51 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
 
                     <td className="px-6 py-4">
                       <div className="space-y-1">
-                        {/* Dropdown de productos */}
+                        {/* Dropdown de insumos */}
                         <details className="group">
                           <summary className="cursor-pointer font-semibold text-gray-800 hover:text-purple-600 list-none flex items-center space-x-2">
-                            <span>{delivery.items ? `${delivery.items.length} insumo${delivery.items.length > 1 ? 's' : ''}` : '1 insumo'}</span>
-                            <svg className="w-4 h-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                            </svg>
+                            <span>{delivery.detalles ? `${delivery.detalles.length} insumo${delivery.detalles.length > 1 ? 's' : ''}` : 'Sin insumos'}</span>
                           </summary>
                           <div className="mt-2 space-y-1 pl-2 border-l-2 border-purple-200">
-                            {delivery.items ? delivery.items.map((item, idx) => {
-                              const prod = getSupplyInfo(item.supplyId);
+                            {delivery.detalles?.map((item, idx) => {
+                              const prod = getSupplyInfo(item.insumoId);
                               return (
                                 <div key={idx} className="text-sm text-gray-600">
-                                  • {prod?.name}: {item.quantity} {prod?.unit}
+                                  • {prod?.name || 'Insumo'}: {item.cantidad} {prod?.unit || ''}
                                 </div>
                               );
-                            }) : (
-                              <div className="text-sm text-gray-600">
-                                • {supply?.name}: {delivery.quantity} {supply?.unit}
-                              </div>
-                            )}
+                            })}
                           </div>
                         </details>
                       </div>
                     </td>
 
                     <td className="px-6 py-4">
-                      <div className="text-gray-800">{delivery.deliveryDate}</div>
-                      {delivery.completedAt && (
+                      <div className="text-gray-800">{delivery.fechaEntrega.split('T')[0]}</div>
+                      {delivery.fechaCompletado && (
                         <div className="text-sm text-green-600">
-                          Completado: {delivery.completedAt}
+                          Completado: {delivery.fechaCompletado.split('T')[0]}
                         </div>
                       )}
                     </td>
 
                     <td className="px-6 py-4">
                       {/* Select de cambio de estado */}
-                      <div className="flex items-center space-x-2">
-                        {hasPermission('manage_deliveries') && delivery.status !== 'completed' && delivery.status !== 'cancelled' ? (
-                          <select
-                            value={delivery.status}
-                            onChange={(e) => {
-                              updateDeliveryStatus(delivery.id, e.target.value);
-                              if (e.target.value === 'completed') {
-                                toast.success('Entrega completada exitosamente');
-                              }
-                            }}
-                            className={`px-3 py-1 rounded-full text-xs font-semibold border-0 cursor-pointer focus:ring-2 focus:ring-pink-300 ${getStatusColor(delivery.status)}`}
-                          >
-                            <option value="pending">Pendiente</option>
-                            <option value="completed">Completado</option>
-                          </select>
+                      <div className="relative group">
+                        {hasPermission('manage_deliveries') && delivery.estado.toLowerCase() !== 'cancelado' ? (
+                          <>
+                            <select
+                              value={delivery.estado}
+                              onChange={(e) => updateDeliveryStatus(delivery.id, e.target.value)}
+                              className={`appearance-none px-4 py-1.5 rounded-full text-xs font-bold border-2 cursor-pointer transition-all duration-200 focus:outline-none hover:shadow-lg ${getStatusColor(delivery.estado)}`}
+                            >
+                              <option value="Pendiente">Pendiente</option>
+                              <option value="Completado">Completado</option>
+                            </select>
+                          </>
                         ) : (
-                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(delivery.status)}`}>
-                            {getStatusLabel(delivery.status)}
+                          <span className={`px-4 py-1.5 rounded-full text-xs font-bold border-2 ${getStatusColor(delivery.estado)}`}>
+                            {getStatusLabel(delivery.estado)}
                           </span>
                         )}
                       </div>
@@ -488,7 +521,7 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
                           <FileText className="w-4 h-4" />
                         </button>
 
-                        {hasPermission('manage_deliveries') && delivery.status !== 'cancelled' && delivery.status !== 'completed' && (
+                        {hasPermission('manage_deliveries') && delivery.estado !== 'Cancelado' && (
                           <button
                             onClick={() => handleCancelDelivery(delivery)}
                             className="p-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors"
@@ -522,7 +555,7 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
       {/* Cancel Confirmation Modal */}
       {showCancelModal && deliveryToCancel && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md">
             <div className="p-6">
               <div className="flex items-center space-x-4 mb-6">
                 <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
@@ -543,13 +576,13 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
                     <Package className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
                       <div className="font-semibold text-gray-800">
-                        {getSupplyInfo(deliveryToCancel.supplyId)?.name || 'Insumo'}
+                        {deliveryToCancel.detalles?.length ? `${deliveryToCancel.detalles.length} Productos` : 'Entrega'}
                       </div>
                       <div className="text-sm text-gray-600">
-                        Cantidad: {deliveryToCancel.quantity} {getSupplyInfo(deliveryToCancel.supplyId)?.unit}
+                        Fecha: {deliveryToCancel.fechaEntrega.split('T')[0]}
                       </div>
                       <div className="text-sm text-gray-600">
-                        Destino: {deliveryToCancel.destination}
+                        Responsable: {getUserInfo(deliveryToCancel.documentoEmpleado)?.name}
                       </div>
                     </div>
                   </div>
@@ -583,8 +616,9 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
         <CreateDeliveryModal
           onClose={() => setShowCreateModal(false)}
           onSave={handleSaveDelivery}
-          supplies={mockSupplies}
-          users={mockUsers.filter(u => u.role !== 'customer')}
+          supplies={supplies}
+          users={users}
+          isProcessing={isProcessing}
         />
       )}
 
@@ -593,90 +627,29 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
         <DeliveryDetailModal
           delivery={selectedDelivery}
           onClose={() => setShowDetailModal(false)}
-          supply={getSupplyInfo((selectedDelivery as any).supplyId)}
-          responsible={getUserInfo((selectedDelivery as any).responsibleId)}
+          responsible={getUserInfo(selectedDelivery.documentoEmpleado)}
           getSupplyInfo={getSupplyInfo}
         />
       )}
-    </div>
-  );
-}
 
-// Custom Searchable Select Component
-function SearchableSelect({ options, value, onChange, placeholder, error }: any) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const wrapperRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const selectedOption = options.find((opt: any) => opt.value === value);
-  const filteredOptions = options.filter((opt: any) =>
-    opt.label.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  return (
-    <div ref={wrapperRef} className="relative w-full">
-      <div
-        className={`w-full px-4 py-2 border rounded-lg bg-white flex justify-between items-center ${error ? 'border-red-300' : 'border-gray-300'} focus-within:ring-2 focus-within:ring-pink-300 focus-within:border-transparent cursor-text`}
-        onClick={() => {
-          setIsOpen(true);
-        }}
-      >
-        <input
-          type="text"
-          className="w-full bg-transparent border-none outline-none text-gray-900 placeholder-gray-500 text-sm"
-          placeholder={selectedOption && !isOpen ? selectedOption.label : placeholder}
-          value={isOpen ? searchTerm : (selectedOption ? selectedOption.label : '')}
-          onChange={(e) => {
-            setSearchTerm(e.target.value);
-            setIsOpen(true);
-          }}
-          onFocus={() => setIsOpen(true)}
-        />
-        <svg
-          className="w-4 h-4 text-gray-400 transition-transform duration-200 cursor-pointer flex-shrink-0"
-          style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsOpen(!isOpen);
-          }}
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </div>
-
-      {isOpen && (
-        <div className="absolute z-[60] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-hidden flex flex-col">
-          <div className="overflow-y-auto overflow-x-hidden flex-1">
-            {filteredOptions.length === 0 ? (
-              <div className="px-4 py-3 text-sm text-gray-500 text-center">No se encontraron resultados</div>
-            ) : (
-              filteredOptions.map((opt: any) => (
-                <div
-                  key={opt.value}
-                  className={`px-4 py-2 text-sm cursor-pointer hover:bg-pink-50 transition-colors ${value === opt.value ? 'bg-pink-50 text-pink-700 font-medium' : 'text-gray-700'}`}
-                  onClick={() => {
-                    onChange(opt.value);
-                    setIsOpen(false);
-                    setSearchTerm('');
-                  }}
-                >
-                  {opt.label}
-                </div>
-              ))
-            )}
+      {/* Success Alert */}
+      {showSuccessAlert && (
+        <div className="fixed top-4 right-4 z-[60] animate-in slide-in-from-top-5 duration-300">
+          <div className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center space-x-4 min-w-[320px]">
+            <div className="flex-shrink-0">
+              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                <CheckCircle className="w-6 h-6 text-white" />
+              </div>
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold">{alertMessage}</p>
+            </div>
+            <button
+              onClick={() => setShowSuccessAlert(false)}
+              className="flex-shrink-0 w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
         </div>
       )}
@@ -684,8 +657,114 @@ function SearchableSelect({ options, value, onChange, placeholder, error }: any)
   );
 }
 
+// Product Search and Select Component
+function ProductSearchSelect({ supplies, onSelect, selectedSupplyId, error }: any) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const selectedSupply = supplies.find((s: any) => s.insumoId === selectedSupplyId);
+
+  const filteredSupplies = supplies.filter((s: any) => {
+    if (!s) return false;
+    const nombre = (s.nombre || '').toLowerCase();
+    const sku = (s.sku || '').toLowerCase();
+    const search = searchTerm.toLowerCase();
+    return nombre.includes(search) || sku.includes(search);
+  });
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div className={`relative ${isOpen ? 'z-50' : ''}`} ref={dropdownRef}>
+      <div
+        className={`w-full px-4 py-2 min-h-[42px] border rounded-lg flex items-center justify-between cursor-pointer bg-white ${error ? 'border-red-300' : 'border-gray-300'}`}
+        onClick={() => setIsOpen(true)}
+      >
+        {!isOpen && !selectedSupply ? (
+          <span className="text-gray-500">Selecciona un insumo</span>
+        ) : !isOpen && selectedSupply ? (
+          <span className="text-gray-800">{selectedSupply.name}</span>
+        ) : (
+          <div className="flex-1 flex items-center">
+            <Search className="text-gray-400 w-4 h-4 mr-2" />
+            <input
+              type="text"
+              className="w-full bg-transparent text-sm focus:outline-none"
+              placeholder="Buscar insumo..."
+              value={searchTerm}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+              autoFocus
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            />
+          </div>
+        )}
+        <svg
+          onClick={(e: React.MouseEvent) => {
+            e.stopPropagation();
+            setIsOpen(!isOpen);
+          }}
+          className={`w-4 h-4 text-gray-500 transition-transform ${isOpen ? 'rotate-180' : ''} ml-2 flex-shrink-0`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+        </svg>
+      </div>
+
+      {isOpen && (
+        <div className="max-h-60 overflow-y-auto py-1">
+          {filteredSupplies.length === 0 ? (
+            <div className="p-3 text-sm text-gray-500 text-center">No se encontraron insumos</div>
+          ) : (
+            filteredSupplies.map((supply: any) => (
+              <div
+                key={supply.insumoId}
+                className={`px-4 py-2 hover:bg-pink-50 cursor-pointer text-sm flex justify-between items-center ${supply.insumoId === selectedSupplyId ? 'bg-pink-100 text-pink-700 font-semibold' : 'text-gray-800'}`}
+                onClick={(e: React.MouseEvent) => {
+                  e.stopPropagation();
+                  onSelect(supply);
+                  setIsOpen(false);
+                  setSearchTerm('');
+                }}
+              >
+                <div className="flex flex-col">
+                  <span className="font-medium">{supply.nombre}</span>
+                  <span className="text-xs text-gray-500">{supply.sku}</span>
+                </div>
+                {/* Dynamic stock display - Check multiple possible property names */}
+                {(supply.cantidad !== undefined || supply.stock !== undefined || supply.existencia !== undefined) ? (
+                  <span className={`text-xs px-2 py-0.5 rounded ${(supply.cantidad || supply.stock || supply.existencia || 0) <= 0
+                    ? 'bg-red-100 text-red-600'
+                    : 'bg-green-100 text-green-600'
+                    }`}>
+                    Stock: {supply.cantidad ?? supply.stock ?? supply.existencia ?? 0}
+                  </span>
+                ) : (
+                  <span className="text-xs bg-gray-100 px-2 py-0.5 rounded text-gray-400 italic">
+                    Stock no disp.
+                  </span>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Create Delivery Modal Component - MÚLTIPLES PRODUCTOS
-function CreateDeliveryModal({ onClose, onSave, supplies, users }: any) {
+function CreateDeliveryModal({ onClose, onSave, supplies, users, isProcessing }: any) {
   const [formData, setFormData] = useState({
     deliveryDate: new Date().toISOString().split('T')[0],
     responsibleId: '',
@@ -693,9 +772,9 @@ function CreateDeliveryModal({ onClose, onSave, supplies, users }: any) {
     items: []
   });
 
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useState<any>({});
 
-  const addProduct = () => {
+  const addInsumo = () => {
     setFormData({
       ...formData,
       items: [...formData.items, {
@@ -705,48 +784,83 @@ function CreateDeliveryModal({ onClose, onSave, supplies, users }: any) {
     });
   };
 
-  const removeProduct = (index) => {
-    const newItems = formData.items.filter((_, i) => i !== index);
+  const removeInsumo = (index: number) => {
+    const newItems = formData.items.filter((_: any, i: number) => i !== index);
     setFormData({
       ...formData,
       items: newItems
     });
   };
 
-  const updateProduct = (index, field, value) => {
+  const updateInsumo = (index: number, field: string, value: any) => {
+    // Check for duplicates when selecting a supply
+    if (field === 'supplyId' && value) {
+      const isDuplicate = formData.items.some(
+        (item: any, i: number) => i !== index && item.supplyId === value
+      );
+
+      if (isDuplicate) {
+        setErrors({
+          ...errors,
+          [`supply_${index}`]: 'Este insumo ya ha sido agregado'
+        });
+        return; // Detenemos la actualización si está duplicado
+      }
+    }
+
     const newItems = [...formData.items];
     newItems[index] = {
       ...newItems[index],
       [field]: value
     };
+
+    // Si cambia de forma válida, limpiamos el error
+    const newErrors: any = { ...errors };
+    if (field === 'supplyId') {
+      delete newErrors[`supply_${index}`];
+    }
+
+    setErrors(newErrors);
     setFormData({
       ...formData,
       items: newItems
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     // Validation
-    const newErrors = {};
+    const newErrors: any = {};
     if (formData.items.length === 0) {
-      newErrors.items = 'Agrega al menos un producto';
+      newErrors.items = 'Agrega al menos un insumo';
     }
     if (!formData.responsibleId) newErrors.responsibleId = 'Selecciona un responsable';
 
-    // Validar cada Insumo
+    // Validar cada insumo
     formData.items.forEach((item: any, index: number) => {
-      if (!item.supplyId) {
+      const supplyIdNum = parseInt(item.supplyId);
+      if (isNaN(supplyIdNum)) {
         newErrors[`supply_${index}`] = 'Selecciona un insumo';
       }
-      if (!item.quantity || item.quantity <= 0) {
+      if (!item.quantity || parseFloat(item.quantity) <= 0) {
         newErrors[`quantity_${index}`] = 'Cantidad debe ser mayor a 0';
       }
 
-      // if (supply && parseInt(item.quantity) > supply.quantity) {
-      //   newErrors[`quantity_${index}`] = `Stock insuficiente. Disponible: ${supply.quantity}`;
-      // }
+      // Check stock - Use multiple potential property names
+      if (!isNaN(supplyIdNum)) {
+        const supply = supplies.find((s: any) => s.insumoId === supplyIdNum);
+        if (supply) {
+          const rawStock = supply.cantidad ?? supply.stock ?? supply.existencia ?? supply.stock_quantity;
+
+          if (rawStock !== undefined) {
+            const availableStock = parseFloat(rawStock as any);
+            if (parseFloat(item.quantity) > availableStock) {
+              newErrors[`quantity_${index}`] = `Stock insuficiente. Disponible: ${availableStock}`;
+            }
+          }
+        }
+      }
     });
 
     if (Object.keys(newErrors).length > 0) {
@@ -754,28 +868,29 @@ function CreateDeliveryModal({ onClose, onSave, supplies, users }: any) {
       return;
     }
 
-    const responsible = users.find(u => u.id === parseInt(formData.responsibleId));
+    // Keep ID as string if it represents a documentId to avoid losing leading zeros
+    const responsible = users.find(u => u.id.toString() === formData.responsibleId.toString());
 
     onSave({
       ...formData,
-      responsibleId: parseInt(formData.responsibleId),
+      responsibleId: formData.responsibleId, // Keep as string
       responsiblePerson: responsible?.name,
       destination: 'Salón de Belleza',
-      items: formData.items.map(item => ({
+      items: formData.items.map((item: any) => ({
         supplyId: parseInt(item.supplyId),
-        quantity: parseInt(item.quantity)
+        quantity: parseFloat(item.quantity)
       }))
     });
   };
 
-  const handleInputChange = (e) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData({
       ...formData,
       [name]: value
     });
 
-    if (errors[name]) {
+    if ((errors as any)[name]) {
       setErrors({
         ...errors,
         [name]: ''
@@ -785,8 +900,8 @@ function CreateDeliveryModal({ onClose, onSave, supplies, users }: any) {
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
-        <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-6 text-white rounded-t-3xl shrink-0">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+        <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-6 text-white rounded-t-3xl">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-2xl font-bold">Nueva Entrega de Insumos</h3>
@@ -801,8 +916,8 @@ function CreateDeliveryModal({ onClose, onSave, supplies, users }: any) {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto">
-          {/* Insumos */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {/* Productos */}
           <div>
             <div className="flex items-center justify-between mb-3">
               <label className="block font-semibold text-gray-700">
@@ -810,7 +925,7 @@ function CreateDeliveryModal({ onClose, onSave, supplies, users }: any) {
               </label>
               <button
                 type="button"
-                onClick={addProduct}
+                onClick={addInsumo}
                 className="bg-gradient-to-r from-blue-400 to-purple-500 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:shadow-lg transition-all flex items-center space-x-2"
               >
                 <Plus className="w-4 h-4" />
@@ -824,7 +939,7 @@ function CreateDeliveryModal({ onClose, onSave, supplies, users }: any) {
                 <p className="text-gray-600 mb-4">No hay insumos agregados</p>
                 <button
                   type="button"
-                  onClick={addProduct}
+                  onClick={addInsumo}
                   className="bg-gradient-to-r from-blue-400 to-purple-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all"
                 >
                   Agregar Primer Insumo
@@ -832,58 +947,66 @@ function CreateDeliveryModal({ onClose, onSave, supplies, users }: any) {
               </div>
             ) : (
               <div className="space-y-3">
-                {formData.items.map((item: any, index: number) => {
-                  const supplyOptions = supplies.filter((s: any) => s.status === 'active').map((s: any) => ({
-                    value: s.id.toString(),
-                    label: s.name
-                  }));
+                {formData.items.map((item, index) => {
+                  const selectedSupply = supplies.find(s => s.insumoId === parseInt(item.supplyId));
 
                   return (
                     <div key={index} className="bg-blue-50 rounded-xl p-4 border border-blue-200">
-                      <div className="grid md:grid-cols-3 gap-4 items-end">
-                        <div className="md:col-span-2">
+                      <div className="grid md:grid-cols-3 gap-4">
+                        <div className="md:col-span-2 flex flex-col">
                           <label className="block text-sm font-semibold text-gray-700 mb-2">
                             Insumo *
                           </label>
-                          <SearchableSelect
-                            options={supplyOptions}
-                            value={item.supplyId}
-                            onChange={(val: any) => updateProduct(index, 'supplyId', val)}
-                            placeholder="Selecciona un insumo"
+                          <ProductSearchSelect
+                            supplies={supplies}
+                            selectedSupplyId={parseInt(item.supplyId) || 0}
+                            onSelect={(supply: any) => updateInsumo(index, 'supplyId', supply.insumoId.toString())}
                             error={errors[`supply_${index}`]}
                           />
-                          {errors[`supply_${index}`] && (
-                            <p className="text-red-600 text-xs mt-1">{errors[`supply_${index}`]}</p>
-                          )}
+                          <div className="min-h-[24px] mt-1 flex items-center">
+                            {errors[`supply_${index}`] ? (
+                              <p className="text-red-500 text-sm font-medium">{errors[`supply_${index}`]}</p>
+                            ) : !isNaN(parseInt(item.supplyId)) && selectedSupply ? (
+                              <div className="text-sm text-gray-600 font-medium">
+                                Disponible: <span className="text-gray-900 font-bold bg-white px-2 py-0.5 rounded-md border border-gray-200">{selectedSupply.estado !== undefined ? 'Activo' : ''} {selectedSupply.nombre}</span>
+                              </div>
+                            ) : null}
+                          </div>
                         </div>
 
-                        <div className="flex space-x-2">
-                          <div className="flex-1">
+                        <div className="flex space-x-3">
+                          <div className="flex-1 flex flex-col">
                             <label className="block text-sm font-semibold text-gray-700 mb-2">
                               Cantidad *
                             </label>
                             <input
                               type="number"
                               value={item.quantity}
-                              onChange={(e) => updateProduct(index, 'quantity', e.target.value)}
+                              onChange={(e) => updateInsumo(index, 'quantity', e.target.value)}
                               min="1"
-                              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pink-300 focus:border-transparent ${errors[`quantity_${index}`] ? 'border-red-300' : 'border-gray-300'
+                              max={selectedSupply?.quantity || 999}
+                              className={`w-full px-4 py-2 min-h-[42px] border rounded-lg focus:ring-2 focus:ring-pink-300 focus:border-transparent ${errors[`quantity_${index}`] ? 'border-red-300' : 'border-gray-300'
                                 }`}
                               placeholder="0"
                             />
-                            {errors[`quantity_${index}`] && (
-                              <p className="text-red-600 text-xs mt-1">{errors[`quantity_${index}`]}</p>
-                            )}
+                            <div className="min-h-[24px] mt-1 flex items-center">
+                              {errors[`quantity_${index}`] && (
+                                <p className="text-red-500 text-sm font-medium">{errors[`quantity_${index}`]}</p>
+                              )}
+                            </div>
                           </div>
 
-                          <div className="flex items-end">
+                          <div className="flex flex-col">
+                            <label className="block text-sm font-semibold text-gray-700 mb-2 invisible">
+                              Eliminar
+                            </label>
                             <button
                               type="button"
-                              onClick={() => removeProduct(index)}
-                              className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
+                              onClick={() => removeInsumo(index)}
+                              className="p-2 min-h-[42px] bg-red-100/80 text-red-600 rounded-lg hover:bg-red-200 transition-colors flex items-center justify-center border border-red-200"
                               title="Eliminar insumo"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="w-5 h-5" />
                             </button>
                           </div>
                         </div>
@@ -961,10 +1084,15 @@ function CreateDeliveryModal({ onClose, onSave, supplies, users }: any) {
             </button>
             <button
               type="submit"
-              className="flex-1 bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all flex items-center justify-center space-x-2"
+              disabled={isProcessing}
+              className="flex-1 bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all flex items-center justify-center space-x-2 disabled:opacity-50"
             >
-              <Save className="w-5 h-5" />
-              <span>Crear Entrega</span>
+              {isProcessing ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Save className="w-5 h-5" />
+              )}
+              <span>{isProcessing ? 'Procesando...' : 'Registrar Entrega'}</span>
             </button>
           </div>
         </form>
@@ -974,29 +1102,27 @@ function CreateDeliveryModal({ onClose, onSave, supplies, users }: any) {
 }
 
 // Delivery Detail Modal Component - MENOS ESPACIADO
-function DeliveryDetailModal({ delivery, onClose, supply, responsible, getSupplyInfo }) {
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'completed': return 'bg-green-100 text-green-800 border-green-200';
-      case 'cancelled': return 'bg-red-100 text-red-800 border-red-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
+function DeliveryDetailModal({ delivery, onClose, responsible, getSupplyInfo }: any) {
+  const getStatusColor = (status: string) => {
+    const s = status?.toLowerCase();
+    if (s.includes('pendiente')) return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+    if (s.includes('completado') || s.includes('entregado')) return 'bg-green-100 text-green-700 border-green-200';
+    if (s.includes('cancelado')) return 'bg-red-100 text-red-700 border-red-200';
+    return 'bg-gray-100 text-gray-700 border-gray-200';
   };
 
-  const getStatusLabel = (status) => {
-    switch (status) {
-      case 'pending': return 'Pendiente';
-      case 'completed': return 'Completado';
-      case 'cancelled': return 'Cancelado';
-      default: return status;
-    }
+  const getStatusLabel = (status: string) => {
+    const s = status?.toLowerCase();
+    if (s.includes('pendiente')) return 'Pendiente';
+    if (s.includes('completado') || s.includes('entregado')) return 'Completado';
+    if (s.includes('cancelado')) return 'Cancelado';
+    return status;
   };
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
-        <div className="bg-gradient-to-r from-purple-400 to-pink-500 p-6 text-white rounded-t-3xl shrink-0">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+        <div className="bg-gradient-to-r from-purple-400 to-pink-500 p-6 text-white rounded-t-3xl">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-2xl font-bold">Detalle de Entrega #{delivery.id}</h3>
@@ -1011,11 +1137,11 @@ function DeliveryDetailModal({ delivery, onClose, supply, responsible, getSupply
           </div>
         </div>
 
-        <div className="p-6 space-y-4 overflow-y-auto">
+        <div className="p-6 space-y-4">
           {/* Estado - Más compacto */}
           <div className="flex justify-center">
-            <span className={`px-4 py-2 rounded-full font-semibold border ${getStatusColor(delivery.status)}`}>
-              {getStatusLabel(delivery.status)}
+            <span className={`px-4 py-2 rounded-full font-semibold border ${getStatusColor(delivery.estado)}`}>
+              {getStatusLabel(delivery.estado)}
             </span>
           </div>
 
@@ -1027,53 +1153,45 @@ function DeliveryDetailModal({ delivery, onClose, supply, responsible, getSupply
             </div>
             <div className="bg-gray-50 rounded-lg p-3">
               <span className="text-xs text-gray-600">Fecha Entrega</span>
-              <p className="font-semibold text-gray-800">{delivery.deliveryDate}</p>
+              <p className="font-semibold text-gray-800">{delivery.fechaEntrega.split('T')[0]}</p>
             </div>
-            {delivery.completedAt && (
+            {delivery.fechaCompletado && (
               <div className="bg-gray-50 rounded-lg p-3">
                 <span className="text-xs text-gray-600">Completado</span>
-                <p className="font-semibold text-green-600">{delivery.completedAt}</p>
+                <p className="font-semibold text-green-600">{delivery.fechaCompletado.split('T')[0]}</p>
               </div>
             )}
             <div className="bg-gray-50 rounded-lg p-3">
               <span className="text-xs text-gray-600">Creado</span>
-              <p className="font-semibold text-gray-800">{delivery.createdAt}</p>
+              <p className="font-semibold text-gray-800">{delivery.fechaCreado.split('T')[0]}</p>
             </div>
           </div>
 
-          {/* Productos - Tabla compacta */}
+          {/* Insumos - Tabla compacta */}
           <div>
-            <h4 className="font-bold text-gray-800 mb-3">Productos Entregados</h4>
+            <h4 className="font-bold text-gray-800 mb-3">Insumos Entregados</h4>
             <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-200 overflow-hidden">
               <table className="w-full">
                 <thead className="bg-blue-100">
                   <tr>
-                    <th className="px-4 py-2 text-left text-sm font-semibold text-gray-800">Producto</th>
+                    <th className="px-4 py-2 text-left text-sm font-semibold text-gray-800">Insumo</th>
                     <th className="px-4 py-2 text-left text-sm font-semibold text-gray-800">SKU</th>
                     <th className="px-4 py-2 text-center text-sm font-semibold text-gray-800">Cantidad</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {delivery.items ? delivery.items.map((item, idx) => {
-                    const prod = getSupplyInfo(item.supplyId);
+                  {delivery.detalles?.map((item, idx) => {
+                    const prod = getSupplyInfo(item.insumoId);
                     return (
                       <tr key={idx} className="border-t border-blue-100">
-                        <td className="px-4 py-2 text-sm text-gray-800">{prod?.name}</td>
-                        <td className="px-4 py-2 text-sm text-gray-600">{prod?.sku}</td>
+                        <td className="px-4 py-2 text-sm text-gray-800">{prod?.nombre || 'Insumo'}</td>
+                        <td className="px-4 py-2 text-sm text-gray-600">{prod?.sku || '-'}</td>
                         <td className="px-4 py-2 text-center text-sm font-semibold text-purple-600">
-                          {item.quantity} {prod?.unit}
+                          {item.cantidad} {prod?.unidad_medida || ''}
                         </td>
                       </tr>
                     );
-                  }) : (
-                    <tr>
-                      <td className="px-4 py-2 text-sm text-gray-800">{supply?.name}</td>
-                      <td className="px-4 py-2 text-sm text-gray-600">{supply?.sku}</td>
-                      <td className="px-4 py-2 text-center text-sm font-semibold text-purple-600">
-                        {delivery.quantity} {supply?.unit}
-                      </td>
-                    </tr>
-                  )}
+                  })}
                 </tbody>
               </table>
             </div>

@@ -16,6 +16,7 @@ interface Product {
   category: string;
   categoryId: number;
   status: 'active' | 'inactive';
+  quantity: number;
 }
 
 interface ProductManagementProps {
@@ -64,7 +65,8 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
     sku: supply.sku,
     category: supply.categoriaNombre || fallbackCategory || 'Sin categoría',
     categoryId: supply.categoriaId,
-    status: supply.estado ? 'active' : 'inactive'
+    status: supply.estado ? 'active' : 'inactive',
+    quantity: supply.cantidad || 0
   });
 
   const fetchInitialData = async () => {
@@ -185,7 +187,8 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
       nombre: uiData.name,
       descripcion: uiData.description || '',
       categoriaId: Number(uiData.categoryId) || 0,
-      estado: uiData.status === 'active'
+      estado: uiData.status === 'active',
+      cantidad: Number(uiData.quantity) || 0
     } as APISupply;
   };
 
@@ -312,6 +315,7 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
                     <th className="px-6 py-4 text-left font-semibold text-gray-800">Nombre</th>
                     <th className="px-6 py-4 text-left font-semibold text-gray-800">SKU</th>
                     <th className="px-6 py-4 text-left font-semibold text-gray-800">Categoría</th>
+                    <th className="px-6 py-4 text-left font-semibold text-gray-800">Stock</th>
                     <th className="px-6 py-4 text-left font-semibold text-gray-800">Estado</th>
                     <th className="px-6 py-4 text-left font-semibold text-gray-800">Acciones</th>
                   </tr>
@@ -324,6 +328,12 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
                         <td className="px-6 py-4 font-semibold text-gray-800">{product.name}</td>
                         <td className="px-6 py-4 text-gray-700">{product.sku}</td>
                         <td className="px-6 py-4 text-gray-700">{product.category}</td>
+                        <td className="px-6 py-4">
+                          <span className={`px-2 py-1 rounded-md text-sm font-bold ${product.quantity <= 0 ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
+                            }`}>
+                            {product.quantity} uds
+                          </span>
+                        </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center space-x-3">
                             <label className="relative inline-flex items-center cursor-pointer">
@@ -453,28 +463,6 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
         </div>
       )}
 
-      {/* Success Alert */}
-      {showSuccessAlert && (
-        <div className="fixed top-4 right-4 z-[9999] animate-in slide-in-from-top-5 duration-300">
-          <div className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center space-x-4 min-w-[320px]">
-            <div className="flex-shrink-0">
-              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                <CheckCircle className="w-6 h-6 text-white" />
-              </div>
-            </div>
-            <div className="flex-1">
-              <p className="font-semibold">{alertMessage}</p>
-            </div>
-            <button
-              onClick={() => setShowSuccessAlert(false)}
-              className="flex-shrink-0 w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 }
@@ -516,7 +504,8 @@ function ProductModal({ product, onClose, onSave, categories }: ProductModalProp
     sku: product?.sku || '',
     categoryId: product?.categoryId || '',
     status: product?.status || 'active',
-    description: product?.description || ''
+    description: product?.description || '',
+    quantity: product?.quantity || 0
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -529,7 +518,6 @@ function ProductModal({ product, onClose, onSave, categories }: ProductModalProp
 
     const newErrors: any = {};
     if (!formData.name.trim()) newErrors.name = 'El nombre es requerido';
-    if (!formData.sku.trim()) newErrors.sku = 'El SKU es requerido';
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -553,8 +541,8 @@ function ProductModal({ product, onClose, onSave, categories }: ProductModalProp
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[1000] flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
-        <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-6 text-white rounded-t-3xl shrink-0">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+        <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-6 text-white rounded-t-3xl">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-2xl font-bold">
@@ -571,7 +559,7 @@ function ProductModal({ product, onClose, onSave, categories }: ProductModalProp
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto">
+        <form onSubmit={handleSubmit} className="p-6 space-y-6">
           <div className="grid md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -656,6 +644,23 @@ function ProductModal({ product, onClose, onSave, categories }: ProductModalProp
             </div>
           </div>
 
+          <div className="grid md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Stock Inicial/Actual *
+              </label>
+              <input
+                type="number"
+                name="quantity"
+                value={formData.quantity}
+                onChange={handleInputChange}
+                min="0"
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
+                placeholder="0"
+              />
+            </div>
+          </div>
+
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
               Descripción (Opcional)
@@ -699,8 +704,8 @@ function ProductModal({ product, onClose, onSave, categories }: ProductModalProp
 function ProductDetailModal({ product, onClose }: any) {
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-        <div className="bg-gradient-to-r from-blue-400 to-purple-500 p-6 text-white rounded-t-3xl shrink-0">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl">
+        <div className="bg-gradient-to-r from-blue-400 to-purple-500 p-6 text-white rounded-t-3xl">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-2xl font-bold">Detalles del Insumo</h3>
@@ -715,7 +720,7 @@ function ProductDetailModal({ product, onClose }: any) {
           </div>
         </div>
 
-        <div className="p-6 space-y-4 overflow-y-auto">
+        <div className="p-6 space-y-4">
           <div className="grid md:grid-cols-2 gap-4">
             <div>
               <p className="text-sm text-gray-600">Nombre</p>
@@ -737,6 +742,11 @@ function ProductDetailModal({ product, onClose }: any) {
             <span className={`px-3 py-1 rounded-full text-xs font-semibold inline-block mt-1 ${getStatusColor(product.status)}`}>
               {getStatusLabel(product.status)}
             </span>
+          </div>
+
+          <div>
+            <p className="text-sm text-gray-600">Stock Disponible</p>
+            <p className="text-lg font-bold text-blue-600">{product.quantity} unidades</p>
           </div>
 
           {product.description && (
@@ -764,8 +774,8 @@ function ProductDetailModal({ product, onClose }: any) {
 function DeleteConfirmModal({ productName, onConfirm, onCancel }: any) {
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
-        <div className="bg-gradient-to-r from-red-400 to-pink-500 p-6 text-white rounded-t-3xl shrink-0">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md">
+        <div className="bg-gradient-to-r from-red-400 to-pink-500 p-6 text-white rounded-t-3xl">
           <div className="flex items-center space-x-3">
             <AlertCircle className="w-8 h-8" />
             <div>
@@ -775,7 +785,7 @@ function DeleteConfirmModal({ productName, onConfirm, onCancel }: any) {
           </div>
         </div>
 
-        <div className="p-6 space-y-4 overflow-y-auto">
+        <div className="p-6 space-y-4">
           <p className="text-gray-700">
             ¿Estás seguro de que quieres eliminar el insumo{' '}
             <span className="font-bold">"{productName}"</span>?
