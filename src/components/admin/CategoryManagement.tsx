@@ -434,7 +434,7 @@ export function CategoryManagement({ hasPermission }: CategoryManagementProps) {
 
       {/* Success Alert */}
       {showSuccessAlert && (
-        <div className="fixed top-24 right-4 z-[2147483647] animate-in slide-in-from-top-5 duration-300">
+        <div className="fixed top-4 right-4 z-[9999] animate-in slide-in-from-top-5 duration-300">
           <div className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center space-x-4 min-w-[320px]">
             <div className="flex-shrink-0">
               <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
@@ -536,9 +536,9 @@ function CategoryEditModal({ category, onClose, onSave }) {
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[1000] flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
         {/* Modal Header */}
-        <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-6 text-white rounded-t-3xl">
+        <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-6 text-white rounded-t-3xl shrink-0">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-2xl font-bold">
@@ -558,7 +558,7 @@ function CategoryEditModal({ category, onClose, onSave }) {
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto">
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
               Nombre de la Categoría *
@@ -649,9 +649,9 @@ function CategoryDetailModal({ category, onClose, getProductsByCategory }) {
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[1000] flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
         {/* Modal Header */}
-        <div className="bg-gradient-to-r from-gray-100 to-gray-200 p-6 text-gray-800 rounded-t-3xl">
+        <div className="bg-gradient-to-r from-gray-100 to-gray-200 p-6 text-gray-800 rounded-t-3xl shrink-0">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-2xl font-bold">
@@ -671,7 +671,7 @@ function CategoryDetailModal({ category, onClose, getProductsByCategory }) {
         </div>
 
         {/* Category Details */}
-        <div className="p-6 space-y-4">
+        <div className="p-6 space-y-4 overflow-y-auto">
           <div>
             <h4 className="font-semibold text-gray-800 mb-2">Información de la Categoría</h4>
             <div className="grid grid-cols-2 gap-4">
@@ -753,7 +753,7 @@ function CategoryDetailModal({ category, onClose, getProductsByCategory }) {
 function DeleteConfirmationModal({ category, onClose, onConfirm }) {
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[1000] flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
         <div className="p-6">
           <div className="flex items-center space-x-4 mb-6">
             <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">

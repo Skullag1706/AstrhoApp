@@ -453,6 +453,28 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
         </div>
       )}
 
+      {/* Success Alert */}
+      {showSuccessAlert && (
+        <div className="fixed top-4 right-4 z-[9999] animate-in slide-in-from-top-5 duration-300">
+          <div className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center space-x-4 min-w-[320px]">
+            <div className="flex-shrink-0">
+              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                <CheckCircle className="w-6 h-6 text-white" />
+              </div>
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold">{alertMessage}</p>
+            </div>
+            <button
+              onClick={() => setShowSuccessAlert(false)}
+              className="flex-shrink-0 w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -531,8 +553,8 @@ function ProductModal({ product, onClose, onSave, categories }: ProductModalProp
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[1000] flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-        <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-6 text-white rounded-t-3xl">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+        <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-6 text-white rounded-t-3xl shrink-0">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-2xl font-bold">
@@ -549,7 +571,7 @@ function ProductModal({ product, onClose, onSave, categories }: ProductModalProp
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto">
           <div className="grid md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -677,8 +699,8 @@ function ProductModal({ product, onClose, onSave, categories }: ProductModalProp
 function ProductDetailModal({ product, onClose }: any) {
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl">
-        <div className="bg-gradient-to-r from-blue-400 to-purple-500 p-6 text-white rounded-t-3xl">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+        <div className="bg-gradient-to-r from-blue-400 to-purple-500 p-6 text-white rounded-t-3xl shrink-0">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-2xl font-bold">Detalles del Insumo</h3>
@@ -693,7 +715,7 @@ function ProductDetailModal({ product, onClose }: any) {
           </div>
         </div>
 
-        <div className="p-6 space-y-4">
+        <div className="p-6 space-y-4 overflow-y-auto">
           <div className="grid md:grid-cols-2 gap-4">
             <div>
               <p className="text-sm text-gray-600">Nombre</p>
@@ -742,8 +764,8 @@ function ProductDetailModal({ product, onClose }: any) {
 function DeleteConfirmModal({ productName, onConfirm, onCancel }: any) {
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md">
-        <div className="bg-gradient-to-r from-red-400 to-pink-500 p-6 text-white rounded-t-3xl">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
+        <div className="bg-gradient-to-r from-red-400 to-pink-500 p-6 text-white rounded-t-3xl shrink-0">
           <div className="flex items-center space-x-3">
             <AlertCircle className="w-8 h-8" />
             <div>
@@ -753,7 +775,7 @@ function DeleteConfirmModal({ productName, onConfirm, onCancel }: any) {
           </div>
         </div>
 
-        <div className="p-6 space-y-4">
+        <div className="p-6 space-y-4 overflow-y-auto">
           <p className="text-gray-700">
             ¿Estás seguro de que quieres eliminar el insumo{' '}
             <span className="font-bold">"{productName}"</span>?

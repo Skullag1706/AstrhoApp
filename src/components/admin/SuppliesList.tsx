@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { 
+import React, { useEffect, useState  } from 'react';
+import { X, 
   Package, Edit, Trash2, Eye, Search, Filter, Plus,
   AlertCircle, CheckCircle, Clock, Archive
 } from 'lucide-react';
@@ -145,6 +145,19 @@ interface SuppliesListProps {
 }
 
 export function SuppliesList({ hasPermission }: SuppliesListProps) {
+  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
+  const [alertMessage, setAlertMessage] = useState('');
+
+  // Auto-hide success alert after 4 seconds
+  useEffect(() => {
+    if (showSuccessAlert) {
+      const timer = setTimeout(() => {
+        setShowSuccessAlert(false);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [showSuccessAlert]);
+
   const [supplies, setSupplies] = useState(mockSupplies);
   const [selectedSupply, setSelectedSupply] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -564,8 +577,8 @@ export function SuppliesList({ hasPermission }: SuppliesListProps) {
       {/* Supply Detail Modal */}
       {showDetailModal && selectedSupply && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-6 text-white rounded-t-3xl">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-6 text-white rounded-t-3xl shrink-0">
               <div className="flex items-center space-x-3 mb-4">
                 <Package className="w-8 h-8" />
                 <div>
@@ -575,7 +588,7 @@ export function SuppliesList({ hasPermission }: SuppliesListProps) {
               </div>
             </div>
             
-            <div className="p-6 space-y-6">
+            <div className="p-6 space-y-6 overflow-y-auto">
               {/* Basic Information */}
               <div>
                 <h4 className="font-semibold text-gray-800 mb-4">Información Básica</h4>
@@ -686,7 +699,7 @@ export function SuppliesList({ hasPermission }: SuppliesListProps) {
       {/* Delete Confirmation Modal */}
       {showDeleteModal && supplyToDelete && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
             <div className="p-6">
               <div className="flex items-center space-x-4 mb-6">
                 <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
@@ -728,6 +741,28 @@ export function SuppliesList({ hasPermission }: SuppliesListProps) {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Success Alert */}
+      {showSuccessAlert && (
+        <div className="fixed top-4 right-4 z-[9999] animate-in slide-in-from-top-5 duration-300">
+          <div className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center space-x-4 min-w-[320px]">
+            <div className="flex-shrink-0">
+              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                <CheckCircle className="w-6 h-6 text-white" />
+              </div>
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold">{alertMessage}</p>
+            </div>
+            <button
+              onClick={() => setShowSuccessAlert(false)}
+              className="flex-shrink-0 w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
         </div>
       )}

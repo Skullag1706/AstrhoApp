@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { 
+import React, { useEffect, useState } from 'react';
+import {
   Users, Plus, Edit, Trash2, Eye, Search, Filter, CheckCircle, XCircle, X, Save,
   AlertCircle, Mail, Phone, Calendar, Shield, UserCog, Download, Upload,
   FileText, Camera, MapPin, IdCard, UserCheck
@@ -12,6 +12,19 @@ interface UserManagementProps {
 }
 
 export function UserManagement({ hasPermission }: UserManagementProps) {
+  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
+  const [alertMessage, setAlertMessage] = useState('');
+
+  // Auto-hide success alert after 4 seconds
+  useEffect(() => {
+    if (showSuccessAlert) {
+      const timer = setTimeout(() => {
+        setShowSuccessAlert(false);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [showSuccessAlert]);
+
   const [users, setUsers] = useState(mockUsers);
   const [selectedUser, setSelectedUser] = useState(null);
   const [showUserModal, setShowUserModal] = useState(false);
@@ -29,11 +42,11 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
   // Filter users based on search and filters
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.documentId.includes(searchTerm);
+      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.documentId.includes(searchTerm);
     const matchesRole = filterRole === 'all' || user.role === filterRole;
     const matchesStatus = filterStatus === 'all' || user.status === filterStatus;
-    
+
     return matchesSearch && matchesRole && matchesStatus;
   });
 
@@ -77,7 +90,7 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
       setShowDeleteWarningModal(true);
       return;
     }
-    
+
     setUserToDelete(user);
     setShowDeleteModal(true);
   };
@@ -87,14 +100,16 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
       setUsers(users.filter(u => u.id !== userToDelete.id));
       setShowDeleteModal(false);
       setUserToDelete(null);
+      setAlertMessage('Usuario eliminado correctamente');
+      setShowSuccessAlert(true);
     }
   };
 
   const handleSaveUser = (userData) => {
     if (selectedUser) {
       // Edit existing user
-      setUsers(users.map(u => 
-        u.id === selectedUser.id 
+      setUsers(users.map(u =>
+        u.id === selectedUser.id
           ? { ...u, ...userData, name: `${userData.firstName} ${userData.lastName}`.trim() }
           : u
       ));
@@ -109,22 +124,26 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
       setUsers([...users, newUser]);
     }
     setShowUserModal(false);
+    setAlertMessage(selectedUser ? 'Usuario actualizado correctamente' : 'Usuario registrado correctamente');
+    setShowSuccessAlert(true);
   };
 
   const toggleUserStatus = (userId) => {
     const user = users.find(u => u.id === userId);
-    
+
     // No permitir inactivar al super administrador
     if (user && user.role === 'super_admin') {
       setShowInactiveWarningModal(true);
       return;
     }
-    
-    setUsers(users.map(user => 
-      user.id === userId 
+
+    setUsers(users.map(user =>
+      user.id === userId
         ? { ...user, status: user.status === 'active' ? 'suspended' : 'active' }
         : user
     ));
+    setAlertMessage('Estado de usuario actualizado correctamente');
+    setShowSuccessAlert(true);
   };
 
   const getRoleDisplayName = (role) => {
@@ -182,7 +201,7 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
               className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
             />
           </div>
-          
+
           <div className="flex items-center space-x-2">
             <Filter className="w-5 h-5 text-gray-400" />
             <select
@@ -197,7 +216,7 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
               <option value="customer">Cliente</option>
             </select>
           </div>
-          
+
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
@@ -219,7 +238,7 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
             {filteredUsers.length} usuario{filteredUsers.length !== 1 ? 's' : ''} encontrado{filteredUsers.length !== 1 ? 's' : ''}
           </p>
         </div>
-        
+
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50">
@@ -246,7 +265,7 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
                       </div>
                     </div>
                   </td>
-                  
+
                   <td className="px-6 py-4">
                     <div className="space-y-1">
                       <div className="flex items-center space-x-1 text-sm text-gray-700">
@@ -259,13 +278,13 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
                       </div>
                     </div>
                   </td>
-                  
+
                   <td className="px-6 py-4">
                     <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getRoleBadgeColor(user.role)}`}>
                       {getRoleDisplayName(user.role)}
                     </span>
                   </td>
-                  
+
                   <td className="px-6 py-4">
                     <div className="flex items-center space-x-3">
                       {user.role === 'super_admin' ? (
@@ -288,16 +307,15 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
                             className="sr-only peer"
                           />
                           <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-pink-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-pink-400 peer-checked:to-purple-500"></div>
-                          <span className={`ml-3 text-sm font-medium ${
-                            user.status === 'active' ? 'text-green-600' : 'text-red-600'
-                          }`}>
+                          <span className={`ml-3 text-sm font-medium ${user.status === 'active' ? 'text-green-600' : 'text-red-600'
+                            }`}>
                             {user.status === 'active' ? 'Activo' : 'Inactivo'}
                           </span>
                         </label>
                       )}
                     </div>
                   </td>
-                  
+
                   <td className="px-6 py-4">
                     <div className="flex items-center space-x-2">
                       <button
@@ -307,7 +325,7 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
                       >
                         <Eye className="w-4 h-4" />
                       </button>
-                      
+
                       {hasPermission('manage_users') && (
                         <>
                           <button
@@ -317,7 +335,7 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
                           >
                             <Edit className="w-4 h-4" />
                           </button>
-                          
+
                           {user.role !== 'super_admin' && (
                             <button
                               onClick={() => handleDeleteUser(user)}
@@ -371,7 +389,7 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
       {/* Delete Confirmation Modal */}
       {showDeleteModal && userToDelete && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
             <div className="p-6">
               <div className="flex items-center space-x-4 mb-6">
                 <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
@@ -382,7 +400,7 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
                   <p className="text-gray-600">Esta acción no se puede deshacer</p>
                 </div>
               </div>
-              
+
               <div className="mb-6">
                 <p className="text-gray-700 mb-4">
                   ¿Estás segura de que quieres eliminar el usuario <strong>{userToDelete.name}</strong>?
@@ -401,7 +419,7 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
                   </div>
                 </div>
               </div>
-              
+
               <div className="flex space-x-3">
                 <button
                   onClick={() => setShowDeleteModal(false)}
@@ -424,7 +442,7 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
       {/* Inactive Warning Modal */}
       {showInactiveWarningModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
             <div className="p-6">
               <div className="flex items-center space-x-4 mb-6">
                 <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
@@ -435,7 +453,7 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
                   <p className="text-gray-600">No se puede inactivar al Super Administrador</p>
                 </div>
               </div>
-              
+
               <div className="flex space-x-3">
                 <button
                   onClick={() => setShowInactiveWarningModal(false)}
@@ -452,7 +470,7 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
       {/* Delete Warning Modal */}
       {showDeleteWarningModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
             <div className="p-6">
               <div className="flex items-center space-x-4 mb-6">
                 <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
@@ -463,7 +481,7 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
                   <p className="text-gray-600">No se puede eliminar al Super Administrador del sistema</p>
                 </div>
               </div>
-              
+
               <div className="flex space-x-3">
                 <button
                   onClick={() => setShowDeleteWarningModal(false)}
@@ -473,6 +491,28 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Success Alert */}
+      {showSuccessAlert && (
+        <div className="fixed top-4 right-4 z-[9999] animate-in slide-in-from-top-5 duration-300">
+          <div className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center space-x-4 min-w-[320px]">
+            <div className="flex-shrink-0">
+              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                <CheckCircle className="w-6 h-6 text-white" />
+              </div>
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold">{alertMessage}</p>
+            </div>
+            <button
+              onClick={() => setShowSuccessAlert(false)}
+              className="flex-shrink-0 w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
         </div>
       )}
@@ -524,8 +564,8 @@ function UserModal({ user, onClose, onSave, roles }) {
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-        <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-6 text-white rounded-t-3xl">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+        <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-6 text-white rounded-t-3xl shrink-0">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-2xl font-bold">
@@ -544,15 +584,15 @@ function UserModal({ user, onClose, onSave, roles }) {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto">
           {/* Profile Image */}
           <div className="flex justify-center">
             <div className="relative">
               <div className="w-24 h-24 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full flex items-center justify-center overflow-hidden">
                 {formData.profileImage ? (
-                  <img 
-                    src={formData.profileImage} 
-                    alt="Profile" 
+                  <img
+                    src={formData.profileImage}
+                    alt="Profile"
                     className="w-full h-full object-cover"
                   />
                 ) : (
@@ -622,7 +662,7 @@ function UserModal({ user, onClose, onSave, roles }) {
                   required
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Apellidos *
@@ -725,7 +765,7 @@ function UserModal({ user, onClose, onSave, roles }) {
                   <p className="text-xs text-purple-600 mt-1 font-medium">El rol de Super Administrador es permanente.</p>
                 )}
               </div>
-              
+
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Estado *
@@ -773,8 +813,8 @@ function UserModal({ user, onClose, onSave, roles }) {
 function UserDetailModal({ user, onClose }) {
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="bg-gradient-to-r from-blue-400 to-purple-500 p-6 text-white rounded-t-3xl">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+        <div className="bg-gradient-to-r from-blue-400 to-purple-500 p-6 text-white rounded-t-3xl shrink-0">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-2xl font-bold">Detalles del Usuario</h3>
@@ -789,13 +829,13 @@ function UserDetailModal({ user, onClose }) {
           </div>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 overflow-y-auto">
           <div className="text-center">
             <div className="w-24 h-24 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-4 overflow-hidden">
               {user.profileImage ? (
-                <img 
-                  src={user.profileImage} 
-                  alt="Profile" 
+                <img
+                  src={user.profileImage}
+                  alt="Profile"
                   className="w-full h-full object-cover"
                 />
               ) : (
@@ -811,17 +851,17 @@ function UserDetailModal({ user, onClose }) {
           <div className="grid md:grid-cols-2 gap-4">
             <div className="space-y-4">
               <h5 className="font-semibold text-gray-800">Información Personal</h5>
-              
+
               <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-xl">
                 <IdCard className="w-5 h-5 text-gray-400" />
                 <div>
                   <div className="text-sm text-gray-600">Documento</div>
                   <div className="font-semibold text-gray-800">
-                    {user.documentType === 'cedula' ? 'C.C.' : 
-                     user.documentType === 'tarjeta_identidad' ? 'T.I.' :
-                     user.documentType === 'cedula_extranjeria' ? 'C.E.' :
-                     user.documentType === 'pasaporte' ? 'Pasaporte' :
-                     user.documentType === 'nit' ? 'NIT' : 'N/A'} {user.documentId}
+                    {user.documentType === 'cedula' ? 'C.C.' :
+                      user.documentType === 'tarjeta_identidad' ? 'T.I.' :
+                        user.documentType === 'cedula_extranjeria' ? 'C.E.' :
+                          user.documentType === 'pasaporte' ? 'Pasaporte' :
+                            user.documentType === 'nit' ? 'NIT' : 'N/A'} {user.documentId}
                   </div>
                 </div>
               </div>
@@ -849,7 +889,7 @@ function UserDetailModal({ user, onClose }) {
 
             <div className="space-y-4">
               <h5 className="font-semibold text-gray-800">Información del Sistema</h5>
-              
+
               <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-xl">
                 <Phone className="w-5 h-5 text-gray-400" />
                 <div>
@@ -857,26 +897,25 @@ function UserDetailModal({ user, onClose }) {
                   <div className="font-semibold text-gray-800">{user.phone}</div>
                 </div>
               </div>
-              
+
               <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-xl">
                 <UserCheck className="w-5 h-5 text-gray-400" />
                 <div>
                   <div className="text-sm text-gray-600">Rol</div>
                   <div className="font-semibold text-gray-800">
                     {user.role === 'super_admin' ? 'Super Administrador' :
-                     user.role === 'admin' ? 'Administrador' :
-                     user.role === 'asistente' ? 'Asistente' : 'Cliente'}
+                      user.role === 'admin' ? 'Administrador' :
+                        user.role === 'asistente' ? 'Asistente' : 'Cliente'}
                   </div>
                 </div>
               </div>
-              
+
               <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-xl">
                 <AlertCircle className="w-5 h-5 text-gray-400" />
                 <div>
                   <div className="text-sm text-gray-600">Estado</div>
-                  <div className={`font-semibold ${
-                    user.status === 'active' ? 'text-green-600' : 'text-red-600'
-                  }`}>
+                  <div className={`font-semibold ${user.status === 'active' ? 'text-green-600' : 'text-red-600'
+                    }`}>
                     {user.status === 'active' ? 'Activo' : 'Inactivo'}
                   </div>
                 </div>

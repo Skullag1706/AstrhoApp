@@ -1,29 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Send, Plus, Calendar, Filter, Search, CheckCircle, Clock, 
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  Send, Plus, Calendar, Filter, Search, CheckCircle, Clock,
   X, Save, AlertCircle, Package, User, MapPin, FileText, Eye, Edit, Ban, Trash2
 } from 'lucide-react';
-import { mockSupplyDeliveries, mockSupplies, mockUsers } from '../../data/management';
+import { mockSupplies, mockUsers } from '../../data/management';
 import { SimplePagination } from '../ui/simple-pagination';
+import { supplyDeliveryService, SupplyDelivery } from '../../services/supplyDeliveryService';
+import { toast } from 'sonner@2.0.3';
 
 interface SupplyDeliveryManagementProps {
   hasPermission: (permission: string) => boolean;
 }
 
 export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManagementProps) {
-  const [deliveries, setDeliveries] = useState(mockSupplyDeliveries);
-  const [selectedDelivery, setSelectedDelivery] = useState(null);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showDetailModal, setShowDetailModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [filterResponsible, setFilterResponsible] = useState('all');
-  const [dateRange, setDateRange] = useState({ start: '', end: '' });
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
-  const [showCancelModal, setShowCancelModal] = useState(false);
-  const [deliveryToCancel, setDeliveryToCancel] = useState(null);
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
 
@@ -37,17 +26,51 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
     }
   }, [showSuccessAlert]);
 
+  const [deliveries, setDeliveries] = useState<SupplyDelivery[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedDelivery, setSelectedDelivery] = useState(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterResponsible, setFilterResponsible] = useState('all');
+  const [dateRange, setDateRange] = useState({ start: '', end: '' });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [deliveryToCancel, setDeliveryToCancel] = useState<any>(null);
+
+  const loadDeliveries = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const data = await supplyDeliveryService.getDeliveries();
+      setDeliveries(data);
+    } catch (err) {
+      console.error('Error loading deliveries:', err);
+      setError('Error al cargar las entregas. Por favor, intente de nuevo.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDeliveries();
+  }, []);
+
   const filteredDeliveries = deliveries.filter(delivery => {
     const supply = mockSupplies.find(s => s.id === delivery.supplyId);
     const responsible = mockUsers.find(u => u.id === delivery.responsibleId);
-    
+
     const matchesSearch = supply?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         delivery.destination?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         responsible?.name.toLowerCase().includes(searchTerm.toLowerCase());
+      delivery.destination?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      responsible?.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = filterStatus === 'all' || delivery.status === filterStatus;
     const matchesResponsible = filterResponsible === 'all' || delivery.responsibleId === parseInt(filterResponsible);
     const matchesDate = !dateRange.start || delivery.deliveryDate >= dateRange.start;
-    
+
     return matchesSearch && matchesStatus && matchesResponsible && matchesDate;
   });
 
@@ -112,13 +135,17 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
     setShowCancelModal(true);
   };
 
-  const confirmCancelDelivery = () => {
+  const confirmCancelDelivery = async () => {
     if (deliveryToCancel) {
-      updateDeliveryStatus(deliveryToCancel.id, 'cancelled');
-      setShowCancelModal(false);
-      setDeliveryToCancel(null);
-      setAlertMessage('Entrega cancelada exitosamente');
-      setShowSuccessAlert(true);
+      try {
+        await updateDeliveryStatus(deliveryToCancel.id, 'cancelled');
+        setShowCancelModal(false);
+        setDeliveryToCancel(null);
+        toast.success('Entrega cancelada exitosamente');
+      } catch (err) {
+        console.error('Error cancelling delivery:', err);
+        toast.error('Error al cancelar la entrega.');
+      }
     }
   };
 
@@ -126,36 +153,53 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
     setShowCreateModal(true);
   };
 
-  const handleSaveDelivery = (deliveryData) => {
-    const newDelivery = {
-      id: Math.max(...deliveries.map(d => d.id)) + 1,
-      ...deliveryData,
-      status: 'pending',
-      createdBy: 1, // Current user
-      createdAt: new Date().toISOString().split('T')[0]
-    };
-    setDeliveries([...deliveries, newDelivery]);
-    setShowCreateModal(false);
-    setAlertMessage('Entrega creada exitosamente');
-    setShowSuccessAlert(true);
+  const handleSaveDelivery = async (deliveryData: any) => {
+    try {
+      const dataToSave = {
+        supplyId: deliveryData.items[0]?.supplyId || 0, // Fallback if single supplyId expected
+        deliveryDate: deliveryData.deliveryDate,
+        quantity: deliveryData.items[0]?.quantity || 0,
+        destination: deliveryData.destination,
+        responsiblePerson: deliveryData.responsiblePerson,
+        responsibleId: deliveryData.responsibleId,
+        status: 'pending' as const,
+        notes: deliveryData.notes,
+        createdBy: 1, // Current user
+        createdAt: new Date().toISOString().split('T')[0],
+        items: deliveryData.items
+      };
+
+      const savedDelivery = await supplyDeliveryService.createDelivery(dataToSave);
+      setDeliveries([...deliveries, savedDelivery]);
+      setShowCreateModal(false);
+      toast.success('Entrega creada exitosamente');
+      // Reload completely to ensure relations are fetched
+      loadDeliveries();
+    } catch (err: any) {
+      console.error('Error saving delivery:', err);
+      console.error('API Error Response:', err.response?.data || err.message || err);
+      toast.error('Error al crear la entrega.');
+    }
   };
 
-  const updateDeliveryStatus = (deliveryId, newStatus) => {
-    setDeliveries(deliveries.map(delivery => 
-      delivery.id === deliveryId 
-        ? { 
-            ...delivery, 
-            status: newStatus,
-            completedAt: newStatus === 'completed' ? new Date().toISOString().split('T')[0] : undefined
-          }
-        : delivery
-    ));
+  const updateDeliveryStatus = async (deliveryId: number, newStatus: string) => {
+    try {
+      const completedAt = newStatus === 'completed' ? new Date().toISOString().split('T')[0] : undefined;
+      const updatedDelivery = await supplyDeliveryService.updateDelivery(deliveryId, { status: newStatus as any, completedAt });
+
+      setDeliveries(deliveries.map(delivery =>
+        delivery.id === deliveryId ? { ...delivery, status: newStatus as any, completedAt } : delivery
+      ));
+    } catch (err) {
+      console.error('Error updating delivery status:', err);
+      throw err; // Re-throw to be caught by the caller
+    }
   };
 
   const handlePrintDeliveryPDF = (delivery) => {
     const supply = getSupplyInfo(delivery.supplyId);
     const responsible = getUserInfo(delivery.responsibleId);
-    
+
     const pdfContent = `
       <div style="max-width: 800px; margin: 0 auto; padding: 20px; font-family: Arial, sans-serif;">
         <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #e91e63; padding-bottom: 15px;">
@@ -176,13 +220,11 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
           </div>
           <div style="margin-bottom: 10px;">
             <strong>Estado:</strong> 
-            <span style="padding: 4px 12px; border-radius: 20px; background-color: ${
-              delivery.status === 'completed' ? '#d4edda' :
-              delivery.status === 'pending' ? '#fff3cd' : '#f8d7da'
-            }; color: ${
-              delivery.status === 'completed' ? '#155724' :
-              delivery.status === 'pending' ? '#856404' : '#721c24'
-            };">
+            <span style="padding: 4px 12px; border-radius: 20px; background-color: ${delivery.status === 'completed' ? '#d4edda' :
+        delivery.status === 'pending' ? '#fff3cd' : '#f8d7da'
+      }; color: ${delivery.status === 'completed' ? '#155724' :
+        delivery.status === 'pending' ? '#856404' : '#721c24'
+      };">
               ${getStatusLabel(delivery.status)}
             </span>
           </div>
@@ -208,14 +250,14 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
             </thead>
             <tbody>
               ${delivery.items ? delivery.items.map(item => {
-                const product = mockSupplies.find(s => s.id === item.supplyId);
-                return `<tr>
+        const product = mockSupplies.find(s => s.id === item.supplyId);
+        return `<tr>
                   <td style="padding: 10px; border: 1px solid #ddd;">${product?.name}</td>
                   <td style="padding: 10px; border: 1px solid #ddd;">${product?.sku}</td>
                   <td style="padding: 10px; text-align: center; border: 1px solid #ddd; font-weight: bold;">${item.quantity}</td>
                   <td style="padding: 10px; border: 1px solid #ddd;">${product?.unit}</td>
                 </tr>`;
-              }).join('') : `<tr>
+      }).join('') : `<tr>
                 <td style="padding: 10px; border: 1px solid #ddd;">${supply?.name}</td>
                 <td style="padding: 10px; border: 1px solid #ddd;">${supply?.sku}</td>
                 <td style="padding: 10px; text-align: center; border: 1px solid #ddd; font-weight: bold;">${delivery.quantity}</td>
@@ -240,22 +282,26 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
     `;
 
     const newWindow = window.open('', '_blank');
-    newWindow.document.write(`
-      <html>
-        <head>
-          <title>Entrega de Insumos - ${delivery.id}</title>
-        </head>
-        <body>
-          ${pdfContent}
-          <script>
-            window.onload = function() {
-              window.print();
-            };
-          </script>
-        </body>
-      </html>
-    `);
-    newWindow.document.close();
+    if (newWindow) {
+      newWindow.document.write(`
+        <html>
+          <head>
+            <title>Entrega de Insumos - ${delivery.id}</title>
+          </head>
+          <body>
+            ${pdfContent}
+            <script>
+              window.onload = function() {
+                window.print();
+              };
+            </script>
+          </body>
+        </html>
+      `);
+      newWindow.document.close();
+    } else {
+      toast.error('Por favor, permite las ventanas emergentes (pop-ups) para generar el PDF');
+    }
   };
 
   // Calculate statistics
@@ -263,6 +309,36 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
   const pendingDeliveries = deliveries.filter(d => d.status === 'pending').length;
   const completedDeliveries = deliveries.filter(d => d.status === 'completed').length;
   const todayDeliveries = deliveries.filter(d => d.deliveryDate === new Date().toISOString().split('T')[0]).length;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500"></div>
+
+      {/* Success Alert */}
+      {showSuccessAlert && (
+        <div className="fixed top-4 right-4 z-[9999] animate-in slide-in-from-top-5 duration-300">
+          <div className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center space-x-4 min-w-[320px]">
+            <div className="flex-shrink-0">
+              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                <CheckCircle className="w-6 h-6 text-white" />
+              </div>
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold">{alertMessage}</p>
+            </div>
+            <button
+              onClick={() => setShowSuccessAlert(false)}
+              className="flex-shrink-0 w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+      </div>
+    );
+  }
 
   return (
     <div className="p-8">
@@ -307,7 +383,7 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-4 text-left font-semibold text-gray-800">Responsable</th>
-                <th className="px-6 py-4 text-left font-semibold text-gray-800">Productos</th>
+                <th className="px-6 py-4 text-left font-semibold text-gray-800">Insumos</th>
                 <th className="px-6 py-4 text-left font-semibold text-gray-800">Fecha</th>
                 <th className="px-6 py-4 text-left font-semibold text-gray-800">Estado</th>
                 <th className="px-6 py-4 text-left font-semibold text-gray-800">Acciones</th>
@@ -317,7 +393,7 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
               {paginatedDeliveries.map((delivery) => {
                 const supply = getSupplyInfo(delivery.supplyId);
                 const responsible = getUserInfo(delivery.responsibleId);
-                
+
                 return (
                   <tr key={delivery.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
@@ -331,13 +407,13 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
                         </div>
                       </div>
                     </td>
-                    
+
                     <td className="px-6 py-4">
                       <div className="space-y-1">
                         {/* Dropdown de productos */}
                         <details className="group">
                           <summary className="cursor-pointer font-semibold text-gray-800 hover:text-purple-600 list-none flex items-center space-x-2">
-                            <span>{delivery.items ? `${delivery.items.length} producto${delivery.items.length > 1 ? 's' : ''}` : '1 producto'}</span>
+                            <span>{delivery.items ? `${delivery.items.length} insumo${delivery.items.length > 1 ? 's' : ''}` : '1 insumo'}</span>
                             <svg className="w-4 h-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                             </svg>
@@ -359,7 +435,7 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
                         </details>
                       </div>
                     </td>
-                    
+
                     <td className="px-6 py-4">
                       <div className="text-gray-800">{delivery.deliveryDate}</div>
                       {delivery.completedAt && (
@@ -368,7 +444,7 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
                         </div>
                       )}
                     </td>
-                    
+
                     <td className="px-6 py-4">
                       {/* Select de cambio de estado */}
                       <div className="flex items-center space-x-2">
@@ -378,8 +454,7 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
                             onChange={(e) => {
                               updateDeliveryStatus(delivery.id, e.target.value);
                               if (e.target.value === 'completed') {
-                                setAlertMessage('Entrega completada exitosamente');
-                                setShowSuccessAlert(true);
+                                toast.success('Entrega completada exitosamente');
                               }
                             }}
                             className={`px-3 py-1 rounded-full text-xs font-semibold border-0 cursor-pointer focus:ring-2 focus:ring-pink-300 ${getStatusColor(delivery.status)}`}
@@ -394,7 +469,7 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
                         )}
                       </div>
                     </td>
-                    
+
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-2">
                         <button
@@ -404,7 +479,7 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
                         >
                           <Eye className="w-4 h-4" />
                         </button>
-                        
+
                         <button
                           onClick={() => handlePrintDeliveryPDF(delivery)}
                           className="p-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors"
@@ -412,7 +487,7 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
                         >
                           <FileText className="w-4 h-4" />
                         </button>
-                        
+
                         {hasPermission('manage_deliveries') && delivery.status !== 'cancelled' && delivery.status !== 'completed' && (
                           <button
                             onClick={() => handleCancelDelivery(delivery)}
@@ -447,7 +522,7 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
       {/* Cancel Confirmation Modal */}
       {showCancelModal && deliveryToCancel && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
             <div className="p-6">
               <div className="flex items-center space-x-4 mb-6">
                 <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
@@ -518,30 +593,90 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
         <DeliveryDetailModal
           delivery={selectedDelivery}
           onClose={() => setShowDetailModal(false)}
-          supply={getSupplyInfo(selectedDelivery.supplyId)}
-          responsible={getUserInfo(selectedDelivery.responsibleId)}
+          supply={getSupplyInfo((selectedDelivery as any).supplyId)}
+          responsible={getUserInfo((selectedDelivery as any).responsibleId)}
           getSupplyInfo={getSupplyInfo}
         />
       )}
+    </div>
+  );
+}
 
-      {/* Success Alert */}
-      {showSuccessAlert && (
-        <div className="fixed top-4 right-4 z-[60] animate-in slide-in-from-top-5 duration-300">
-          <div className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center space-x-4 min-w-[320px]">
-            <div className="flex-shrink-0">
-              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                <CheckCircle className="w-6 h-6 text-white" />
-              </div>
-            </div>
-            <div className="flex-1">
-              <p className="font-semibold">{alertMessage}</p>
-            </div>
-            <button
-              onClick={() => setShowSuccessAlert(false)}
-              className="flex-shrink-0 w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
+// Custom Searchable Select Component
+function SearchableSelect({ options, value, onChange, placeholder, error }: any) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const selectedOption = options.find((opt: any) => opt.value === value);
+  const filteredOptions = options.filter((opt: any) =>
+    opt.label.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  return (
+    <div ref={wrapperRef} className="relative w-full">
+      <div
+        className={`w-full px-4 py-2 border rounded-lg bg-white flex justify-between items-center ${error ? 'border-red-300' : 'border-gray-300'} focus-within:ring-2 focus-within:ring-pink-300 focus-within:border-transparent cursor-text`}
+        onClick={() => {
+          setIsOpen(true);
+        }}
+      >
+        <input
+          type="text"
+          className="w-full bg-transparent border-none outline-none text-gray-900 placeholder-gray-500 text-sm"
+          placeholder={selectedOption && !isOpen ? selectedOption.label : placeholder}
+          value={isOpen ? searchTerm : (selectedOption ? selectedOption.label : '')}
+          onChange={(e) => {
+            setSearchTerm(e.target.value);
+            setIsOpen(true);
+          }}
+          onFocus={() => setIsOpen(true)}
+        />
+        <svg
+          className="w-4 h-4 text-gray-400 transition-transform duration-200 cursor-pointer flex-shrink-0"
+          style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsOpen(!isOpen);
+          }}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </div>
+
+      {isOpen && (
+        <div className="absolute z-[60] w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-hidden flex flex-col">
+          <div className="overflow-y-auto overflow-x-hidden flex-1">
+            {filteredOptions.length === 0 ? (
+              <div className="px-4 py-3 text-sm text-gray-500 text-center">No se encontraron resultados</div>
+            ) : (
+              filteredOptions.map((opt: any) => (
+                <div
+                  key={opt.value}
+                  className={`px-4 py-2 text-sm cursor-pointer hover:bg-pink-50 transition-colors ${value === opt.value ? 'bg-pink-50 text-pink-700 font-medium' : 'text-gray-700'}`}
+                  onClick={() => {
+                    onChange(opt.value);
+                    setIsOpen(false);
+                    setSearchTerm('');
+                  }}
+                >
+                  {opt.label}
+                </div>
+              ))
+            )}
           </div>
         </div>
       )}
@@ -550,7 +685,7 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
 }
 
 // Create Delivery Modal Component - MÚLTIPLES PRODUCTOS
-function CreateDeliveryModal({ onClose, onSave, supplies, users }) {
+function CreateDeliveryModal({ onClose, onSave, supplies, users }: any) {
   const [formData, setFormData] = useState({
     deliveryDate: new Date().toISOString().split('T')[0],
     responsibleId: '',
@@ -592,7 +727,7 @@ function CreateDeliveryModal({ onClose, onSave, supplies, users }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
+
     // Validation
     const newErrors = {};
     if (formData.items.length === 0) {
@@ -600,20 +735,18 @@ function CreateDeliveryModal({ onClose, onSave, supplies, users }) {
     }
     if (!formData.responsibleId) newErrors.responsibleId = 'Selecciona un responsable';
 
-    // Validar cada producto
-    formData.items.forEach((item, index) => {
+    // Validar cada Insumo
+    formData.items.forEach((item: any, index: number) => {
       if (!item.supplyId) {
-        newErrors[`supply_${index}`] = 'Selecciona un producto';
+        newErrors[`supply_${index}`] = 'Selecciona un insumo';
       }
       if (!item.quantity || item.quantity <= 0) {
         newErrors[`quantity_${index}`] = 'Cantidad debe ser mayor a 0';
       }
-      
-      // Check stock
-      const supply = supplies.find(s => s.id === parseInt(item.supplyId));
-      if (supply && parseInt(item.quantity) > supply.quantity) {
-        newErrors[`quantity_${index}`] = `Stock insuficiente. Disponible: ${supply.quantity}`;
-      }
+
+      // if (supply && parseInt(item.quantity) > supply.quantity) {
+      //   newErrors[`quantity_${index}`] = `Stock insuficiente. Disponible: ${supply.quantity}`;
+      // }
     });
 
     if (Object.keys(newErrors).length > 0) {
@@ -622,7 +755,7 @@ function CreateDeliveryModal({ onClose, onSave, supplies, users }) {
     }
 
     const responsible = users.find(u => u.id === parseInt(formData.responsibleId));
-    
+
     onSave({
       ...formData,
       responsibleId: parseInt(formData.responsibleId),
@@ -641,7 +774,7 @@ function CreateDeliveryModal({ onClose, onSave, supplies, users }) {
       ...formData,
       [name]: value
     });
-    
+
     if (errors[name]) {
       setErrors({
         ...errors,
@@ -652,8 +785,8 @@ function CreateDeliveryModal({ onClose, onSave, supplies, users }) {
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-        <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-6 text-white rounded-t-3xl">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+        <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-6 text-white rounded-t-3xl shrink-0">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-2xl font-bold">Nueva Entrega de Insumos</h3>
@@ -668,12 +801,12 @@ function CreateDeliveryModal({ onClose, onSave, supplies, users }) {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
-          {/* Productos */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto">
+          {/* Insumos */}
           <div>
             <div className="flex items-center justify-between mb-3">
               <label className="block font-semibold text-gray-700">
-                Productos *
+                Insumos *
               </label>
               <button
                 type="button"
@@ -681,53 +814,44 @@ function CreateDeliveryModal({ onClose, onSave, supplies, users }) {
                 className="bg-gradient-to-r from-blue-400 to-purple-500 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:shadow-lg transition-all flex items-center space-x-2"
               >
                 <Plus className="w-4 h-4" />
-                <span>Agregar Producto</span>
+                <span>Agregar Insumo</span>
               </button>
             </div>
 
             {formData.items.length === 0 ? (
               <div className="bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl p-8 text-center">
                 <Package className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                <p className="text-gray-600 mb-4">No hay productos agregados</p>
+                <p className="text-gray-600 mb-4">No hay insumos agregados</p>
                 <button
                   type="button"
                   onClick={addProduct}
                   className="bg-gradient-to-r from-blue-400 to-purple-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all"
                 >
-                  Agregar Primer Producto
+                  Agregar Primer Insumo
                 </button>
               </div>
             ) : (
               <div className="space-y-3">
-                {formData.items.map((item, index) => {
-                  const selectedSupply = supplies.find(s => s.id === parseInt(item.supplyId));
-                  
+                {formData.items.map((item: any, index: number) => {
+                  const supplyOptions = supplies.filter((s: any) => s.status === 'active').map((s: any) => ({
+                    value: s.id.toString(),
+                    label: s.name
+                  }));
+
                   return (
                     <div key={index} className="bg-blue-50 rounded-xl p-4 border border-blue-200">
                       <div className="grid md:grid-cols-3 gap-4 items-end">
                         <div className="md:col-span-2">
                           <label className="block text-sm font-semibold text-gray-700 mb-2">
-                            Producto *
+                            Insumo *
                           </label>
-                          <select
+                          <SearchableSelect
+                            options={supplyOptions}
                             value={item.supplyId}
-                            onChange={(e) => updateProduct(index, 'supplyId', e.target.value)}
-                            className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pink-300 focus:border-transparent ${
-                              errors[`supply_${index}`] ? 'border-red-300' : 'border-gray-300'
-                            }`}
-                          >
-                            <option value="">Selecciona un producto</option>
-                            {supplies.filter(s => s.status === 'active' && s.quantity > 0).map(supply => (
-                              <option key={supply.id} value={supply.id}>
-                                {supply.name} - Stock: {supply.quantity} {supply.unit}
-                              </option>
-                            ))}
-                          </select>
-                          {selectedSupply && (
-                            <div className="text-xs text-gray-600 mt-1">
-                              Disponible: {selectedSupply.quantity} {selectedSupply.unit}
-                            </div>
-                          )}
+                            onChange={(val: any) => updateProduct(index, 'supplyId', val)}
+                            placeholder="Selecciona un insumo"
+                            error={errors[`supply_${index}`]}
+                          />
                           {errors[`supply_${index}`] && (
                             <p className="text-red-600 text-xs mt-1">{errors[`supply_${index}`]}</p>
                           )}
@@ -743,10 +867,8 @@ function CreateDeliveryModal({ onClose, onSave, supplies, users }) {
                               value={item.quantity}
                               onChange={(e) => updateProduct(index, 'quantity', e.target.value)}
                               min="1"
-                              max={selectedSupply?.quantity || 999}
-                              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pink-300 focus:border-transparent ${
-                                errors[`quantity_${index}`] ? 'border-red-300' : 'border-gray-300'
-                              }`}
+                              className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-pink-300 focus:border-transparent ${errors[`quantity_${index}`] ? 'border-red-300' : 'border-gray-300'
+                                }`}
                               placeholder="0"
                             />
                             {errors[`quantity_${index}`] && (
@@ -759,7 +881,7 @@ function CreateDeliveryModal({ onClose, onSave, supplies, users }) {
                               type="button"
                               onClick={() => removeProduct(index)}
                               className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
-                              title="Eliminar producto"
+                              title="Eliminar insumo"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -789,7 +911,7 @@ function CreateDeliveryModal({ onClose, onSave, supplies, users }) {
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
               />
             </div>
-            
+
             <div>
               <label className="block font-semibold text-gray-700 mb-2">
                 Responsable *
@@ -798,9 +920,8 @@ function CreateDeliveryModal({ onClose, onSave, supplies, users }) {
                 name="responsibleId"
                 value={formData.responsibleId}
                 onChange={handleInputChange}
-                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${
-                  errors.responsibleId ? 'border-red-300' : 'border-gray-300'
-                }`}
+                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${errors.responsibleId ? 'border-red-300' : 'border-gray-300'
+                  }`}
               >
                 <option value="">Selecciona un responsable</option>
                 {users.map(user => (
@@ -874,8 +995,8 @@ function DeliveryDetailModal({ delivery, onClose, supply, responsible, getSupply
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-        <div className="bg-gradient-to-r from-purple-400 to-pink-500 p-6 text-white rounded-t-3xl">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+        <div className="bg-gradient-to-r from-purple-400 to-pink-500 p-6 text-white rounded-t-3xl shrink-0">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-2xl font-bold">Detalle de Entrega #{delivery.id}</h3>
@@ -890,7 +1011,7 @@ function DeliveryDetailModal({ delivery, onClose, supply, responsible, getSupply
           </div>
         </div>
 
-        <div className="p-6 space-y-4">
+        <div className="p-6 space-y-4 overflow-y-auto">
           {/* Estado - Más compacto */}
           <div className="flex justify-center">
             <span className={`px-4 py-2 rounded-full font-semibold border ${getStatusColor(delivery.status)}`}>

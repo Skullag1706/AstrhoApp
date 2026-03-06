@@ -421,7 +421,7 @@ export function PersonManagement({ hasPermission }: PersonManagementProps) {
             {/* Delete Confirmation Modal */}
             {showDeleteModal && personToDelete && (
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
                         <div className="p-6">
                             <div className="flex items-center space-x-4 mb-6">
                                 <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
@@ -493,7 +493,7 @@ export function PersonManagement({ hasPermission }: PersonManagementProps) {
 
             {/* Success Alert */}
             {showSuccessAlert && (
-                <div className="fixed top-4 right-4 z-[60] animate-in slide-in-from-top-5 duration-300">
+                <div className="fixed top-4 right-4 z-[9999] animate-in slide-in-from-top-5 duration-300">
                     <div className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center space-x-4 min-w-[320px]">
                         <div className="flex-shrink-0">
                             <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
@@ -520,7 +520,7 @@ export function PersonManagement({ hasPermission }: PersonManagementProps) {
 function PersonProfileModal({ person, onClose, personType }: { person: Person, onClose: () => void, personType: string }) {
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
                 <div className={`bg-gradient-to-r ${personType === 'client' ? 'from-pink-400 to-purple-500' : 'from-purple-500 to-blue-500'} p-6 text-white rounded-t-3xl`}>
                     <div className="flex items-center justify-between">
                         <div>
@@ -536,7 +536,7 @@ function PersonProfileModal({ person, onClose, personType }: { person: Person, o
                     </div>
                 </div>
 
-                <div className="p-6 space-y-6">
+                <div className="p-6 space-y-6 overflow-y-auto">
                     <div className="bg-gray-50 rounded-xl p-6 border border-gray-100">
                         <h4 className="text-lg font-bold text-gray-800 mb-4 flex items-center space-x-2">
                             <Users className={`w-5 h-5 ${personType === 'client' ? 'text-pink-500' : 'text-purple-500'}`} />
@@ -654,7 +654,7 @@ function NewPersonModal({ onClose, onSave, editingPerson, personType }: { onClos
 
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
                 <div className={`bg-gradient-to-r ${personType === 'client' ? 'from-pink-400 to-purple-500' : 'from-purple-500 to-blue-500'} p-6 text-white rounded-t-3xl`}>
                     <div className="flex items-center justify-between">
                         <div>
@@ -674,7 +674,7 @@ function NewPersonModal({ onClose, onSave, editingPerson, personType }: { onClos
                     </div>
                 </div>
 
-                <form onSubmit={handleSubmit} className="p-6 space-y-5">
+                <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto">
                     {/* Tipo y Número de Documento */}
                     <div className="grid md:grid-cols-2 gap-5">
                         <div>

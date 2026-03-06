@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Search, Edit, Trash2, Eye, FileText, Package, Wrench, AlertTriangle, Calendar, MapPin, X } from 'lucide-react';
+import { CheckCircle, Plus, Search, Edit, Trash2, Eye, FileText, Package, Wrench, AlertTriangle, Calendar, MapPin, X } from 'lucide-react';
 import { mockSupplies, mockSuppliers } from '../../data/management';
 import { calculateSupplyStats } from '../../utils/supplyUtils';
 import { getTypeColor, getTypeLabel, getStatusColor, getStatusLabel } from '../../data/supplyConstants';
@@ -11,6 +11,19 @@ interface SupplyManagementProps {
 }
 
 export function SupplyManagement({ hasPermission }: SupplyManagementProps) {
+  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
+  const [alertMessage, setAlertMessage] = useState('');
+
+  // Auto-hide success alert after 4 seconds
+  useEffect(() => {
+    if (showSuccessAlert) {
+      const timer = setTimeout(() => {
+        setShowSuccessAlert(false);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [showSuccessAlert]);
+
   const [supplies, setSupplies] = useState(mockSupplies);
   const [selectedSupply, setSelectedSupply] = useState<any>(null);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -226,6 +239,28 @@ export function SupplyManagement({ hasPermission }: SupplyManagementProps) {
           onSave={handleSaveSupply}
           suppliers={mockSuppliers}
         />
+      )}
+
+      {/* Success Alert */}
+      {showSuccessAlert && (
+        <div className="fixed top-4 right-4 z-[9999] animate-in slide-in-from-top-5 duration-300">
+          <div className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center space-x-4 min-w-[320px]">
+            <div className="flex-shrink-0">
+              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                <CheckCircle className="w-6 h-6 text-white" />
+              </div>
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold">{alertMessage}</p>
+            </div>
+            <button
+              onClick={() => setShowSuccessAlert(false)}
+              className="flex-shrink-0 w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

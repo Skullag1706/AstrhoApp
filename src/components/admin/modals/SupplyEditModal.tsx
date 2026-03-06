@@ -97,8 +97,8 @@ function SingleSupplyForm({ supply, onClose, onSave, suppliers }) {
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-        <div className="bg-gradient-to-r from-blue-400 to-purple-500 p-6 text-white rounded-t-3xl">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+        <div className="bg-gradient-to-r from-blue-400 to-purple-500 p-6 text-white rounded-t-3xl shrink-0">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-2xl font-bold">Editar Insumo</h3>
@@ -113,7 +113,7 @@ function SingleSupplyForm({ supply, onClose, onSave, suppliers }) {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto">
           {/* Imagen del Insumo */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -479,9 +479,9 @@ function MultipleSupplyForm({ onClose, onSave, suppliers }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl my-8">
-        <div className="bg-gradient-to-r from-blue-400 to-purple-500 p-6 text-white rounded-t-3xl">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col">
+        <div className="bg-gradient-to-r from-blue-400 to-purple-500 p-6 text-white rounded-t-3xl shrink-0">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-2xl font-bold">Agregar Insumos</h3>
@@ -496,7 +496,7 @@ function MultipleSupplyForm({ onClose, onSave, suppliers }) {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto">
           <div className="flex items-center justify-between mb-4">
             <p className="text-sm text-gray-600">
               {supplies.length} insumo{supplies.length !== 1 ? 's' : ''} en el carrito
