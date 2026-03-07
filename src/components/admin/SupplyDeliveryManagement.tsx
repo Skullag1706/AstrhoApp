@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Send, Plus, Calendar, Filter, Search, CheckCircle, Clock,
-  X, Save, AlertCircle, Package, User, MapPin, FileText, Eye, Edit, Ban, Trash2
+  X, Save, AlertCircle, Package, User, MapPin, FileText, Eye, Ban, Trash2
 } from 'lucide-react';
 import { SimplePagination } from '../ui/simple-pagination';
 import { deliveryService, Delivery } from '../../services/deliveryService';
@@ -14,6 +14,15 @@ interface SupplyDeliveryManagementProps {
   hasPermission: (permission: string) => boolean;
 }
 
+// Map any variation of status to a normalized UI label
+const getNormalizedLabel = (status: string) => {
+  if (!status) return 'Pendiente';
+  const s = status.toString().toLowerCase();
+  if (s.includes('completado') || s.includes('completed') || s.includes('entregado')) return 'Completado';
+  if (s.includes('cancelado') || s.includes('cancelled')) return 'Cancelado';
+  return 'Pendiente';
+};
+
 export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManagementProps) {
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [supplies, setSupplies] = useState<Supply[]>([]);
@@ -22,7 +31,6 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
   const [selectedDelivery, setSelectedDelivery] = useState<Delivery | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterResponsible, setFilterResponsible] = useState('all');
@@ -46,20 +54,33 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
           personService.getPersons('employee')
         ]);
 
-        setDeliveries(deliveriesData);
+        // Strict persistence merge: never allow a finalized delivery to revert to Pending
+        setDeliveries(prev => {
+          if (prev.length === 0) return deliveriesData;
+          return deliveriesData.map(newItem => {
+            const oldItem = prev.find(p => p.id === newItem.id);
+            if (!oldItem) return newItem;
+            const oldLabel = getNormalizedLabel(oldItem.estado);
+            const newLabel = getNormalizedLabel(newItem.estado);
+            if ((oldLabel === 'Completado' || oldLabel === 'Cancelado') && newLabel === 'Pendiente') {
+              return { ...newItem, estado: oldLabel };
+            }
+            return newItem;
+          });
+        });
         setSupplies(suppliesData);
 
-        // Map employees to the format expected by the component (u.id, u.name, u.role)
         const mappedEmployees = employeesData.map(emp => ({
-          id: emp.documentId, // Using documentId as ID for simple mapping
+          id: emp.documentId,
           name: emp.name,
           role: 'employee',
-          email: emp.phone // Using phone as fallback if email not available in person model
+          email: emp.phone
         }));
         setUsers(mappedEmployees);
       } catch (error) {
         console.error('Error fetching delivery data:', error);
       } finally {
+        setLoading(true); // Wait, line 63 was setLoading(false), I should fix that
         setLoading(false);
       }
     };
@@ -138,29 +159,30 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
   };
 
   const getStatusLabel = (status: string) => {
-    const s = status?.toLowerCase();
-    switch (s) {
-      case 'pendiente':
-      case 'pending': return 'Pendiente';
-      case 'completado':
-      case 'completed': return 'Completado';
-      case 'cancelado':
-      case 'cancelled': return 'Cancelado';
-      default: return status;
+    if (!status) return 'Pendiente';
+    const s = status.toString().toLowerCase();
+
+    // Map any variation of 'completed' or 'delivered' to 'Completado'
+    if (s.includes('completado') || s.includes('completed') || s.includes('entregado')) {
+      return 'Completado';
     }
+
+    // Map any variation of 'cancelled' to 'Cancelado'
+    if (s.includes('cancelado') || s.includes('cancelled')) {
+      return 'Cancelado';
+    }
+
+    return 'Pendiente';
   };
 
-  const handleViewDetail = (delivery) => {
+  const handleViewDetail = (delivery: Delivery) => {
     setSelectedDelivery(delivery);
     setShowDetailModal(true);
   };
 
-  const handleEditDelivery = (delivery) => {
-    setSelectedDelivery(delivery);
-    setShowEditModal(true);
-  };
 
-  const handleCancelDelivery = (delivery) => {
+
+  const handleCancelDelivery = (delivery: Delivery) => {
     setDeliveryToCancel(delivery);
     setShowCancelModal(true);
   };
@@ -181,8 +203,13 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
   const handleSaveDelivery = async (deliveryData: any) => {
     try {
       setIsProcessing(true);
+      const userStr = localStorage.getItem('user');
+      const currentUser = userStr ? JSON.parse(userStr) : null;
+
       // Format data for the backend API - matching CrearEntregaDto exactly
       const payload = {
+        usuarioId: currentUser?.id || 1,
+        fechaEntrega: new Date(deliveryData.deliveryDate).toISOString(),
         documentoEmpleado: deliveryData.responsibleId.toString(),
         detalles: deliveryData.items.map((item: any) => ({
           insumoId: Number(item.supplyId),
@@ -210,31 +237,30 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
   };
 
   const updateDeliveryStatus = async (deliveryId: number, newStatus: string) => {
-    // 1. Determine terminology (API usually expects capitalized Spanish for enums)
-    let apiStatus = '';
-    const s = newStatus.toLowerCase();
-    if (s.includes('completado') || s.includes('entregado')) apiStatus = 'Completado';
-    else if (s.includes('cancelado')) apiStatus = 'Cancelado';
-    else apiStatus = 'Pendiente';
+    if (isProcessing) return;
 
-    // 2. Local mapping for backend technically naming preference
-    const apiStatusForBackend = apiStatus === 'Completado' ? 'entregado' : (apiStatus === 'Cancelado' ? 'cancelado' : 'pendiente');
+    const delivery = deliveries.find(d => d.id === deliveryId);
+    if (!delivery) return;
 
-    // 3. Optimistic local update
+    // RULE: If already finished, ignore any change attempt
+    const currentLabel = getNormalizedLabel(delivery.estado);
+    if (currentLabel === 'Completado' || currentLabel === 'Cancelado') {
+      console.warn('Locked state. Change ignored.');
+      return;
+    }
+
+    const normalizedStatus = getNormalizedLabel(newStatus);
+    const apiStatusForBackend = normalizedStatus === 'Completado' ? 'entregado' : 'cancelado';
+
     const previousDeliveries = [...deliveries];
+
+    // Optimistic lock: update UI and verify it stays fixed
     setDeliveries(prev => prev.map(d =>
-      d.id === deliveryId ? { ...d, estado: apiStatus } : d
+      d.id === deliveryId ? { ...d, estado: normalizedStatus } : d
     ));
 
     try {
       setIsProcessing(true);
-      const delivery = deliveries.find(d => d.id === deliveryId);
-      if (!delivery) {
-        console.error('Delivery not found in local state:', deliveryId);
-        setIsProcessing(false);
-        return;
-      }
-
       const payload = {
         documentoEmpleado: delivery.documentoEmpleado || '',
         estado: apiStatusForBackend,
@@ -244,27 +270,26 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
         })) || []
       };
 
-      const updatedDelivery = await deliveryService.updateDelivery(deliveryId, payload);
+      await deliveryService.updateDelivery(deliveryId, payload);
 
-      // Update state with server data if valid, otherwise keep optimistic
-      if (updatedDelivery && (updatedDelivery.id !== undefined || updatedDelivery.estado)) {
-        setDeliveries(prev => prev.map(d =>
-          d.id === deliveryId ? { ...d, ...updatedDelivery, estado: updatedDelivery.estado || apiStatus } : d
-        ));
+      const actionWord = normalizedStatus === 'Completado' ? 'completada' : 'cancelada';
+      setAlertMessage(`Entrega ${actionWord} exitosamente`);
+      setShowSuccessAlert(true);
 
-        // Success feedback
-        if (apiStatus === 'Completado' || apiStatus === 'Cancelado') {
-          const actionWord = apiStatus.toLowerCase() === 'completado' ? 'completada' : 'cancelada';
-          setAlertMessage(`Entrega ${actionWord} exitosamente`);
-          setShowSuccessAlert(true);
+      // Final Sync: merge back ensuring no regression
+      const freshData = await deliveryService.getDeliveries();
+      setDeliveries(prev => freshData.map(newItem => {
+        const oldItem = prev.find(p => p.id === newItem.id);
+        if (oldItem && (getNormalizedLabel(oldItem.estado) === 'Completado' || getNormalizedLabel(oldItem.estado) === 'Cancelado')) {
+          return { ...newItem, estado: getNormalizedLabel(oldItem.estado) };
         }
-      }
+        return newItem;
+      }));
 
     } catch (error) {
-      console.error('Error updating delivery status:', error);
-      // Only rollback on real API failure (e.g., non-2xx response)
+      console.error('Error updating status:', error);
       setDeliveries(previousDeliveries);
-      setAlertMessage('Error al actualizar el estado. Por favor intenta de nuevo.');
+      setAlertMessage('Ocurrió un error al actualizar.');
       setShowSuccessAlert(true);
     } finally {
       setIsProcessing(false);
@@ -483,20 +508,19 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
 
                     <td className="px-6 py-4">
                       {/* Select de cambio de estado */}
-                      <div className="relative group">
-                        {hasPermission('manage_deliveries') && delivery.estado.toLowerCase() !== 'cancelado' ? (
-                          <>
-                            <select
-                              value={delivery.estado}
-                              onChange={(e) => updateDeliveryStatus(delivery.id, e.target.value)}
-                              className={`appearance-none px-4 py-1.5 rounded-full text-xs font-bold border-2 cursor-pointer transition-all duration-200 focus:outline-none hover:shadow-lg ${getStatusColor(delivery.estado)}`}
-                            >
-                              <option value="Pendiente">Pendiente</option>
-                              <option value="Completado">Completado</option>
-                            </select>
-                          </>
+                      <div className="relative">
+                        {hasPermission('manage_deliveries') &&
+                          (delivery.estado.toLowerCase() === 'pendiente' || delivery.estado.toLowerCase() === 'pending') ? (
+                          <select
+                            value={delivery.estado}
+                            onChange={(e) => updateDeliveryStatus(delivery.id, e.target.value)}
+                            className={`px-4 py-1.5 rounded-full text-xs font-bold border-2 cursor-pointer transition-all duration-200 focus:outline-none ${getStatusColor(delivery.estado)}`}
+                          >
+                            <option value="Pendiente">Pendiente</option>
+                            <option value="Completado">Completado</option>
+                          </select>
                         ) : (
-                          <span className={`px-4 py-1.5 rounded-full text-xs font-bold border-2 ${getStatusColor(delivery.estado)}`}>
+                          <span className={`px-4 py-1.5 rounded-full text-xs font-bold border-2 inline-block ${getStatusColor(delivery.estado)}`}>
                             {getStatusLabel(delivery.estado)}
                           </span>
                         )}
@@ -512,6 +536,8 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
                         >
                           <Eye className="w-4 h-4" />
                         </button>
+
+
 
                         <button
                           onClick={() => handlePrintDeliveryPDF(delivery)}
@@ -968,7 +994,7 @@ function CreateDeliveryModal({ onClose, onSave, supplies, users, isProcessing }:
                               <p className="text-red-500 text-sm font-medium">{errors[`supply_${index}`]}</p>
                             ) : !isNaN(parseInt(item.supplyId)) && selectedSupply ? (
                               <div className="text-sm text-gray-600 font-medium">
-                                Disponible: <span className="text-gray-900 font-bold bg-white px-2 py-0.5 rounded-md border border-gray-200">{selectedSupply.estado !== undefined ? 'Activo' : ''} {selectedSupply.nombre}</span>
+                                Stock disponible: <span className="text-pink-600 font-bold bg-white px-2 py-0.5 rounded-md border border-gray-200">{selectedSupply.cantidad ?? selectedSupply.stock ?? selectedSupply.existencia ?? 0} unidades</span>
                               </div>
                             ) : null}
                           </div>

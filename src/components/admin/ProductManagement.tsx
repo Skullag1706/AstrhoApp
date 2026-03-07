@@ -644,22 +644,6 @@ function ProductModal({ product, onClose, onSave, categories }: ProductModalProp
             </div>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Stock Inicial/Actual *
-              </label>
-              <input
-                type="number"
-                name="quantity"
-                value={formData.quantity}
-                onChange={handleInputChange}
-                min="0"
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
-                placeholder="0"
-              />
-            </div>
-          </div>
 
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">

@@ -20,6 +20,8 @@ export interface Delivery {
 }
 
 export interface CreateDeliveryData {
+    usuarioId: number;
+    fechaEntrega: string;
     documentoEmpleado: string;
     detalles: {
         insumoId: number;
