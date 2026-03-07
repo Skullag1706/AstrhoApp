@@ -1,14 +1,16 @@
 const BASE_URL = 'http://www.astrhoapp.somee.com/api';
 
 // ── JWT Token Management ──
-let _token: string | null = null;
+let _token: string | null = localStorage.getItem('auth_token');
 
 export function setAuthToken(token: string) {
     _token = token;
+    localStorage.setItem('auth_token', token);
 }
 
 export function clearAuthToken() {
     _token = null;
+    localStorage.removeItem('auth_token');
 }
 
 /** Build headers for every request, injecting Bearer token when available */
@@ -60,7 +62,19 @@ export const apiClient = {
                 console.error(`POST Error Status: ${response.status}, Endpoint: ${endpoint}, Body:`, errorText);
                 throw new Error(`Error posting to ${endpoint} (${response.status}): ${errorText || response.statusText}`);
             }
-            return response.json();
+            // Handle 204 No Content or empty body
+            if (response.status === 204 || response.headers.get('content-length') === '0') {
+                return null;
+            }
+            const text = await response.text();
+            if (!text || text.trim() === '') {
+                return null;
+            }
+            try {
+                return JSON.parse(text);
+            } catch {
+                return null;
+            }
         } catch (error) {
             console.error(`API POST error on ${endpoint}:`, error);
             throw error;
@@ -111,9 +125,19 @@ export const apiClient = {
                 const errorText = await response.text();
                 throw new Error(`API DELETE Error: ${endpoint} -> Status ${response.status}: ${errorText || response.statusText}`);
             }
-            // Some APIs return 204 No Content for DELETE
-            if (response.status === 204) return null;
-            return response.json();
+            // Handle 204 No Content or empty body
+            if (response.status === 204 || response.headers.get('content-length') === '0') {
+                return null;
+            }
+            const text = await response.text();
+            if (!text || text.trim() === '') {
+                return null;
+            }
+            try {
+                return JSON.parse(text);
+            } catch {
+                return null;
+            }
         } catch (error) {
             console.error(`API DELETE error on ${endpoint}:`, error);
             throw error;

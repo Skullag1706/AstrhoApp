@@ -15,7 +15,7 @@ export function SupplyEditModal({ supply, onClose, onSave, suppliers }: SupplyEd
   if (supply) {
     return <SingleSupplyForm supply={supply} onClose={onClose} onSave={onSave} suppliers={suppliers} />;
   }
-  
+
   // Si es modo creación, usamos el formulario múltiple
   return <MultipleSupplyForm onClose={onClose} onSave={onSave} suppliers={suppliers} />;
 }
@@ -57,7 +57,7 @@ function SingleSupplyForm({ supply, onClose, onSave, suppliers }) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const newErrors: any = {};
     if (!formData.name.trim()) newErrors.name = 'El nombre es requerido';
     if (!formData.description.trim()) newErrors.description = 'La descripción es requerida';
@@ -85,11 +85,11 @@ function SingleSupplyForm({ supply, onClose, onSave, suppliers }) {
     const { name, value } = e.target;
     setFormData({
       ...formData,
-      [name]: ['quantity', 'unitCost', 'minStock', 'maxStock'].includes(name) 
-        ? parseFloat(value) || 0 
+      [name]: ['quantity', 'unitCost', 'minStock', 'maxStock'].includes(name)
+        ? parseFloat(value) || 0
         : value
     });
-    
+
     if (errors[name]) {
       setErrors({ ...errors, [name]: '' });
     }
@@ -137,7 +137,7 @@ function SingleSupplyForm({ supply, onClose, onSave, suppliers }) {
                   />
                 </label>
               </div>
-              
+
               {imagePreview && (
                 <div className="w-32 h-32 rounded-xl overflow-hidden border-2 border-gray-200">
                   <img
@@ -147,7 +147,7 @@ function SingleSupplyForm({ supply, onClose, onSave, suppliers }) {
                   />
                 </div>
               )}
-              
+
               {!imagePreview && (
                 <div className="w-32 h-32 rounded-xl bg-gray-100 flex items-center justify-center border-2 border-gray-200">
                   <ImageIcon className="w-12 h-12 text-gray-300" />
@@ -166,9 +166,8 @@ function SingleSupplyForm({ supply, onClose, onSave, suppliers }) {
                 name="name"
                 value={formData.name}
                 onChange={handleInputChange}
-                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${
-                  errors.name ? 'border-red-300' : 'border-gray-300'
-                }`}
+                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${errors.name ? 'border-red-300' : 'border-gray-300'
+                  }`}
                 placeholder="Nombre del insumo"
               />
               {errors.name && (
@@ -188,9 +187,8 @@ function SingleSupplyForm({ supply, onClose, onSave, suppliers }) {
                 name="sku"
                 value={formData.sku}
                 onChange={handleInputChange}
-                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${
-                  errors.sku ? 'border-red-300' : 'border-gray-300'
-                }`}
+                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${errors.sku ? 'border-red-300' : 'border-gray-300'
+                  }`}
                 placeholder="Código SKU"
               />
               {errors.sku && (
@@ -211,9 +209,8 @@ function SingleSupplyForm({ supply, onClose, onSave, suppliers }) {
               value={formData.description}
               onChange={handleInputChange}
               rows={3}
-              className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${
-                errors.description ? 'border-red-300' : 'border-gray-300'
-              }`}
+              className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${errors.description ? 'border-red-300' : 'border-gray-300'
+                }`}
               placeholder="Descripción detallada del insumo"
             />
             {errors.description && (
@@ -262,21 +259,7 @@ function SingleSupplyForm({ supply, onClose, onSave, suppliers }) {
             </div>
           </div>
 
-          <div className="grid md:grid-cols-4 gap-6">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Cantidad Actual
-              </label>
-              <input
-                type="number"
-                name="quantity"
-                value={formData.quantity}
-                onChange={handleInputChange}
-                min="0"
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
-              />
-            </div>
-
+          <div className="grid md:grid-cols-1 gap-6">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Unidad
@@ -288,34 +271,6 @@ function SingleSupplyForm({ supply, onClose, onSave, suppliers }) {
                 onChange={handleInputChange}
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
                 placeholder="ej: litros, unidades"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Stock Mínimo
-              </label>
-              <input
-                type="number"
-                name="minStock"
-                value={formData.minStock}
-                onChange={handleInputChange}
-                min="0"
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Stock Máximo
-              </label>
-              <input
-                type="number"
-                name="maxStock"
-                value={formData.maxStock}
-                onChange={handleInputChange}
-                min="0"
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
               />
             </div>
           </div>
@@ -429,7 +384,7 @@ function MultipleSupplyForm({ onClose, onSave, suppliers }) {
   const removeSupply = (index) => {
     if (supplies.length === 1) return;
     setSupplies(supplies.filter((_, i) => i !== index));
-    
+
     // Limpiar imagen del insumo eliminado
     const newImageFiles = { ...imageFiles };
     delete newImageFiles[index];
@@ -462,7 +417,7 @@ function MultipleSupplyForm({ onClose, onSave, suppliers }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
+
     // Validar que todos los insumos tengan datos básicos
     for (let i = 0; i < supplies.length; i++) {
       const supply = supplies[i];
@@ -550,7 +505,7 @@ function MultipleSupplyForm({ onClose, onSave, suppliers }) {
                         />
                       </label>
                     </div>
-                    
+
                     {imageFiles[index] && (
                       <div className="w-24 h-24 rounded-xl overflow-hidden border-2 border-gray-200">
                         <img
@@ -560,7 +515,7 @@ function MultipleSupplyForm({ onClose, onSave, suppliers }) {
                         />
                       </div>
                     )}
-                    
+
                     {!imageFiles[index] && (
                       <div className="w-24 h-24 rounded-xl bg-gray-100 flex items-center justify-center border-2 border-gray-200">
                         <ImageIcon className="w-8 h-8 text-gray-300" />
