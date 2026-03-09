@@ -11,11 +11,15 @@ interface AuthModalProps {
 
 export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModalProps) {
   const [isLogin, setIsLogin] = useState(true);
-  const [showPassword, setShowPassword] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetEmailSent, setResetEmailSent] = useState(false);
   const [showCodeModal, setShowCodeModal] = useState(false);
   const [showResetPasswordForm, setShowResetPasswordForm] = useState(false);
+  const [showChangeTempPassword, setShowChangeTempPassword] = useState(false);
+  const [showResetPasswordVisible, setShowResetPasswordVisible] = useState(false);
+  const [showTempPasswordVisible, setShowTempPasswordVisible] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
   const [recoveryCode, setRecoveryCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -31,11 +35,13 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
   const [resetToken, setResetToken] = useState('');
 
   const [formData, setFormData] = useState({
+    documentType: 'cedula',
     firstName: '',
     lastName: '',
     documentId: '',
     email: '',
     phone: '',
+    address: '',
     password: '',
     confirmPassword: ''
   });
@@ -50,11 +56,50 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
       const data = await authService.login(formData.email, formData.password);
       const user = authService.buildUserFromLoginResponse(data);
       setAuthToken(data.token);
-      onLogin(user);
-      onClose();
+
+      if (user.requiereCambioPassword) {
+        setShowChangeTempPassword(true);
+      } else {
+        onLogin(user);
+        onClose();
+      }
     } catch (err: any) {
       console.error('Login error:', err);
       setApiError('Credenciales inválidas. Verifica tu correo y contraseña.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── CHANGE TEMP PASSWORD ──
+  const handleChangeTempPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword.length < 6) {
+      setPasswordError('La contraseña debe tener al menos 6 caracteres');
+      return;
+    }
+
+    setPasswordError('');
+    setLoading(true);
+
+    try {
+      // Use the formData.password (current temporary password) and newPassword
+      await authService.changePassword(formData.email, formData.password, newPassword);
+
+      // Auto-login with the new password
+      const data = await authService.login(formData.email, newPassword);
+      const user = authService.buildUserFromLoginResponse(data);
+      setAuthToken(data.token);
+
+      setShowSuccessMessage(true);
+      setTimeout(() => {
+        onLogin(user);
+        onClose();
+      }, 2000);
+    } catch (err: any) {
+      console.error('Change temp password error:', err);
+      const errorMessage = err.message || 'Error al cambiar la contraseña. Intenta nuevamente.';
+      setPasswordError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -95,11 +140,16 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
         return;
       }
 
-      // Register
-      await authService.register({
+      // Register Client
+      await authService.registerClient({
+        documentType: formData.documentType,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        documentId: formData.documentId,
+        phone: formData.phone,
         email: formData.email,
-        contrasena: formData.password,
-        confirmarContrasena: formData.confirmPassword,
+        password: formData.password,
+        confirmPassword: formData.confirmPassword,
       });
 
       setApiError('');
@@ -132,6 +182,13 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
       [e.target.name]: e.target.value
     });
     setApiError(''); // Clear error on input change
+  };
+  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+    setApiError('');
   };
 
   // ── FORGOT PASSWORD ──
@@ -231,6 +288,9 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
     setShowCodeModal(false);
     setShowResetPasswordForm(false);
     setShowSuccessMessage(false);
+    setShowChangeTempPassword(false);
+    setShowResetPasswordVisible(false);
+    setShowTempPasswordVisible(false);
     setForgotEmail('');
     setRecoveryCode('');
     setNewPassword('');
@@ -251,10 +311,10 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
           ? 'Tu contraseña ha sido restablecida correctamente'
           : 'Tu cuenta ha sido creada exitosamente. Ahora puedes iniciar sesión.'
       };
-    } else if (showResetPasswordForm) {
+    } else if (showResetPasswordForm || showChangeTempPassword) {
       return {
         title: 'Nueva Contraseña',
-        subtitle: 'Ingresa tu nueva contraseña para restablecer tu cuenta'
+        subtitle: 'Ingresa tu nueva contraseña para acceder a tu cuenta'
       };
     } else if (showCodeModal) {
       return {
@@ -290,9 +350,9 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
         <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-5 text-white">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              {(showForgotPassword || resetEmailSent || showCodeModal || showResetPasswordForm) && (
+              {(showForgotPassword || resetEmailSent || showCodeModal || showResetPasswordForm || showChangeTempPassword) && (
                 <button
-                  onClick={resetForgotPasswordState}
+                  onClick={() => showChangeTempPassword ? setShowChangeTempPassword(false) : resetForgotPasswordState()}
                   className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
                 >
                   <ArrowLeft className="w-5 h-5" />
@@ -491,7 +551,7 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                   <input
-                    type={showPassword ? 'text' : 'password'}
+                    type={showResetPasswordVisible ? 'text' : 'password'}
                     value={newPassword}
                     onChange={(e) => { setNewPassword(e.target.value); setPasswordError(''); }}
                     required
@@ -501,10 +561,10 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
                   />
                   <button
                     type="button"
-                    onClick={() => setShowPassword(!showPassword)}
+                    onClick={() => setShowResetPasswordVisible(!showResetPasswordVisible)}
                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                   >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showResetPasswordVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
                 {passwordError && <p className="text-red-500 text-sm mt-1">{passwordError}</p>}
@@ -517,7 +577,7 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                   <input
-                    type={showPassword ? 'text' : 'password'}
+                    type={showResetPasswordVisible ? 'text' : 'password'}
                     value={confirmNewPassword}
                     onChange={(e) => { setConfirmNewPassword(e.target.value); setPasswordError(''); }}
                     required
@@ -527,10 +587,10 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
                   />
                   <button
                     type="button"
-                    onClick={() => setShowPassword(!showPassword)}
+                    onClick={() => setShowResetPasswordVisible(!showResetPasswordVisible)}
                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                   >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showResetPasswordVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
                 {passwordError && <p className="text-red-500 text-sm mt-1">{passwordError}</p>}
@@ -552,6 +612,69 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
                 <button
                   type="button"
                   onClick={resetForgotPasswordState}
+                  className="text-gray-600 hover:text-gray-800 transition-colors"
+                >
+                  ← Volver al inicio de sesión
+                </button>
+              </div>
+            </form>
+          ) : showChangeTempPassword ? (
+            /* Change Temporary Password Form */
+            <form onSubmit={handleChangeTempPassword} className="space-y-6">
+              <div className="text-center space-y-2">
+                <div className="w-16 h-16 bg-pink-100 rounded-full flex items-center justify-center mx-auto">
+                  <Lock className="w-8 h-8 text-pink-600" />
+                </div>
+                <p className="text-gray-600">
+                  Por tu seguridad, debes cambiar tu contraseña temporal antes de continuar.
+                </p>
+                <p className="font-semibold text-pink-600 bg-pink-50 rounded-lg p-3">
+                  {formData.email}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Nueva Contraseña *
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <input
+                    type={showTempPasswordVisible ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={(e) => { setNewPassword(e.target.value); setPasswordError(''); }}
+                    required
+                    disabled={loading}
+                    className="w-full pl-11 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
+                    placeholder="Tu nueva contraseña"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowTempPasswordVisible(!showTempPasswordVisible)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showTempPasswordVisible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                {passwordError && <p className="text-red-500 text-sm mt-1">{passwordError}</p>}
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-gradient-to-r from-pink-400 to-purple-500 text-white py-3 rounded-xl font-semibold hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-60 flex items-center justify-center"
+              >
+                {loading ? (
+                  <><Loader2 className="w-5 h-5 animate-spin mr-2" /> Cambiando...</>
+                ) : (
+                  'Cambiar Contraseña'
+                )}
+              </button>
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => setShowChangeTempPassword(false)}
                   className="text-gray-600 hover:text-gray-800 transition-colors"
                 >
                   ← Volver al inicio de sesión
@@ -589,7 +712,44 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
             <form onSubmit={handleSubmit} className="space-y-4">
               {!isLogin && (
                 <>
-                  {/* Names Row */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                      Tipo de Documento *
+                    </label>
+                    <select
+                      name="documentType"
+                      value={formData.documentType}
+                      onChange={handleSelectChange}
+                      disabled={loading}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-sm"
+                    >
+                      <option value="cedula">Cédula de Ciudadanía</option>
+                      <option value="tarjeta_identidad">Tarjeta de Identidad</option>
+                      <option value="cedula_extranjeria">Cédula de Extranjería</option>
+                      <option value="pasaporte">Pasaporte</option>
+                      <option value="nit">NIT</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                      Documento *
+                    </label>
+                    <div className="relative">
+                      <IdCard className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <input
+                        type="text"
+                        name="documentId"
+                        value={formData.documentId}
+                        onChange={handleInputChange}
+                        required={!isLogin}
+                        disabled={loading}
+                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-sm"
+                        placeholder="Número de documento"
+                      />
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-1.5">
@@ -630,27 +790,6 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
                     </div>
                   </div>
 
-                  {/* Document ID */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                      Documento de Identidad *
-                    </label>
-                    <div className="relative">
-                      <IdCard className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                      <input
-                        type="text"
-                        name="documentId"
-                        value={formData.documentId}
-                        onChange={handleInputChange}
-                        required={!isLogin}
-                        disabled={loading}
-                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-sm"
-                        placeholder="Número de documento"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Phone */}
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1.5">
                       Teléfono *
@@ -668,6 +807,21 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
                         placeholder="+57 300 123 4567"
                       />
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                      Dirección
+                    </label>
+                    <input
+                      type="text"
+                      name="address"
+                      value={formData.address}
+                      onChange={handleInputChange}
+                      disabled={loading}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-sm"
+                      placeholder="Calle, carrera, número, barrio"
+                    />
                   </div>
                 </>
               )}
@@ -700,7 +854,7 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <input
-                    type={showPassword ? 'text' : 'password'}
+                    type={(isLogin ? showLoginPassword : showRegisterPassword) ? 'text' : 'password'}
                     name="password"
                     value={formData.password}
                     onChange={handleInputChange}
@@ -711,10 +865,10 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
                   />
                   <button
                     type="button"
-                    onClick={() => setShowPassword(!showPassword)}
+                    onClick={() => isLogin ? setShowLoginPassword(!showLoginPassword) : setShowRegisterPassword(!showRegisterPassword)}
                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                   >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {(isLogin ? showLoginPassword : showRegisterPassword) ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
@@ -728,7 +882,7 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                     <input
-                      type={showPassword ? 'text' : 'password'}
+                      type={showRegisterPassword ? 'text' : 'password'}
                       name="confirmPassword"
                       value={formData.confirmPassword}
                       onChange={handleInputChange}
@@ -774,7 +928,24 @@ export function AuthModal({ onClose, onLogin, onPasswordRecoveryDemo }: AuthModa
                 </p>
                 <button
                   type="button"
-                  onClick={() => { setIsLogin(!isLogin); setApiError(''); }}
+                  onClick={() => {
+                    const next = !isLogin;
+                    setIsLogin(next);
+                    setApiError('');
+                    setShowLoginPassword(false);
+                    setShowRegisterPassword(false);
+                    setFormData({
+                      documentType: 'cedula',
+                      firstName: '',
+                      lastName: '',
+                      documentId: '',
+                      email: '',
+                      phone: '',
+                      address: '',
+                      password: '',
+                      confirmPassword: ''
+                    });
+                  }}
                   className="text-pink-600 font-semibold hover:text-pink-700 transition-colors text-sm"
                 >
                   {isLogin ? 'Crear cuenta gratis' : 'Iniciar sesión'}

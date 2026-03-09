@@ -49,19 +49,6 @@ interface SupplierManagementProps {
 }
 
 export function SupplierManagement({ hasPermission }: SupplierManagementProps) {
-  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
-  const [alertMessage, setAlertMessage] = useState('');
-
-  // Auto-hide success alert after 4 seconds
-  useEffect(() => {
-    if (showSuccessAlert) {
-      const timer = setTimeout(() => {
-        setShowSuccessAlert(false);
-      }, 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [showSuccessAlert]);
-
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [selectedSupplier, setSelectedSupplier] = useState<any>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -362,10 +349,10 @@ export function SupplierManagement({ hasPermission }: SupplierManagementProps) {
           <table className="w-full">
             <thead className="bg-gradient-to-r from-pink-50 to-purple-50">
               <tr>
+                <th className="px-6 py-4 text-left font-semibold text-gray-800">Documento</th>
                 <th className="px-6 py-4 text-left font-semibold text-gray-800">Nombre</th>
-                <th className="px-6 py-4 text-left font-semibold text-gray-800">Tipo</th>
-                <th className="px-6 py-4 text-left font-semibold text-gray-800">NIT/Cédula</th>
                 <th className="px-6 py-4 text-left font-semibold text-gray-800">Teléfono</th>
+                <th className="px-6 py-4 text-left font-semibold text-gray-800">Tipo de proveedor</th>
                 <th className="px-6 py-4 text-left font-semibold text-gray-800">Estado</th>
                 <th className="px-6 py-4 text-left font-semibold text-gray-800">Acciones</th>
               </tr>
@@ -374,7 +361,15 @@ export function SupplierManagement({ hasPermission }: SupplierManagementProps) {
               {currentSuppliers.map((supplier) => (
                 <tr key={supplier.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4">
+                    <div className="text-sm text-gray-700">{supplier.taxId}</div>
+                  </td>
+
+                  <td className="px-6 py-4">
                     <div className="font-semibold text-gray-800">{supplier.name}</div>
+                  </td>
+
+                  <td className="px-6 py-4">
+                    <div className="text-sm text-gray-700">{supplier.phone}</div>
                   </td>
 
                   <td className="px-6 py-4">
@@ -384,14 +379,6 @@ export function SupplierManagement({ hasPermission }: SupplierManagementProps) {
                       }`}>
                       {supplier.supplierType === 'juridica' ? 'Jurídica' : 'Natural'}
                     </span>
-                  </td>
-
-                  <td className="px-6 py-4">
-                    <div className="text-sm text-gray-700">{supplier.taxId}</div>
-                  </td>
-
-                  <td className="px-6 py-4">
-                    <div className="text-sm text-gray-700">{supplier.phone}</div>
                   </td>
 
                   <td className="px-6 py-4">
@@ -505,28 +492,6 @@ export function SupplierManagement({ hasPermission }: SupplierManagementProps) {
           onConfirm={confirmDeleteSupplier}
         />
       )}
-
-      {/* Success Alert */}
-      {showSuccessAlert && (
-        <div className="fixed top-4 right-4 z-[9999] animate-in slide-in-from-top-5 duration-300">
-          <div className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center space-x-4 min-w-[320px]">
-            <div className="flex-shrink-0">
-              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                <CheckCircle className="w-6 h-6 text-white" />
-              </div>
-            </div>
-            <div className="flex-1">
-              <p className="font-semibold">{alertMessage}</p>
-            </div>
-            <button
-              onClick={() => setShowSuccessAlert(false)}
-              className="flex-shrink-0 w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -535,9 +500,9 @@ export function SupplierManagement({ hasPermission }: SupplierManagementProps) {
 function SupplierDetailModal({ supplier, onClose }) {
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
         {/* Modal Header */}
-        <div className="bg-gradient-to-r from-blue-400 to-purple-500 p-6 text-white rounded-t-3xl shrink-0">
+        <div className="bg-gradient-to-r from-blue-400 to-purple-500 p-6 text-white rounded-t-3xl">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-3xl font-bold">{supplier.name}</h3>
@@ -1101,7 +1066,7 @@ function SupplierEditModal({ supplier, existingSuppliers = [], onClose, onSave }
 function DeleteConfirmationModal({ supplier, hasPurchases, isChecking, onClose, onConfirm }) {
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md">
         <div className="p-6">
           <div className="flex items-center space-x-4 mb-6">
             <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">

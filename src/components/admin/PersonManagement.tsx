@@ -125,32 +125,30 @@ export function PersonManagement({ hasPermission }: PersonManagementProps) {
         }
     };
 
-    const handleSavePerson = async (personData: CreatePersonData & { authData?: any }) => {
+    const handleSavePerson = async (personData: CreatePersonData & { email?: string }) => {
         try {
-            const { authData, ...personOnlyData } = personData;
+            const { email, ...personOnlyData } = personData;
 
-            // If creating a NEW person AND they asked to create an account
-            if (!editingPerson && authData && authData.createAccount) {
-                // 1. Check duplicates
-                const { emailExists } = await authService.checkDuplicates(authData.email);
+            if (!editingPerson && email) {
+                const { emailExists } = await authService.checkDuplicates(email);
                 if (emailExists) {
                     alert('Error: El correo electrónico ya está registrado.');
                     return;
                 }
-
-                if (authData.contrasena !== authData.confirmarContrasena) {
-                    alert('Error: Las contraseñas no coinciden.');
+                const rolId = personType === 'client' ? 2 : 3;
+                const tempResp = await authService.createTempUser({
+                    rolId,
+                    email
+                });
+                let usuarioId = (tempResp && (tempResp.usuarioId || tempResp.id)) || null;
+                if (!usuarioId) {
+                    usuarioId = await authService.getUserIdByEmail(email);
+                }
+                if (!usuarioId) {
+                    alert('No se pudo obtener el ID del usuario creado. Intenta nuevamente.');
                     return;
                 }
-
-                // 2. Register user
-                const rolId = personType === 'client' ? 2 : 3; // 2: Cliente, 3: Asistente
-                await authService.register({
-                    rolId,
-                    email: authData.email,
-                    contrasena: authData.contrasena,
-                    confirmarContrasena: authData.confirmarContrasena
-                });
+                (personOnlyData as any).usuarioId = usuarioId;
             }
 
             if (editingPerson) {
@@ -566,6 +564,13 @@ function PersonProfileModal({ person, onClose, personType }: { person: Person, o
                                     {person.phone || 'N/A'}
                                 </p>
                             </div>
+                            <div>
+                                <label className="text-sm font-medium text-gray-500 block mb-1">Dirección</label>
+                                <p className="font-semibold text-gray-800 flex items-center">
+                                    <MapPin className="w-4 h-4 mr-2 text-gray-400" />
+                                    {person.address || 'N/A'}
+                                </p>
+                            </div>
 
                             <div>
                                 <label className="text-sm font-medium text-gray-500 block mb-1">Estado</label>
@@ -598,13 +603,10 @@ function NewPersonModal({ onClose, onSave, editingPerson, personType }: { onClos
         documentId: editingPerson?.documentId || '',
         name: editingPerson?.name || '',
         phone: editingPerson?.phone || '',
+        address: editingPerson?.address || '',
+        email: '',
         type: personType as 'client' | 'employee',
-        authData: {
-            createAccount: false,
-            email: '',
-            contrasena: '',
-            confirmarContrasena: ''
-        }
+        authData: undefined
     });
 
     const [errors, setErrors] = useState<Record<string, string>>({});
@@ -615,14 +617,7 @@ function NewPersonModal({ onClose, onSave, editingPerson, personType }: { onClos
         if (!formData.name.trim()) newErrors.name = 'Nombre requerido';
         if (!formData.documentId.trim()) newErrors.documentId = 'Documento requerido';
         if (!formData.phone.trim()) newErrors.phone = 'Teléfono requerido';
-
-        if (!editingPerson && formData.authData.createAccount) {
-            if (!formData.authData.email.trim()) newErrors.email = 'Correo requerido';
-            if (!formData.authData.contrasena.trim()) newErrors.contrasena = 'Contraseña requerida';
-            if (formData.authData.contrasena !== formData.authData.confirmarContrasena) {
-                newErrors.confirmarContrasena = 'Las contraseñas no coinciden';
-            }
-        }
+        if (!editingPerson && !formData.email.trim()) newErrors.email = 'Correo requerido';
 
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
@@ -758,69 +753,37 @@ function NewPersonModal({ onClose, onSave, editingPerson, personType }: { onClos
                                 </div>
                             )}
                         </div>
+                        <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                Dirección
+                            </label>
+                            <input
+                                type="text"
+                                value={formData.address}
+                                onChange={(e) => handleChange('address', e.target.value)}
+                                className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent border-gray-300"
+                                placeholder="Ej: Calle 10 #20-30"
+                            />
+                        </div>
                     </div>
 
-                    {/* Sección Credenciales (Opcional) solo en creación */}
                     {!editingPerson && (
-                        <div className="mt-8 border-t border-gray-200 pt-6">
-                            <div className="flex items-center justify-between mb-4">
-                                <h4 className="text-lg font-bold text-gray-800 flex items-center">
-                                    <Users className={`w-5 h-5 mr-2 ${personType === 'client' ? 'text-pink-500' : 'text-purple-500'}`} />
-                                    Credenciales de Acceso
-                                </h4>
-                                <label className="flex items-center cursor-pointer">
-                                    <div className="relative">
-                                        <input
-                                            type="checkbox"
-                                            className="sr-only"
-                                            checked={formData.authData.createAccount}
-                                            onChange={(e) => handleAuthChange('createAccount', e.target.checked)}
-                                        />
-                                        <div className={`block w-10 h-6 rounded-full transition-colors ${formData.authData.createAccount ? (personType === 'client' ? 'bg-pink-500' : 'bg-purple-500') : 'bg-gray-300'}`}></div>
-                                        <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${formData.authData.createAccount ? 'transform translate-x-4' : ''}`}></div>
-                                    </div>
-                                    <div className="ml-3 text-sm font-medium text-gray-700">Crear cuenta</div>
-                                </label>
-                            </div>
-
-                            {formData.authData.createAccount && (
-                                <div className="space-y-4 bg-gray-50 p-5 rounded-2xl border border-gray-100">
-                                    <div className="mb-4">
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Correo Electrónico <span className="text-red-500">*</span></label>
-                                        <input
-                                            type="email"
-                                            value={formData.authData.email}
-                                            onChange={(e) => handleAuthChange('email', e.target.value)}
-                                            className={`w-full px-3 py-2 border rounded-lg focus:ring-1 bg-white focus:outline-none ${errors.email ? 'border-red-400 focus:ring-red-400' : 'border-gray-300 focus:ring-pink-300'}`}
-                                        />
-                                        {errors.email && <span className="text-xs text-red-500 mt-1">{errors.email}</span>}
-                                    </div>
-                                    <div className="grid md:grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña <span className="text-red-500">*</span></label>
-                                            <input
-                                                type="password"
-                                                value={formData.authData.contrasena}
-                                                onChange={(e) => handleAuthChange('contrasena', e.target.value)}
-                                                className={`w-full px-3 py-2 border rounded-lg focus:ring-1 bg-white focus:outline-none ${errors.contrasena ? 'border-red-400 focus:ring-red-400' : 'border-gray-300 focus:ring-pink-300'}`}
-                                            />
-                                            {errors.contrasena && <span className="text-xs text-red-500 mt-1">{errors.contrasena}</span>}
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar Contraseña <span className="text-red-500">*</span></label>
-                                            <input
-                                                type="password"
-                                                value={formData.authData.confirmarContrasena}
-                                                onChange={(e) => handleAuthChange('confirmarContrasena', e.target.value)}
-                                                className={`w-full px-3 py-2 border rounded-lg focus:ring-1 bg-white focus:outline-none ${errors.confirmarContrasena ? 'border-red-400 focus:ring-red-400' : 'border-gray-300 focus:ring-pink-300'}`}
-                                            />
-                                            {errors.confirmarContrasena && <span className="text-xs text-red-500 mt-1">{errors.confirmarContrasena}</span>}
-                                        </div>
-                                    </div>
-                                    <p className="text-xs text-gray-500 flex items-center mt-2">
-                                        <AlertCircle className="w-3 h-3 mr-1" />
-                                        Se asignará rol {personType === 'client' ? 'Cliente' : 'Asistente'} por defecto.
-                                    </p>
+                        <div className="mt-4">
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                Correo Electrónico <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                                type="email"
+                                value={formData.email}
+                                onChange={(e) => handleChange('email', e.target.value)}
+                                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${errors.email ? 'border-red-400 bg-red-50' : 'border-gray-300'
+                                    }`}
+                                placeholder="Ej: correo@dominio.com"
+                            />
+                            {errors.email && (
+                                <div className="flex items-center space-x-1 mt-1.5 text-red-500">
+                                    <AlertCircle className="w-4 h-4" />
+                                    <span className="text-sm font-medium">{errors.email}</span>
                                 </div>
                             )}
                         </div>

@@ -159,9 +159,14 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
   }, [showSuccessAlert]);
 
   const filteredPurchases = purchases.filter(purchase => {
-    const matchesSearch = purchase.compraId.toString().includes(searchTerm) ||
-      purchase.proveedorNombre?.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesSearch;
+    if (!searchTerm) return true;
+    const term = searchTerm.toLowerCase();
+    const compraIdStr = (purchase.compraId ?? '').toString();
+    const proveedorStr = (purchase.proveedorNombre ?? '').toLowerCase();
+    return (
+      compraIdStr.includes(term) ||
+      proveedorStr.includes(term)
+    );
   });
 
   // Pagination calculations
@@ -397,9 +402,9 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
           <input
             type="text"
-            placeholder="Buscar por ID o proveedor..."
+            placeholder="Buscar por N° compra o proveedor..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
             className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
           />
         </div>
@@ -438,6 +443,7 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
+                  <th className="px-6 py-4 text-left font-semibold text-gray-800">N° Compra</th>
                   <th className="px-6 py-4 text-left font-semibold text-gray-800">Fecha</th>
                   <th className="px-6 py-4 text-left font-semibold text-gray-800">Proveedor</th>
                   <th className="px-6 py-4 text-left font-semibold text-gray-800">Cantidad</th>
@@ -449,6 +455,10 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
               <tbody className="divide-y divide-gray-100">
                 {currentPurchases.map((purchase) => (
                   <tr key={purchase.compraId} className="hover:bg-gray-50">
+                    <td className="px-6 py-4">
+                      <div className="font-semibold text-gray-800">#{purchase.compraId}</div>
+                    </td>
+
                     <td className="px-6 py-4">
                       <div className="text-gray-800">{formatDate(purchase.fechaRegistro)}</div>
                     </td>
@@ -465,10 +475,7 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
 
                     <td className="px-6 py-4">
                       <div className="text-lg font-bold text-gray-800">
-                        ${purchase.total.toLocaleString()}
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        Subtotal: ${purchase.subtotal.toLocaleString()}
+                        ${(purchase.total ?? 0).toLocaleString()}
                       </div>
                     </td>
 
@@ -567,7 +574,7 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
 
       {/* Success Alert */}
       {showSuccessAlert && (
-        <div className="fixed top-4 right-4 z-[9999] animate-in slide-in-from-top-5 duration-300">
+        <div className="fixed top-4 right-4 z-[60] animate-in slide-in-from-top-5 duration-300">
           <div className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center space-x-4 min-w-[320px]">
             <div className="flex-shrink-0">
               <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
@@ -779,7 +786,7 @@ function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
         insumoId: '',
         insumoNombre: '',
         cantidad: 1,
-        precioUnitario: 0,
+        precioUnitario: '' as any,
         subtotal: 0
       }]
     });
@@ -883,7 +890,7 @@ function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-6 text-white rounded-t-3xl shrink-0">
+        <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-6 text-white rounded-t-3xl flex-shrink-0">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-2xl font-bold">Registrar Nueva Compra</h3>
@@ -898,7 +905,7 @@ function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto">
+        <form onSubmit={handleSubmit} className="p-6 flex-1 overflow-y-auto">
           {/* Información básica */}
           <div className="grid md:grid-cols-3 gap-6 mb-8">
             {/* Fecha de Orden (automática y no editable) */}
@@ -993,8 +1000,8 @@ function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
               <div className="space-y-3 bg-gray-50 p-4 rounded-xl">
                 {formData.items.map((item, index) => (
                   <div key={index} className="bg-white p-4 rounded-lg border border-gray-200">
-                    <div className="grid md:grid-cols-5 gap-4">
-                      <div className="md:col-span-2">
+                    <div className="flex items-end gap-3">
+                      <div className="flex-[2] min-w-0">
                         <label className="block text-xs font-semibold text-gray-700 mb-1">
                           Insumo *
                         </label>
@@ -1013,7 +1020,7 @@ function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
                         </select>
                       </div>
 
-                      <div>
+                      <div className="flex-1 min-w-0">
                         <label className="block text-xs font-semibold text-gray-700 mb-1">
                           Cantidad *
                         </label>
@@ -1027,14 +1034,15 @@ function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
                         />
                       </div>
 
-                      <div>
+                      <div className="flex-1 min-w-0">
                         <label className="block text-xs font-semibold text-gray-700 mb-1">
                           Precio Unit. *
                         </label>
                         <input
                           type="number"
-                          value={item.precioUnitario}
+                          value={item.precioUnitario === 0 ? '' : item.precioUnitario}
                           onChange={(e) => updateProduct(index, 'precioUnitario', e.target.value)}
+                          onFocus={(e) => e.target.select()}
                           min="0"
                           step="1"
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-pink-300"
@@ -1042,24 +1050,23 @@ function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
                         />
                       </div>
 
-                      <div className="flex items-end space-x-2">
-                        <div className="flex-1">
-                          <label className="block text-xs font-semibold text-gray-700 mb-1">
-                            Subtotal
-                          </label>
-                          <div className="px-3 py-2 bg-green-50 border border-green-200 rounded-lg text-sm font-semibold text-green-700">
-                            ${item.subtotal.toLocaleString()}
-                          </div>
+                      <div className="flex-1 min-w-0">
+                        <label className="block text-xs font-semibold text-gray-700 mb-1">
+                          Subtotal
+                        </label>
+                        <div className="px-3 py-2 bg-green-50 border border-green-200 rounded-lg text-sm font-semibold text-green-700">
+                          ${item.subtotal.toLocaleString()}
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => removeProduct(index)}
-                          className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
-                          title="Eliminar insumo"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
                       </div>
+
+                      <button
+                        type="button"
+                        onClick={() => removeProduct(index)}
+                        className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors flex-shrink-0"
+                        title="Eliminar insumo"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -1140,7 +1147,7 @@ function CancelConfirmationModal({ purchase, onClose, onConfirm }: {
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md">
         <div className="p-6">
           <div className="flex items-center space-x-4 mb-6">
             <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">

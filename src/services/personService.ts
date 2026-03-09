@@ -6,6 +6,7 @@ export interface Person {
     documentType: string;  // Maps to tipoDocumento
     name: string;          // Maps to nombre
     phone: string;         // Maps to telefono
+    address: string;
     status: 'active' | 'inactive'; // Maps to estado (boolean)
 }
 
@@ -15,6 +16,8 @@ export interface CreatePersonData {
     documentType: string;
     name: string;
     phone: string;
+    address: string;
+    usuarioId?: number;
 }
 
 // Map Backend DTO to Frontend Model
@@ -24,6 +27,14 @@ const mapBackendToPerson = (data: any, type: 'client' | 'employee'): Person => (
     documentType: data.tipoDocumento || 'CC',
     name: data.nombre || '',
     phone: data.telefono || '',
+    address: (() => {
+        const common = data.direccion || data.address || data.Direccion || data['dirección'] || data['Dirección'] || '';
+        if (type === 'client') {
+            return data.direccionCliente || data.direccion_cliente || data['direcciónCliente'] || common;
+        } else {
+            return data.direccionEmpleado || data.direccion_empleado || data['direcciónEmpleado'] || common;
+        }
+    })(),
     status: data.estado !== false ? 'active' : 'inactive' // default true if missing
 });
 
@@ -34,13 +45,24 @@ const mapPersonToBackend = (person: CreatePersonData | Person) => {
     const payload: any = {
         tipoDocumento: person.documentType,
         nombre: person.name,
-        telefono: person.phone
+        telefono: person.phone,
+        direccion: person.address
     };
+
+    if ((person as any).usuarioId) {
+        payload.usuarioId = (person as any).usuarioId;
+    }
 
     if (isClient) {
         payload.documentoCliente = person.documentId;
+        payload.direccionCliente = person.address;
+        payload['direcciónCliente'] = person.address;
+        payload['dirección'] = person.address;
     } else {
         payload.documentoEmpleado = person.documentId;
+        payload.direccionEmpleado = person.address;
+        payload['direcciónEmpleado'] = person.address;
+        payload['dirección'] = person.address;
     }
 
     return payload;

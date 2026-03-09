@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { mockUsers, mockRoles } from '../../data/management';
 import { SimplePagination } from '../ui/simple-pagination';
+import { authService } from '../../services/authService';
 
 interface UserManagementProps {
   hasPermission: (permission: string) => boolean;
@@ -107,25 +108,81 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
 
   const handleSaveUser = (userData) => {
     if (selectedUser) {
-      // Edit existing user
       setUsers(users.map(u =>
         u.id === selectedUser.id
           ? { ...u, ...userData, name: `${userData.firstName} ${userData.lastName}`.trim() }
           : u
       ));
-    } else {
-      // Create new user
-      const newUser = {
-        id: Math.max(...users.map(u => u.id)) + 1,
-        ...userData,
-        name: `${userData.firstName} ${userData.lastName}`.trim(),
-        createdAt: new Date().toISOString().split('T')[0]
-      };
-      setUsers([...users, newUser]);
+      setShowUserModal(false);
+      setAlertMessage('Usuario actualizado correctamente');
+      setShowSuccessAlert(true);
+      return;
     }
-    setShowUserModal(false);
-    setAlertMessage(selectedUser ? 'Usuario actualizado correctamente' : 'Usuario registrado correctamente');
-    setShowSuccessAlert(true);
+
+    const firstLast = `${userData.firstName} ${userData.lastName}`.trim();
+    if (!firstLast) {
+      setAlertMessage('Ingresa el nombre completo del cliente');
+      setShowSuccessAlert(true);
+      return;
+    }
+
+    if (!userData.password || !userData.confirmPassword) {
+      setAlertMessage('Ingresa y confirma la contraseña del cliente');
+      setShowSuccessAlert(true);
+      return;
+    }
+    if (userData.password !== userData.confirmPassword) {
+      setAlertMessage('Las contraseñas no coinciden');
+      setShowSuccessAlert(true);
+      return;
+    }
+    if (userData.password.length < 6) {
+      setAlertMessage('La contraseña debe tener al menos 6 caracteres');
+      setShowSuccessAlert(true);
+      return;
+    }
+
+    (async () => {
+      try {
+        const { emailExists } = await authService.checkDuplicates(userData.email);
+        if (emailExists) {
+          setAlertMessage('El correo ya está registrado');
+          setShowSuccessAlert(true);
+          return;
+        }
+
+        const result = await authService.registerClient({
+          firstName: userData.firstName,
+          lastName: userData.lastName,
+          documentId: userData.documentId,
+          documentType: userData.documentType,
+          phone: userData.phone,
+          email: userData.email,
+          password: userData.password,
+          confirmPassword: userData.confirmPassword,
+        });
+
+        const newUser = {
+          id: Math.max(...users.map(u => u.id)) + 1,
+          firstName: userData.firstName,
+          lastName: userData.lastName,
+          name: `${userData.firstName} ${userData.lastName}`.trim(),
+          documentId: userData.documentId,
+          email: userData.email,
+          phone: userData.phone,
+          role: 'customer',
+          status: 'active',
+          createdAt: new Date().toISOString().split('T')[0]
+        };
+        setUsers([...users, newUser]);
+        setShowUserModal(false);
+        setAlertMessage('Cliente registrado correctamente');
+        setShowSuccessAlert(true);
+      } catch (err) {
+        setAlertMessage('Error al registrar el cliente');
+        setShowSuccessAlert(true);
+      }
+    })();
   };
 
   const toggleUserStatus = (userId) => {
@@ -183,7 +240,7 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
             className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all flex items-center space-x-2"
           >
             <Plus className="w-5 h-5" />
-            <span>Registrar Usuario</span>
+            <span>Registrar Cliente</span>
           </button>
         )}
       </div>
@@ -532,8 +589,10 @@ function UserModal({ user, onClose, onSave, roles }) {
     address: user?.address || '',
     birthDate: user?.birthDate || '',
     profileImage: user?.profileImage || '',
-    role: user?.role || 'customer',
-    status: user?.status || 'active'
+    role: 'customer',
+    status: user?.status || 'active',
+    password: '',
+    confirmPassword: ''
   });
 
   const handleSubmit = (e) => {
@@ -569,10 +628,10 @@ function UserModal({ user, onClose, onSave, roles }) {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-2xl font-bold">
-                {user ? 'Editar Usuario' : 'Nuevo Usuario'}
+                {user ? 'Editar Cliente' : 'Nuevo Cliente'}
               </h3>
               <p className="text-pink-100">
-                {user ? 'Actualiza la información del usuario' : 'Crea un nuevo usuario'}
+                {user ? 'Actualiza la información del cliente' : 'Crea un nuevo cliente'}
               </p>
             </div>
             <button
@@ -679,33 +738,6 @@ function UserModal({ user, onClose, onSave, roles }) {
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Fecha de Nacimiento
-                </label>
-                <input
-                  type="date"
-                  name="birthDate"
-                  value={formData.birthDate}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Email *
-                </label>
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Teléfono *
                 </label>
                 <input
@@ -731,8 +763,57 @@ function UserModal({ user, onClose, onSave, roles }) {
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
                 />
               </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Correo Electrónico *
+                </label>
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
+                  required
+                />
+              </div>
             </div>
           </div>
+
+          {/* Credenciales de acceso (solo al crear) */}
+          {!user && (
+            <div>
+              <h4 className="text-lg font-semibold text-gray-800 mb-4">Credenciales</h4>
+              <div className="grid md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Contraseña *
+                  </label>
+                  <input
+                    type="password"
+                    name="password"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Confirmar Contraseña *
+                  </label>
+                  <input
+                    type="password"
+                    name="confirmPassword"
+                    value={formData.confirmPassword}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* System Information */}
           <div>
@@ -744,26 +825,12 @@ function UserModal({ user, onClose, onSave, roles }) {
                 </label>
                 <select
                   name="role"
-                  value={formData.role}
-                  onChange={handleInputChange}
-                  disabled={user?.role === 'super_admin'}
-                  className={`w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${user?.role === 'super_admin' ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                  value="customer"
+                  disabled
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl bg-gray-100 cursor-not-allowed"
                 >
-                  {roles.filter(role => {
-                    // Solo mostrar el rol super_admin si el usuario ya lo tiene
-                    if (role.id === 'super_admin') {
-                      return user?.role === 'super_admin';
-                    }
-                    return true;
-                  }).map(role => (
-                    <option key={role.id} value={role.id}>
-                      {role.name}
-                    </option>
-                  ))}
+                  <option value="customer">Cliente</option>
                 </select>
-                {user?.role === 'super_admin' && (
-                  <p className="text-xs text-purple-600 mt-1 font-medium">El rol de Super Administrador es permanente.</p>
-                )}
               </div>
 
               <div>
@@ -774,16 +841,12 @@ function UserModal({ user, onClose, onSave, roles }) {
                   name="status"
                   value={formData.status}
                   onChange={handleInputChange}
-                  disabled={user?.role === 'super_admin'}
-                  className={`w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${user?.role === 'super_admin' ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
                 >
                   <option value="active">Activo</option>
                   <option value="suspended">Suspendido</option>
                   <option value="pending">Pendiente</option>
                 </select>
-                {user?.role === 'super_admin' && (
-                  <p className="text-xs text-purple-600 mt-1 font-medium">El Super Administrador debe permanecer siempre activo.</p>
-                )}
               </div>
             </div>
           </div>
@@ -800,7 +863,7 @@ function UserModal({ user, onClose, onSave, roles }) {
               type="submit"
               className="flex-1 bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all"
             >
-              {user ? 'Actualizar' : 'Crear'} Usuario
+              {user ? 'Actualizar' : 'Crear'} Cliente
             </button>
           </div>
         </form>

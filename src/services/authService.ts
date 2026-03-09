@@ -18,6 +18,7 @@ export interface LoginResponse {
     rol: string;
     usuarioId: number;
     email: string;
+    mustChangePassword?: boolean;
     [key: string]: any; // allow extra fields from API
 }
 
@@ -26,6 +27,11 @@ export interface RegisterData {
     email: string;
     contrasena: string;
     confirmarContrasena: string;
+}
+
+export interface TempUserData {
+    rolId?: number;
+    email: string;
 }
 
 export interface UsuarioListItem {
@@ -61,6 +67,90 @@ export const authService = {
             confirmarContrasena: data.confirmarContrasena,
         });
         return response;
+    },
+
+    async createTempUser(data: TempUserData): Promise<any> {
+        const tempPassword = Math.random().toString(36).slice(-10);
+        const response = await apiClient.post('/auth/create-temp-user', {
+            rolId: data.rolId || 2,
+            email: data.email.trim().toLowerCase(),
+            contrasena: tempPassword,
+            confirmarContrasena: tempPassword,
+        });
+        return response;
+    },
+
+    async getUserIdByEmail(email: string): Promise<number | null> {
+        try {
+            const users: UsuarioListItem[] = await apiClient.get('/Usuarios');
+            const found = users.find((u) => u.email?.toLowerCase() === email.trim().toLowerCase());
+            return found?.usuarioId ?? null;
+        } catch {
+            return null;
+        }
+    },
+
+    /**
+     * Register a new client: POST /api/Usuarios then POST /api/Clientes
+     */
+    async registerClient(data: any): Promise<any> {
+        // 1. Create the User (Rol 2 is Cliente)
+        const userPayload = {
+            rolId: 2,
+            email: data.email.trim().toLowerCase(),
+            contrasena: data.password,
+            confirmarContrasena: data.confirmPassword,
+        };
+
+        let userResponse;
+        try {
+            userResponse = await apiClient.post('/Usuarios', userPayload);
+        } catch (error: any) {
+            console.error('Error creating user:', error);
+            throw new Error(error?.response?.data || 'Error al crear el usuario.');
+        }
+
+        // Try to get the created user ID
+        let usuarioId = userResponse?.usuarioId || userResponse?.id;
+
+        // If not in response, fetch the user by email
+        if (!usuarioId) {
+            const users = await apiClient.get('/Usuarios');
+            const createdUser = users.find((u: any) => u.email.toLowerCase() === data.email.trim().toLowerCase());
+            if (createdUser) {
+                usuarioId = createdUser.usuarioId;
+            } else {
+                throw new Error('No se pudo verificar la creación del usuario.');
+            }
+        }
+
+        // 2. Create the Client details
+        const mapDocType = (t: string): string => {
+            const key = (t || '').toLowerCase();
+            if (key === 'cedula' || key === 'cédula' || key === 'cedula_ciudadania' || key === 'cédula_ciudadanía') return 'CC';
+            if (key === 'tarjeta_identidad' || key === 'ti') return 'TI';
+            if (key === 'cedula_extranjeria' || key === 'cédula_extranjería' || key === 'ce') return 'CE';
+            if (key === 'pasaporte' || key === 'passport') return 'PAS';
+            if (key === 'nit') return 'NIT';
+            return 'CC';
+        };
+
+        const clientPayload = {
+            documentoCliente: data.documentId,
+            usuarioId: usuarioId,
+            tipoDocumento: mapDocType(data.documentType),
+            nombre: `${data.firstName} ${data.lastName}`.trim(),
+            telefono: data.phone
+        };
+
+        try {
+            const clientResponse = await apiClient.post('/Clientes', clientPayload);
+            return { user: userResponse, client: clientResponse };
+        } catch (error: any) {
+            console.error('Error creating client:', error);
+            // Optionally, delete the user if client creation fails, but leaving it is safer without knowing API constraints
+            throw new Error(error?.response?.data || 'Error al guardar los datos del cliente.');
+        }
     },
 
     /**
@@ -121,6 +211,24 @@ export const authService = {
         return response;
     },
 
+
+    /**
+     * Change password explicitly from the UI
+     */
+    async changePassword(email: string, contrasenaActual: string, nuevaContrasena: string): Promise<any> {
+        try {
+            const response = await apiClient.post('/auth/change-password', {
+                Email: email.trim().toLowerCase(),
+                CurrentPassword: contrasenaActual,
+                NewPassword: nuevaContrasena
+            });
+            return response;
+        } catch (error) {
+            console.error('Error in changePassword:', error);
+            throw error;
+        }
+    },
+
     /**
      * Build the user object expected by the app from the login API response
      */
@@ -137,6 +245,7 @@ export const authService = {
             phone: '',
             role,
             token: data.token,
+            requiereCambioPassword: data.mustChangePassword === true
         };
     },
 };

@@ -6,7 +6,7 @@ import { CheckCircle,
   AlertCircle, Save
 } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
-import { mockSales, mockUsers, mockProducts, mockServices, mockAppointments } from '../../data/management';
+import { salesService, SaleView } from '../../services/salesService';
 import { SimplePagination } from '../ui/simple-pagination';
 
 interface SalesManagementProps {
@@ -28,22 +28,42 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
     }
   }, [showSuccessAlert]);
 
-  const [sales, setSales] = useState(mockSales);
-  const [selectedSale, setSelectedSale] = useState(null);
+  const [sales, setSales] = useState<SaleView[]>([]);
+  const [selectedSale, setSelectedSale] = useState<SaleView | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showCancelModal, setCancelModal] = useState(false);
-  const [saleToCancel, setSaleToCancel] = useState(null);
+  const [saleToCancel, setSaleToCancel] = useState<SaleView | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterDate, setFilterDate] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(5);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await salesService.getAll();
+        setSales(data);
+      } catch (err) {
+        console.error('Error loading sales:', err);
+        setError('Error al cargar ventas');
+        toast.error('Error al cargar ventas');
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
 
   // Filter sales based on search and filters
   const filteredSales = sales.filter(sale => {
-    const customer = mockUsers.find(u => u.id === sale.customerId);
-    const matchesSearch = sale.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         customer?.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch =
+      sale.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (sale.customerName || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = filterStatus === 'all' || sale.status === filterStatus;
     const matchesDate = !filterDate || sale.date === filterDate;
     
@@ -69,13 +89,16 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
     setCurrentPage(prev => Math.min(prev + 1, totalPages));
   };
 
-  const getCustomerInfo = (customerId) => {
-    return mockUsers.find(u => u.id === customerId);
-  };
-
-  const getEmployeeInfo = (employeeId) => {
-    return mockUsers.find(u => u.id === employeeId);
-  };
+  if (loading) {
+    return (
+      <div className="p-8 flex items-center justify-center min-h-[300px]">
+        <div className="text-center">
+          <div className="w-12 h-12 rounded-full border-4 border-pink-300 border-t-transparent animate-spin mx-auto mb-4" />
+          <p className="text-gray-600 text-lg">Cargando ventas...</p>
+        </div>
+      </div>
+    );
+  }
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -131,8 +154,8 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
 
   const handlePrintReceipt = (sale) => {
     // Crear contenido del recibo
-    const customer = getCustomerInfo(sale.customerId);
-    const employee = getEmployeeInfo(sale.employeeId);
+    const customerName = sale.customerName || '';
+    const employeeName = sale.employeeName || '';
     
     const receiptContent = `
       <div style="font-family: Arial, sans-serif; max-width: 400px; margin: 0 auto; padding: 20px;">
@@ -146,17 +169,16 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
           <h3 style="margin: 0 0 10px 0; color: #333;">RECIBO DE VENTA</h3>
           <p><strong>ID Venta:</strong> ${sale.id}</p>
           <p><strong>Fecha:</strong> ${sale.date} - ${sale.time}</p>
-          <p><strong>Cliente:</strong> ${customer?.name}</p>
-          <p><strong>Empleado:</strong> ${employee?.name}</p>
+          <p><strong>Cliente:</strong> ${customerName}</p>
+          <p><strong>Empleado:</strong> ${employeeName}</p>
         </div>
         
         ${sale.services && sale.services.length > 0 ? `
           <div style="margin-bottom: 15px;">
             <h4 style="margin: 0 0 10px 0; color: #333;">SERVICIOS:</h4>
             ${sale.services.map(service => {
-              const serviceInfo = mockServices.find(s => s.id === service.serviceId);
               return `<div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                <span>${serviceInfo?.name}</span>
+                <span>${service.name || service.serviceId}</span>
                 <span>$${service.totalPrice.toLocaleString()}</span>
               </div>`;
             }).join('')}
@@ -279,72 +301,78 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {paginatedSales.map((sale) => {
-                const customer = getCustomerInfo(sale.customerId);
-                
-                return (
-                  <tr key={sale.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4">
-                      <div className="font-medium text-gray-800">{customer?.name}</div>
-                    </td>
-                    
-                    <td className="px-6 py-4">
-                      <div className="text-gray-800">{sale.date}</div>
-                    </td>
-                    
-                    <td className="px-6 py-4">
-                      <div className="flex items-center space-x-1">
-                        <Scissors className="w-4 h-4 text-purple-600" />
-                        <span className="text-sm text-purple-600">{sale.services?.length || 0}</span>
-                      </div>
-                    </td>
-                    
-                    <td className="px-6 py-4">
-                      <div className="font-bold text-green-600">
-                        ${sale.total.toLocaleString()}
-                      </div>
-                    </td>
-                    
-                    <td className="px-6 py-4">
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(sale.status)}`}>
-                        {getStatusLabel(sale.status)}
-                      </span>
-                    </td>
-                    
-                    <td className="px-6 py-4">
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => handleViewSale(sale)}
-                          className="p-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
-                          title="Ver detalle"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        
-                        {hasPermission('manage_sales') && sale.status === 'completed' && (
-                          <>
-                            <button
-                              className="p-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors"
-                              title="Imprimir recibo"
-                              onClick={() => handlePrintReceipt(sale)}
-                            >
-                              <FileText className="w-4 h-4" />
-                            </button>
-                            
-                            <button
-                              onClick={() => handleCancelSale(sale)}
-                              className="p-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors"
-                              title="Anular venta"
-                            >
-                              <Ban className="w-4 h-4" />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+              {paginatedSales.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-10 text-center text-gray-600">
+                    No hay ventas para mostrar. Ajusta filtros o intenta nuevamente más tarde.
+                  </td>
+                </tr>
+              ) : (
+                paginatedSales.map((sale) => {
+                  return (
+                    <tr key={sale.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4">
+                        <div className="font-medium text-gray-800">{sale.customerName || 'Cliente'}</div>
+                      </td>
+                      
+                      <td className="px-6 py-4">
+                        <div className="text-gray-800">{sale.date}</div>
+                      </td>
+                      
+                      <td className="px-6 py-4">
+                        <div className="flex items-center space-x-1">
+                          <Scissors className="w-4 h-4 text-purple-600" />
+                          <span className="text-sm text-purple-600">{sale.services?.length || 0}</span>
+                        </div>
+                      </td>
+                      
+                      <td className="px-6 py-4">
+                        <div className="font-bold text-green-600">
+                          ${sale.total.toLocaleString()}
+                        </div>
+                      </td>
+                      
+                      <td className="px-6 py-4">
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(sale.status)}`}>
+                          {getStatusLabel(sale.status)}
+                        </span>
+                      </td>
+                      
+                      <td className="px-6 py-4">
+                        <div className="flex space-x-2">
+                          <button
+                            onClick={() => handleViewSale(sale)}
+                            className="p-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
+                            title="Ver detalle"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          
+                          {hasPermission('manage_sales') && sale.status === 'completed' && (
+                            <>
+                              <button
+                                className="p-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors"
+                                title="Imprimir recibo"
+                                onClick={() => handlePrintReceipt(sale)}
+                              >
+                                <FileText className="w-4 h-4" />
+                              </button>
+                              
+                              <button
+                                onClick={() => handleCancelSale(sale)}
+                                className="p-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors"
+                                title="Anular venta"
+                              >
+                                <Ban className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
@@ -405,9 +433,6 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
         <SaleDetailModal
           sale={selectedSale}
           onClose={() => setShowDetailModal(false)}
-          customer={getCustomerInfo(selectedSale.customerId)}
-          employee={getEmployeeInfo(selectedSale.employeeId)}
-          services={mockServices}
           onCancel={handleCancelSale}
           onPrint={handlePrintReceipt}
           hasPermission={hasPermission}
@@ -440,8 +465,7 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
 }
 
 // Sale Detail Modal Component
-function SaleDetailModal({ sale, onClose, customer, employee, services, onCancel, onPrint, hasPermission }) {
-  const getServiceInfo = (serviceId) => services.find(s => s.id === serviceId);
+function SaleDetailModal({ sale, onClose, onCancel, onPrint, hasPermission }) {
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -477,7 +501,7 @@ function SaleDetailModal({ sale, onClose, customer, employee, services, onCancel
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Empleado:</span>
-                  <span className="text-gray-800">{employee?.name}</span>
+                  <span className="text-gray-800">{sale.employeeName || ''}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Método de Pago:</span>
@@ -494,15 +518,15 @@ function SaleDetailModal({ sale, onClose, customer, employee, services, onCancel
               <div className="space-y-3">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Cliente:</span>
-                  <span className="font-semibold text-gray-800">{customer?.name}</span>
+                  <span className="font-semibold text-gray-800">{sale.customerName || ''}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Email:</span>
-                  <span className="text-gray-800">{customer?.email}</span>
+                  <span className="text-gray-800"></span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Teléfono:</span>
-                  <span className="text-gray-800">{customer?.phone}</span>
+                  <span className="text-gray-800"></span>
                 </div>
               </div>
             </div>
@@ -521,15 +545,12 @@ function SaleDetailModal({ sale, onClose, customer, employee, services, onCancel
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {sale.services.map((service, index) => {
-                      const serviceInfo = getServiceInfo(service.serviceId);
-                      return (
-                        <tr key={index}>
-                          <td className="px-4 py-3 font-medium text-gray-800">{serviceInfo?.name}</td>
-                          <td className="px-4 py-3 font-semibold text-gray-800">${service.totalPrice.toLocaleString()}</td>
-                        </tr>
-                      );
-                    })}
+                    {sale.services.map((service, index) => (
+                      <tr key={index}>
+                        <td className="px-4 py-3 font-medium text-gray-800">{service.name || service.serviceId}</td>
+                        <td className="px-4 py-3 font-semibold text-gray-800">${service.totalPrice.toLocaleString()}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>

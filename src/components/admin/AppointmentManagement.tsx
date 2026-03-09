@@ -237,6 +237,10 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
       if (isEdit && agendaId != null) {
         await agendaService.update(agendaId, data);
         toast.success('Cita actualizada correctamente');
+        if (data?.estadoId === getEstadoId('Completado')) {
+          setAlertMessage('Venta creada automáticamente a partir de la cita completada');
+          setShowSuccessAlert(true);
+        }
       } else {
         await agendaService.create(data);
         toast.success('Cita registrada correctamente');
