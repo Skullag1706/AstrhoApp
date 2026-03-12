@@ -66,7 +66,7 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
     category: supply.categoriaNombre || fallbackCategory || 'Sin categoría',
     categoryId: supply.categoriaId,
     status: supply.estado ? 'active' : 'inactive',
-    quantity: supply.cantidad || 0
+    quantity: supply.stock || 0
   });
 
   const fetchInitialData = async () => {
@@ -188,7 +188,7 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
       descripcion: uiData.description || '',
       categoriaId: Number(uiData.categoryId) || 0,
       estado: uiData.status === 'active',
-      cantidad: Number(uiData.quantity) || 0
+      stock: Number(uiData.quantity) || 0
     } as APISupply;
   };
 
