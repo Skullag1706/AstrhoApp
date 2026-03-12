@@ -8,8 +8,8 @@ import { toast } from 'sonner';
 import { SimplePagination } from '../ui/simple-pagination';
 import {
   agendaService, metodoPagoService, empleadoAgendaService,
-  clienteService, servicioAgendaService, isEmployeeOccupied,
-  AgendaItem, MetodoPago, EmpleadoAPI, ClienteAPI, ServicioAPI
+  clienteService, servicioAgendaService, estadoAgendaService, isEmployeeOccupied,
+  AgendaItem, MetodoPago, EmpleadoAPI, ClienteAPI, ServicioAPI, EstadoAgenda
 } from '../../services/agendaService';
 import { horarioEmpleadoService, horarioService, HorarioEmpleado } from '../../services/scheduleService';
 
@@ -18,22 +18,7 @@ interface AppointmentManagementProps {
   currentUser: any;
 }
 
-// ── Estado IDs (matching typical backend values) ──
-const ESTADO_OPTIONS = [
-  { id: 1, label: 'Pendiente', key: 'Pendiente' },
-  { id: 2, label: 'Confirmado', key: 'Confirmado' },
-  { id: 3, label: 'En Progreso', key: 'En Progreso' },
-  { id: 4, label: 'Completado', key: 'Completado' },
-  { id: 5, label: 'Cancelado', key: 'Cancelado' },
-  { id: 6, label: 'No Show', key: 'No Show' },
-];
-
-function getEstadoId(estadoLabel: string): number {
-  const found = ESTADO_OPTIONS.find(
-    (e) => e.key.toLowerCase() === estadoLabel.toLowerCase()
-  );
-  return found ? found.id : 1;
-}
+// getEstadoId now resolved dynamically inside the component using loaded estados
 
 export function AppointmentManagement({ hasPermission }: AppointmentManagementProps) {
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
@@ -56,6 +41,13 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
   const [servicios, setServicios] = useState<ServicioAPI[]>([]);
   const [metodosPago, setMetodosPago] = useState<MetodoPago[]>([]);
   const [horariosEmpleado, setHorariosEmpleado] = useState<HorarioEmpleado[]>([]);
+  const [estadosAgenda, setEstadosAgenda] = useState<EstadoAgenda[]>([
+    { estadoId: 1, nombre: 'Pendiente' },
+    { estadoId: 2, nombre: 'Confirmado' },
+    { estadoId: 3, nombre: 'Cancelado' },
+    { estadoId: 4, nombre: 'Completado' },
+    { estadoId: 5, nombre: 'Sin Agendar' },
+  ]);
 
   // ── UI state ──
   const [loading, setLoading] = useState(true);
@@ -81,6 +73,7 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
         metodoPagoService.getAll(),
         horarioEmpleadoService.getAll(),
         horarioService.getAll(), // fetch base Horario records for the join
+        estadoAgendaService.getAll(), // fetch real estados from API
       ]);
 
       const extract = (r: PromiseSettledResult<any>) => {
@@ -120,6 +113,9 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
       setServicios(extract(results[3]).filter((s: any) => s.estado));
       setMetodosPago(extract(results[4]));
       setHorariosEmpleado(enrichedHorariosEmpleado);
+      // Load real estados from API (results[7]), fall back to defaults if failed
+      const rawEstados = extract(results[7]).filter((e: any) => e.estadoId > 0 && e.nombre);
+      if (rawEstados.length > 0) setEstadosAgenda(rawEstados);
 
       const anyFailed = results.some((r) => r.status === 'rejected');
       if (anyFailed) {
@@ -140,15 +136,25 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
 
   // ── Helpers ──
   const getStatusColor = (status: string) => {
-    const s = status.toLowerCase();
+    const s = (status || '').toLowerCase();
     if (s === 'confirmado' || s === 'confirmed') return 'bg-green-100 text-green-800 border-green-200';
     if (s === 'pendiente' || s === 'pending') return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-    if (s === 'en progreso' || s === 'in_progress') return 'bg-blue-100 text-blue-800 border-blue-200';
+    if (s === 'sin agendar') return 'bg-gray-100 text-gray-600 border-gray-200';
     if (s === 'completado' || s === 'completed') return 'bg-purple-100 text-purple-800 border-purple-200';
     if (s === 'cancelado' || s === 'cancelled') return 'bg-red-100 text-red-800 border-red-200';
-    if (s === 'no show') return 'bg-gray-100 text-gray-800 border-gray-200';
     return 'bg-gray-100 text-gray-800 border-gray-200';
   };
+
+  // Helper: get estadoId from label using loaded estados
+  const getEstadoId = (estadoLabel: string): number => {
+    const found = estadosAgenda.find(
+      (e) => e.nombre.toLowerCase() === estadoLabel.toLowerCase()
+    );
+    return found ? found.estadoId : 1;
+  };
+
+  // ID for 'Completado' (used to trigger sale creation)
+  const completadoId = estadosAgenda.find((e) => e.nombre.toLowerCase() === 'completado')?.estadoId ?? 4;
 
   // Build servicios name → duration map
   const serviciosMap = new Map<string, number>();
@@ -237,7 +243,7 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
       if (isEdit && agendaId != null) {
         await agendaService.update(agendaId, data);
         toast.success('Cita actualizada correctamente');
-        if (data?.estadoId === getEstadoId('Completado')) {
+        if (data?.estadoId === completadoId) {
           setAlertMessage('Venta creada automáticamente a partir de la cita completada');
           setShowSuccessAlert(true);
         }
@@ -337,12 +343,11 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-300 focus:border-transparent"
           >
             <option value="all">Todos los estados</option>
-            <option value="pendiente">Pendientes</option>
-            <option value="confirmado">Confirmadas</option>
-            <option value="en progreso">En Progreso</option>
-            <option value="completado">Completadas</option>
-            <option value="cancelado">Canceladas</option>
-            <option value="no show">No Show</option>
+            {estadosAgenda.map((est) => (
+              <option key={est.estadoId} value={est.nombre.toLowerCase()}>
+                {est.nombre}
+              </option>
+            ))}
           </select>
 
           <select
@@ -497,6 +502,7 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
           horariosEmpleado={horariosEmpleado}
           allAppointments={appointments}
           serviciosMap={serviciosMap}
+          estadosAgenda={estadosAgenda}
           onClose={() => setShowCreateModal(false)}
           onSave={handleSaveAppointment}
         />
@@ -538,6 +544,7 @@ interface AppointmentModalProps {
   horariosEmpleado: HorarioEmpleado[];
   allAppointments: AgendaItem[];
   serviciosMap: Map<string, number>;
+  estadosAgenda: EstadoAgenda[];
   onClose: () => void;
   onSave: (data: any, isEdit: boolean, agendaId?: number) => Promise<void>;
 }
@@ -557,10 +564,19 @@ function AppointmentModal({
   horariosEmpleado,
   allAppointments,
   serviciosMap,
+  estadosAgenda,
   onClose,
   onSave,
 }: AppointmentModalProps) {
   const isEdit = !!appointment;
+
+  // Resolve estadoId from label using the loaded estados
+  const resolveEstadoId = (label: string): number => {
+    const found = estadosAgenda.find(
+      (e) => e.nombre.toLowerCase() === label.toLowerCase()
+    );
+    return found ? found.estadoId : 1;
+  };
 
   // Find initial IDs from the appointment for editing
   const getInitialServiceIds = (): number[] => {
@@ -587,7 +603,7 @@ function AppointmentModal({
     metodoPagoId: getInitialMetodoPagoId(),
     observaciones: '',
     serviciosIds: getInitialServiceIds(),
-    estadoId: appointment ? getEstadoId(appointment.estado) : 1,
+    estadoId: appointment ? resolveEstadoId(appointment.estado) : 1,
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -1046,9 +1062,9 @@ function AppointmentModal({
                 className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${isCompleted ? 'bg-gray-100 cursor-not-allowed border-gray-300' : 'border-gray-300'
                   }`}
               >
-                {ESTADO_OPTIONS.map((opt) => (
-                  <option key={opt.id} value={opt.id}>
-                    {opt.label}
+                {estadosAgenda.map((est) => (
+                  <option key={est.estadoId} value={est.estadoId}>
+                    {est.nombre}
                   </option>
                 ))}
               </select>
