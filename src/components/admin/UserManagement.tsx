@@ -4,9 +4,11 @@ import {
   AlertCircle, Mail, Phone, Calendar, Shield, UserCog, Download, Upload,
   FileText, Camera, MapPin, IdCard, UserCheck
 } from 'lucide-react';
-import { mockUsers, mockRoles } from '../../data/management';
 import { SimplePagination } from '../ui/simple-pagination';
+import { userService, UsuarioListItem, UsuarioDetail } from '../../services/userService';
 import { authService } from '../../services/authService';
+import { roleService, RolListDto } from '../../services/roleService';
+import { apiClient } from '../../services/apiClient';
 
 interface UserManagementProps {
   hasPermission: (permission: string) => boolean;
@@ -26,27 +28,59 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
     }
   }, [showSuccessAlert]);
 
-  const [users, setUsers] = useState(mockUsers);
-  const [selectedUser, setSelectedUser] = useState(null);
+  const [users, setUsers] = useState<UsuarioListItem[]>([]);
+  const [roles, setRoles] = useState<RolListDto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedUser, setSelectedUser] = useState<any>(null);
   const [showUserModal, setShowUserModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showInactiveWarningModal, setShowInactiveWarningModal] = useState(false);
   const [showDeleteWarningModal, setShowDeleteWarningModal] = useState(false);
-  const [userToDelete, setUserToDelete] = useState(null);
+  const [userToDelete, setUserToDelete] = useState<UsuarioListItem | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
 
+  // Fetch users and roles from API
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      const data = await userService.getAll();
+      setUsers(data);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      setAlertMessage('Error al cargar los usuarios');
+      setShowSuccessAlert(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchRoles = async () => {
+    try {
+      const data = await roleService.getRoles();
+      setRoles(data);
+    } catch (error) {
+      console.error('Error fetching roles:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchUsers();
+    fetchRoles();
+  }, []);
+
   // Filter users based on search and filters
   const filteredUsers = users.filter(user => {
-    const matchesSearch = user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.documentId.includes(searchTerm);
-    const matchesRole = filterRole === 'all' || user.role === filterRole;
-    const matchesStatus = filterStatus === 'all' || user.status === filterStatus;
+    const matchesSearch = user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (user.rolNombre || '').toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesRole = filterRole === 'all' || (user.rolNombre || '').toLowerCase() === filterRole.toLowerCase();
+    const matchesStatus = filterStatus === 'all' ||
+      (filterStatus === 'active' && user.estado === true) ||
+      (filterStatus === 'suspended' && user.estado === false);
 
     return matchesSearch && matchesRole && matchesStatus;
   });
@@ -75,19 +109,33 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
     setShowUserModal(true);
   };
 
-  const handleEditUser = (user) => {
-    setSelectedUser(user);
-    setShowUserModal(true);
+  const handleEditUser = async (user: UsuarioListItem) => {
+    try {
+      const detail = await userService.getById(user.usuarioId);
+      setSelectedUser(detail);
+      setShowUserModal(true);
+    } catch (error) {
+      console.error('Error fetching user details:', error);
+      setAlertMessage('Error al cargar los datos del usuario');
+      setShowSuccessAlert(true);
+    }
   };
 
-  const handleViewUser = (user) => {
-    setSelectedUser(user);
-    setShowDetailModal(true);
+  const handleViewUser = async (user: UsuarioListItem) => {
+    try {
+      const detail = await userService.getById(user.usuarioId);
+      setSelectedUser(detail);
+      setShowDetailModal(true);
+    } catch (error) {
+      console.error('Error fetching user details:', error);
+      setAlertMessage('Error al cargar los datos del usuario');
+      setShowSuccessAlert(true);
+    }
   };
 
-  const handleDeleteUser = (user) => {
+  const handleDeleteUser = (user: UsuarioListItem) => {
     // No permitir eliminar el super administrador
-    if (user.role === 'super_admin') {
+    if ((user.rolNombre || '').toLowerCase() === 'super admin') {
       setShowDeleteWarningModal(true);
       return;
     }
@@ -96,131 +144,154 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
     setShowDeleteModal(true);
   };
 
-  const confirmDeleteUser = () => {
+  const confirmDeleteUser = async () => {
     if (userToDelete) {
-      setUsers(users.filter(u => u.id !== userToDelete.id));
-      setShowDeleteModal(false);
-      setUserToDelete(null);
-      setAlertMessage('Usuario eliminado correctamente');
-      setShowSuccessAlert(true);
-    }
-  };
-
-  const handleSaveUser = (userData) => {
-    if (selectedUser) {
-      setUsers(users.map(u =>
-        u.id === selectedUser.id
-          ? { ...u, ...userData, name: `${userData.firstName} ${userData.lastName}`.trim() }
-          : u
-      ));
-      setShowUserModal(false);
-      setAlertMessage('Usuario actualizado correctamente');
-      setShowSuccessAlert(true);
-      return;
-    }
-
-    const firstLast = `${userData.firstName} ${userData.lastName}`.trim();
-    if (!firstLast) {
-      setAlertMessage('Ingresa el nombre completo del cliente');
-      setShowSuccessAlert(true);
-      return;
-    }
-
-    if (!userData.password || !userData.confirmPassword) {
-      setAlertMessage('Ingresa y confirma la contraseña del cliente');
-      setShowSuccessAlert(true);
-      return;
-    }
-    if (userData.password !== userData.confirmPassword) {
-      setAlertMessage('Las contraseñas no coinciden');
-      setShowSuccessAlert(true);
-      return;
-    }
-    if (userData.password.length < 6) {
-      setAlertMessage('La contraseña debe tener al menos 6 caracteres');
-      setShowSuccessAlert(true);
-      return;
-    }
-
-    (async () => {
       try {
-        const { emailExists } = await authService.checkDuplicates(userData.email);
-        if (emailExists) {
-          setAlertMessage('El correo ya está registrado');
-          setShowSuccessAlert(true);
-          return;
-        }
-
-        const result = await authService.registerClient({
-          firstName: userData.firstName,
-          lastName: userData.lastName,
-          documentId: userData.documentId,
-          documentType: userData.documentType,
-          phone: userData.phone,
-          email: userData.email,
-          password: userData.password,
-          confirmPassword: userData.confirmPassword,
-        });
-
-        const newUser = {
-          id: Math.max(...users.map(u => u.id)) + 1,
-          firstName: userData.firstName,
-          lastName: userData.lastName,
-          name: `${userData.firstName} ${userData.lastName}`.trim(),
-          documentId: userData.documentId,
-          email: userData.email,
-          phone: userData.phone,
-          role: 'customer',
-          status: 'active',
-          createdAt: new Date().toISOString().split('T')[0]
-        };
-        setUsers([...users, newUser]);
-        setShowUserModal(false);
-        setAlertMessage('Cliente registrado correctamente');
+        await userService.delete(userToDelete.usuarioId);
+        setShowDeleteModal(false);
+        setUserToDelete(null);
+        setAlertMessage('Usuario eliminado correctamente');
         setShowSuccessAlert(true);
-      } catch (err) {
-        setAlertMessage('Error al registrar el cliente');
+        await fetchUsers();
+      } catch (error) {
+        console.error('Error deleting user:', error);
+        setAlertMessage('Error al eliminar el usuario');
         setShowSuccessAlert(true);
       }
-    })();
+    }
   };
 
-  const toggleUserStatus = (userId) => {
-    const user = users.find(u => u.id === userId);
+  const handleSaveUser = async (userData: any) => {
+    if (selectedUser) {
+      // ── EDIT ──
+      try {
+        const updatePayload = {
+          rolId: userData.rolId,
+          email: userData.email,
+          contrasena: selectedUser.contrasena || 'placeholder',
+          confirmarContrasena: selectedUser.contrasena || 'placeholder',
+          estado: userData.estado !== undefined ? userData.estado : selectedUser.estado,
+        };
+        await userService.update(selectedUser.usuarioId, updatePayload);
+        setShowUserModal(false);
+        setAlertMessage('Usuario actualizado correctamente');
+        setShowSuccessAlert(true);
+        await fetchUsers();
+      } catch (error: any) {
+        console.error('Error updating user:', error);
+        setAlertMessage(error?.message || 'Error al actualizar el usuario');
+        setShowSuccessAlert(true);
+      }
+      return;
+    }
+
+    // ── CREATE ──
+    try {
+
+      // Step 1: Create temp user via auth endpoint
+      const selectedRole = roles.find(r => r.rolId === userData.rolId);
+      const tempUserResponse = await authService.createTempUser({
+        email: userData.email.trim().toLowerCase(),
+        rolId: userData.rolId,
+      });
+
+      // Get the created usuarioId
+      let usuarioId = tempUserResponse?.usuarioId || tempUserResponse?.id;
+      if (!usuarioId) {
+        // Fallback: look up by email
+        usuarioId = await authService.getUserIdByEmail(userData.email);
+        if (!usuarioId) {
+          throw new Error('No se pudo obtener el ID del usuario creado.');
+        }
+      }
+
+      // Step 2: Create Empleado or Cliente record depending on role
+      const roleName = (selectedRole?.nombre || '').toLowerCase();
+
+      const mapDocType = (t: string): string => {
+        const key = (t || '').toLowerCase();
+        if (key === 'cedula' || key === 'cédula' || key === 'cedula_ciudadania') return 'CC';
+        if (key === 'tarjeta_identidad' || key === 'ti') return 'TI';
+        if (key === 'cedula_extranjeria' || key === 'ce') return 'CE';
+        if (key === 'pasaporte' || key === 'passport') return 'PAS';
+        if (key === 'nit') return 'NIT';
+        return 'CC';
+      };
+
+      if (roleName === 'cliente') {
+        await apiClient.post('/Clientes', {
+          documentoCliente: userData.documentId,
+          usuarioId: usuarioId,
+          tipoDocumento: mapDocType(userData.documentType),
+          nombre: userData.nombre,
+          telefono: userData.phone,
+          dirección: userData.direccion,
+        });
+      } else {
+        // Empleado (Administrador, Asistente, or any other non-client role)
+        await apiClient.post('/Empleados', {
+          documentoEmpleado: userData.documentId,
+          usuarioId: usuarioId,
+          tipoDocumento: mapDocType(userData.documentType),
+          nombre: userData.nombre,
+          telefono: userData.phone,
+          dirección: userData.direccion,
+        });
+      }
+
+      setShowUserModal(false);
+      setAlertMessage('Usuario registrado correctamente');
+      setShowSuccessAlert(true);
+      await fetchUsers();
+    } catch (err: any) {
+      console.error('Error creating user:', err);
+      setAlertMessage(err?.message || 'Error al registrar el usuario');
+      setShowSuccessAlert(true);
+    }
+  };
+
+  const toggleUserStatus = async (userId: number) => {
+    const user = users.find(u => u.usuarioId === userId);
 
     // No permitir inactivar al super administrador
-    if (user && user.role === 'super_admin') {
+    if (user && (user.rolNombre || '').toLowerCase() === 'super admin') {
       setShowInactiveWarningModal(true);
       return;
     }
 
-    setUsers(users.map(user =>
-      user.id === userId
-        ? { ...user, status: user.status === 'active' ? 'suspended' : 'active' }
-        : user
-    ));
-    setAlertMessage('Estado de usuario actualizado correctamente');
-    setShowSuccessAlert(true);
-  };
+    if (!user) return;
 
-  const getRoleDisplayName = (role) => {
-    switch (role) {
-      case 'super_admin': return 'Super Administrador';
-      case 'admin': return 'Administrador';
-      case 'asistente': return 'Asistente';
-      case 'customer': return 'Cliente';
-      default: return role;
+    try {
+      const detail = await userService.getById(userId);
+      const newEstado = !user.estado;
+      await userService.update(userId, {
+        rolId: detail.rol.rolId,
+        email: detail.email,
+        contrasena: detail.contrasena || 'placeholder',
+        confirmarContrasena: detail.contrasena || 'placeholder',
+        estado: newEstado,
+      });
+      setAlertMessage('Estado de usuario actualizado correctamente');
+      setShowSuccessAlert(true);
+      await fetchUsers();
+    } catch (error) {
+      console.error('Error toggling user status:', error);
+      setAlertMessage('Error al actualizar el estado del usuario');
+      setShowSuccessAlert(true);
     }
   };
 
-  const getRoleBadgeColor = (role) => {
-    switch (role) {
-      case 'super_admin': return 'bg-purple-100 text-purple-800 border border-purple-200';
-      case 'admin': return 'bg-red-100 text-red-800';
-      case 'asistente': return 'bg-blue-100 text-blue-800';
-      case 'customer': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
+  const getRoleDisplayName = (rolNombre: string) => {
+    return rolNombre || 'Sin rol';
+  };
+
+  const getRoleBadgeColor = (rolNombre: string) => {
+    const name = (rolNombre || '').toLowerCase();
+    if (name === 'super admin') return 'bg-purple-100 text-purple-800 border border-purple-200';
+    if (name === 'administrador') return 'bg-red-100 text-red-800';
+    if (name === 'asistente') return 'bg-blue-100 text-blue-800';
+    if (name === 'cliente') return 'bg-green-100 text-green-800';
+    return 'bg-gray-100 text-gray-800';
   };
 
   return (
@@ -240,7 +311,7 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
             className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all flex items-center space-x-2"
           >
             <Plus className="w-5 h-5" />
-            <span>Registrar Cliente</span>
+            <span>Registrar Usuario</span>
           </button>
         )}
       </div>
@@ -252,7 +323,7 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
               type="text"
-              placeholder="Buscar por nombre, email o documento..."
+              placeholder="Buscar por email o rol..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
@@ -267,10 +338,9 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
               className="px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
             >
               <option value="all">Todos los roles</option>
-              <option value="super_admin">Super Administrador</option>
-              <option value="admin">Administrador</option>
-              <option value="asistente">Asistente</option>
-              <option value="customer">Cliente</option>
+              {roles.map(role => (
+                <option key={role.rolId} value={role.nombre}>{role.nombre}</option>
+              ))}
             </select>
           </div>
 
@@ -281,8 +351,7 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
           >
             <option value="all">Todos los estados</option>
             <option value="active">Activo</option>
-            <option value="suspended">Suspendido</option>
-            <option value="pending">Pendiente</option>
+            <option value="suspended">Inactivo</option>
           </select>
         </div>
       </div>
@@ -301,113 +370,113 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-4 text-left font-semibold text-gray-800">Usuario</th>
-                <th className="px-6 py-4 text-left font-semibold text-gray-800">Contacto</th>
                 <th className="px-6 py-4 text-left font-semibold text-gray-800">Rol</th>
                 <th className="px-6 py-4 text-left font-semibold text-gray-800">Estado</th>
                 <th className="px-6 py-4 text-left font-semibold text-gray-800">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {paginatedUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full flex items-center justify-center">
-                        <span className="text-white font-semibold text-sm">
-                          {user.name.charAt(0)}
-                        </span>
-                      </div>
-                      <div>
-                        <div className="font-semibold text-gray-800">{user.name}</div>
-                      </div>
-                    </div>
-                  </td>
-
-                  <td className="px-6 py-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center space-x-1 text-sm text-gray-700">
-                        <Mail className="w-4 h-4" />
-                        <span>{user.email}</span>
-                      </div>
-                      <div className="flex items-center space-x-1 text-sm text-gray-600">
-                        <Phone className="w-4 h-4" />
-                        <span>{user.phone}</span>
-                      </div>
-                    </div>
-                  </td>
-
-                  <td className="px-6 py-4">
-                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getRoleBadgeColor(user.role)}`}>
-                      {getRoleDisplayName(user.role)}
-                    </span>
-                  </td>
-
-                  <td className="px-6 py-4">
-                    <div className="flex items-center space-x-3">
-                      {user.role === 'super_admin' ? (
-                        // Super admin siempre activo, sin switch
-                        <div className="flex items-center space-x-2">
-                          <div className="w-11 h-6 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full relative">
-                            <div className="absolute top-[2px] right-[2px] bg-white border-white border rounded-full h-5 w-5"></div>
-                          </div>
-                          <span className="ml-1 text-sm font-medium text-green-600">
-                            Activo
-                          </span>
-                        </div>
-                      ) : (
-                        // Otros usuarios con switch
-                        <label className="relative inline-flex items-center cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={user.status === 'active'}
-                            onChange={() => toggleUserStatus(user.id)}
-                            className="sr-only peer"
-                          />
-                          <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-pink-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-pink-400 peer-checked:to-purple-500"></div>
-                          <span className={`ml-3 text-sm font-medium ${user.status === 'active' ? 'text-green-600' : 'text-red-600'
-                            }`}>
-                            {user.status === 'active' ? 'Activo' : 'Inactivo'}
-                          </span>
-                        </label>
-                      )}
-                    </div>
-                  </td>
-
-                  <td className="px-6 py-4">
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => handleViewUser(user)}
-                        className="p-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
-                        title="Ver detalles"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-
-                      {hasPermission('manage_users') && (
-                        <>
-                          <button
-                            onClick={() => handleEditUser(user)}
-                            className="p-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
-                            title="Editar usuario"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-
-                          {user.role !== 'super_admin' && (
-                            <button
-                              onClick={() => handleDeleteUser(user)}
-                              className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
-                              title="Eliminar usuario"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </>
-                      )}
-                    </div>
+              {loading ? (
+                <tr>
+                  <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                    Cargando usuarios...
                   </td>
                 </tr>
-              ))}
+              ) : paginatedUsers.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                    No se encontraron usuarios
+                  </td>
+                </tr>
+              ) : (
+                paginatedUsers.map((user) => (
+                  <tr key={user.usuarioId} className="hover:bg-gray-50">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full flex items-center justify-center">
+                          <span className="text-white font-semibold text-sm">
+                            {user.email.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <div>
+                          <div className="font-semibold text-gray-800">{user.email}</div>
+                        </div>
+                      </div>
+                    </td>
+
+                    <td className="px-6 py-4">
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getRoleBadgeColor(user.rolNombre)}`}>
+                        {getRoleDisplayName(user.rolNombre)}
+                      </span>
+                    </td>
+
+                    <td className="px-6 py-4">
+                      <div className="flex items-center space-x-3">
+                        {(user.rolNombre || '').toLowerCase() === 'super admin' ? (
+                          // Super admin siempre activo, sin switch
+                          <div className="flex items-center space-x-2">
+                            <div className="w-11 h-6 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full relative">
+                              <div className="absolute top-[2px] right-[2px] bg-white border-white border rounded-full h-5 w-5"></div>
+                            </div>
+                            <span className="ml-1 text-sm font-medium text-green-600">
+                              Activo
+                            </span>
+                          </div>
+                        ) : (
+                          // Otros usuarios con switch
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={user.estado === true}
+                              onChange={() => toggleUserStatus(user.usuarioId)}
+                              className="sr-only peer"
+                            />
+                            <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-pink-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-pink-400 peer-checked:to-purple-500"></div>
+                            <span className={`ml-3 text-sm font-medium ${user.estado ? 'text-green-600' : 'text-red-600'
+                              }`}>
+                              {user.estado ? 'Activo' : 'Inactivo'}
+                            </span>
+                          </label>
+                        )}
+                      </div>
+                    </td>
+
+                    <td className="px-6 py-4">
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => handleViewUser(user)}
+                          className="p-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
+                          title="Ver detalles"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+
+                        {hasPermission('manage_users') && (
+                          <>
+                            <button
+                              onClick={() => handleEditUser(user)}
+                              className="p-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
+                              title="Editar usuario"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+
+                            {(user.rolNombre || '').toLowerCase() !== 'super admin' && (
+                              <button
+                                onClick={() => handleDeleteUser(user)}
+                                className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
+                                title="Eliminar usuario"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -431,7 +500,7 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
           user={selectedUser}
           onClose={() => setShowUserModal(false)}
           onSave={handleSaveUser}
-          roles={mockRoles}
+          roles={roles}
         />
       )}
 
@@ -460,18 +529,18 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
 
               <div className="mb-6">
                 <p className="text-gray-700 mb-4">
-                  ¿Estás segura de que quieres eliminar el usuario <strong>{userToDelete.name}</strong>?
+                  ¿Estás segura de que quieres eliminar el usuario <strong>{userToDelete.email}</strong>?
                 </p>
                 <div className="bg-red-50 border border-red-200 rounded-xl p-4">
                   <div className="flex items-center space-x-3">
                     <div className="w-10 h-10 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full flex items-center justify-center">
                       <span className="text-white font-semibold text-sm">
-                        {userToDelete.name.charAt(0)}
+                        {userToDelete.email.charAt(0).toUpperCase()}
                       </span>
                     </div>
                     <div>
-                      <div className="font-semibold text-gray-800">{userToDelete.name}</div>
-                      <div className="text-sm text-gray-600">{userToDelete.email}</div>
+                      <div className="font-semibold text-gray-800">{userToDelete.email}</div>
+                      <div className="text-sm text-gray-600">{userToDelete.rolNombre}</div>
                     </div>
                   </div>
                 </div>
@@ -578,47 +647,112 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
 }
 
 // User Modal Component
-function UserModal({ user, onClose, onSave, roles }) {
-  const [formData, setFormData] = useState({
-    firstName: user?.firstName || '',
-    lastName: user?.lastName || '',
-    documentType: user?.documentType || 'cedula',
-    documentId: user?.documentId || '',
-    email: user?.email || '',
-    phone: user?.phone || '',
-    address: user?.address || '',
-    birthDate: user?.birthDate || '',
-    profileImage: user?.profileImage || '',
-    role: 'customer',
-    status: user?.status || 'active',
-    password: '',
-    confirmPassword: ''
-  });
+function UserModal({ user, onClose, onSave, roles }: { user: any; onClose: () => void; onSave: (data: any) => void; roles: RolListDto[] }) {
+  // Filter out Super Admin from the roles available for selection
+  const availableRoles = roles.filter(r => r.nombre.toLowerCase() !== 'super admin');
 
-  const handleSubmit = (e) => {
+  const [formData, setFormData] = useState({
+    rolId: user?.rol?.rolId || (availableRoles.length > 0 ? availableRoles[0].rolId : 0),
+    documentType: 'cedula',
+    documentId: '',
+    nombre: '',
+    email: user?.email || '',
+    phone: '',
+    direccion: '',
+    estado: user?.estado !== undefined ? user.estado : true,
+  });
+  const [saving, setSaving] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
+    const errors: Record<string, string> = {};
+
+    if (!user) {
+      // Document number validation for Cédula de Ciudadanía
+      if (formData.documentType === 'cedula' && !/^\d+$/.test(formData.documentId)) {
+        errors.documentId = 'El número de documento solo debe contener números';
+      }
+      if (!formData.documentId.trim()) {
+        errors.documentId = 'El número de documento es obligatorio';
+      }
+
+      // Phone validation — exactly 10 digits
+      if (!/^\d{10}$/.test(formData.phone)) {
+        errors.phone = 'El teléfono debe tener exactamente 10 dígitos numéricos';
+      }
+
+      if (!formData.nombre.trim()) {
+        errors.nombre = 'El nombre es obligatorio';
+      }
+    }
+
+    // Email required
+    if (!formData.email.trim()) {
+      errors.email = 'El correo electrónico es obligatorio';
+    }
+
+    // Stop early if local validations fail
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return;
+    }
+
+    // Async uniqueness checks (only on create)
+    if (!user) {
+      setSaving(true);
+      try {
+        const [{ emailExists }, documentExists] = await Promise.all([
+          authService.checkDuplicates(formData.email),
+          userService.checkDocumentDuplicate(formData.documentId),
+        ]);
+
+        if (emailExists) errors.email = 'El correo electrónico ya se encuentra registrado';
+        if (documentExists) errors.documentId = 'El número de documento ya se encuentra registrado';
+
+        if (Object.keys(errors).length > 0) {
+          setFieldErrors(errors);
+          setSaving(false);
+          return;
+        }
+      } catch {
+        setSaving(false);
+        return;
+      }
+    }
+
+    setFieldErrors({});
+    setSaving(true);
+    try {
+      await onSave(formData);
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleInputChange = (e) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    let sanitized = value;
+
+    // Strip non-numeric characters for document number when CC is selected
+    if (name === 'documentId' && formData.documentType === 'cedula') {
+      sanitized = value.replace(/[^0-9]/g, '');
+    }
+
+    // Strip non-numeric characters for phone & limit to 10 digits
+    if (name === 'phone') {
+      sanitized = value.replace(/[^0-9]/g, '').slice(0, 10);
+    }
+
+    // Clear field error when user starts typing
+    if (fieldErrors[name]) {
+      setFieldErrors(prev => ({ ...prev, [name]: '' }));
+    }
+
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
+      [name]: name === 'rolId' ? parseInt(sanitized) : sanitized,
     });
-  };
-
-  const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setFormData({
-          ...formData,
-          profileImage: e.target.result
-        });
-      };
-      reader.readAsDataURL(file);
-    }
   };
 
   return (
@@ -628,10 +762,10 @@ function UserModal({ user, onClose, onSave, roles }) {
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-2xl font-bold">
-                {user ? 'Editar Cliente' : 'Nuevo Cliente'}
+                {user ? 'Editar Usuario' : 'Nuevo Usuario'}
               </h3>
               <p className="text-pink-100">
-                {user ? 'Actualiza la información del cliente' : 'Crea un nuevo cliente'}
+                {user ? 'Actualiza la información del usuario' : 'Crea un nuevo usuario'}
               </p>
             </div>
             <button
@@ -644,38 +778,31 @@ function UserModal({ user, onClose, onSave, roles }) {
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto">
-          {/* Profile Image */}
-          <div className="flex justify-center">
-            <div className="relative">
-              <div className="w-24 h-24 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full flex items-center justify-center overflow-hidden">
-                {formData.profileImage ? (
-                  <img
-                    src={formData.profileImage}
-                    alt="Profile"
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <span className="text-white font-bold text-2xl">
-                    {formData.firstName.charAt(0) || '?'}
-                  </span>
-                )}
-              </div>
-              <label className="absolute bottom-0 right-0 w-8 h-8 bg-white rounded-full shadow-lg flex items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors">
-                <Camera className="w-4 h-4 text-gray-600" />
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                  className="hidden"
-                />
-              </label>
-            </div>
-          </div>
-
-          {/* Personal Information */}
+          {/* Form Fields */}
           <div>
-            <h4 className="text-lg font-semibold text-gray-800 mb-4">Información Personal</h4>
+            <h4 className="text-lg font-semibold text-gray-800 mb-4">Información del Usuario</h4>
             <div className="grid md:grid-cols-2 gap-6">
+              {/* 1. Rol */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Rol *
+                </label>
+                <select
+                  name="rolId"
+                  value={formData.rolId}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
+                  required
+                  disabled={!!user}
+                >
+                  <option value="">Seleccionar rol</option>
+                  {availableRoles.map(role => (
+                    <option key={role.rolId} value={role.rolId}>{role.nombre}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 2. Tipo de Documento */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Tipo de Documento *
@@ -685,15 +812,18 @@ function UserModal({ user, onClose, onSave, roles }) {
                   value={formData.documentType}
                   onChange={handleInputChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
+                  disabled={!!user}
                 >
                   <option value="cedula">Cédula de Ciudadanía</option>
-                  <option value="tarjeta_identidad">Tarjeta de Identidad</option>
                   <option value="cedula_extranjeria">Cédula de Extranjería</option>
                   <option value="pasaporte">Pasaporte</option>
-                  <option value="nit">NIT</option>
                 </select>
+                {fieldErrors.documentType && (
+                  <p className="text-red-500 text-sm mt-1">{fieldErrors.documentType}</p>
+                )}
               </div>
 
+              {/* 3. Documento */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Número de Documento *
@@ -703,67 +833,32 @@ function UserModal({ user, onClose, onSave, roles }) {
                   name="documentId"
                   value={formData.documentId}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
-                  required
+                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${fieldErrors.documentId ? 'border-red-500' : 'border-gray-300'}`}
+                  required={!user}
+                  disabled={!!user}
                 />
+                {fieldErrors.documentId && (
+                  <p className="text-red-500 text-sm mt-1">{fieldErrors.documentId}</p>
+                )}
               </div>
 
+              {/* 4. Nombre */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Nombres *
+                  Nombre *
                 </label>
                 <input
                   type="text"
-                  name="firstName"
-                  value={formData.firstName}
+                  name="nombre"
+                  value={formData.nombre}
                   onChange={handleInputChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
-                  required
+                  required={!user}
+                  disabled={!!user}
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Apellidos *
-                </label>
-                <input
-                  type="text"
-                  name="lastName"
-                  value={formData.lastName}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Teléfono *
-                </label>
-                <input
-                  type="tel"
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Dirección
-                </label>
-                <input
-                  type="text"
-                  name="address"
-                  value={formData.address}
-                  onChange={handleInputChange}
-                  placeholder="Calle, carrera, número, barrio"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
-                />
-              </div>
-
+              {/* 5. Email */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Correo Electrónico *
@@ -773,80 +868,49 @@ function UserModal({ user, onClose, onSave, roles }) {
                   name="email"
                   value={formData.email}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
+                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${fieldErrors.email ? 'border-red-500' : 'border-gray-300'}`}
                   required
                 />
+                {fieldErrors.email && (
+                  <p className="text-red-500 text-sm mt-1">{fieldErrors.email}</p>
+                )}
               </div>
-            </div>
-          </div>
 
-          {/* Credenciales de acceso (solo al crear) */}
-          {!user && (
-            <div>
-              <h4 className="text-lg font-semibold text-gray-800 mb-4">Credenciales</h4>
-              <div className="grid md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Contraseña *
-                  </label>
-                  <input
-                    type="password"
-                    name="password"
-                    value={formData.password}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Confirmar Contraseña *
-                  </label>
-                  <input
-                    type="password"
-                    name="confirmPassword"
-                    value={formData.confirmPassword}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
-                    required
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* System Information */}
-          <div>
-            <h4 className="text-lg font-semibold text-gray-800 mb-4">Información del Sistema</h4>
-            <div className="grid md:grid-cols-2 gap-6">
+              {/* 6. Teléfono */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Rol *
+                  Teléfono *
                 </label>
-                <select
-                  name="role"
-                  value="customer"
-                  disabled
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl bg-gray-100 cursor-not-allowed"
-                >
-                  <option value="customer">Cliente</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Estado *
-                </label>
-                <select
-                  name="status"
-                  value={formData.status}
+                <input
+                  type="tel"
+                  name="phone"
+                  value={formData.phone}
                   onChange={handleInputChange}
+                  placeholder="10 dígitos"
+                  maxLength={10}
+                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${fieldErrors.phone ? 'border-red-500' : 'border-gray-300'}`}
+                  required={!user}
+                  disabled={!!user}
+                />
+                {fieldErrors.phone && (
+                  <p className="text-red-500 text-sm mt-1">{fieldErrors.phone}</p>
+                )}
+              </div>
+
+              {/* 7. Dirección */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Dirección
+                </label>
+                <input
+                  type="text"
+                  name="direccion"
+                  value={formData.direccion}
+                  onChange={handleInputChange}
+                  placeholder="Calle, carrera, número, barrio"
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
-                >
-                  <option value="active">Activo</option>
-                  <option value="suspended">Suspendido</option>
-                  <option value="pending">Pendiente</option>
-                </select>
+                  disabled={!!user}
+                />
               </div>
             </div>
           </div>
@@ -861,9 +925,10 @@ function UserModal({ user, onClose, onSave, roles }) {
             </button>
             <button
               type="submit"
-              className="flex-1 bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all"
+              disabled={saving}
+              className="flex-1 bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50"
             >
-              {user ? 'Actualizar' : 'Crear'} Cliente
+              {saving ? 'Guardando...' : (user ? 'Actualizar' : 'Crear')} Usuario
             </button>
           </div>
         </form>
@@ -873,7 +938,7 @@ function UserModal({ user, onClose, onSave, roles }) {
 }
 
 // User Detail Modal Component
-function UserDetailModal({ user, onClose }) {
+function UserDetailModal({ user, onClose }: { user: any; onClose: () => void }) {
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
@@ -895,80 +960,35 @@ function UserDetailModal({ user, onClose }) {
         <div className="p-6 space-y-6 overflow-y-auto">
           <div className="text-center">
             <div className="w-24 h-24 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-4 overflow-hidden">
-              {user.profileImage ? (
-                <img
-                  src={user.profileImage}
-                  alt="Profile"
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <span className="text-white font-bold text-2xl">
-                  {user.name.charAt(0)}
-                </span>
-              )}
+              <span className="text-white font-bold text-2xl">
+                {user.email.charAt(0).toUpperCase()}
+              </span>
             </div>
-            <h4 className="text-xl font-bold text-gray-800">{user.name}</h4>
-            <p className="text-gray-600">{user.email}</p>
+            <h4 className="text-xl font-bold text-gray-800">{user.email}</h4>
           </div>
 
           <div className="grid md:grid-cols-2 gap-4">
             <div className="space-y-4">
-              <h5 className="font-semibold text-gray-800">Información Personal</h5>
+              <h5 className="font-semibold text-gray-800">Información del Usuario</h5>
 
               <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-xl">
-                <IdCard className="w-5 h-5 text-gray-400" />
+                <Mail className="w-5 h-5 text-gray-400" />
                 <div>
-                  <div className="text-sm text-gray-600">Documento</div>
-                  <div className="font-semibold text-gray-800">
-                    {user.documentType === 'cedula' ? 'C.C.' :
-                      user.documentType === 'tarjeta_identidad' ? 'T.I.' :
-                        user.documentType === 'cedula_extranjeria' ? 'C.E.' :
-                          user.documentType === 'pasaporte' ? 'Pasaporte' :
-                            user.documentType === 'nit' ? 'NIT' : 'N/A'} {user.documentId}
-                  </div>
+                  <div className="text-sm text-gray-600">Correo Electrónico</div>
+                  <div className="font-semibold text-gray-800">{user.email}</div>
                 </div>
               </div>
-
-              {user.birthDate && (
-                <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-xl">
-                  <Calendar className="w-5 h-5 text-gray-400" />
-                  <div>
-                    <div className="text-sm text-gray-600">Fecha de Nacimiento</div>
-                    <div className="font-semibold text-gray-800">{user.birthDate}</div>
-                  </div>
-                </div>
-              )}
-
-              {user.address && (
-                <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-xl">
-                  <MapPin className="w-5 h-5 text-gray-400" />
-                  <div>
-                    <div className="text-sm text-gray-600">Dirección</div>
-                    <div className="font-semibold text-gray-800">{user.address}</div>
-                  </div>
-                </div>
-              )}
             </div>
 
             <div className="space-y-4">
               <h5 className="font-semibold text-gray-800">Información del Sistema</h5>
 
               <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-xl">
-                <Phone className="w-5 h-5 text-gray-400" />
-                <div>
-                  <div className="text-sm text-gray-600">Teléfono</div>
-                  <div className="font-semibold text-gray-800">{user.phone}</div>
-                </div>
-              </div>
-
-              <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-xl">
                 <UserCheck className="w-5 h-5 text-gray-400" />
                 <div>
                   <div className="text-sm text-gray-600">Rol</div>
                   <div className="font-semibold text-gray-800">
-                    {user.role === 'super_admin' ? 'Super Administrador' :
-                      user.role === 'admin' ? 'Administrador' :
-                        user.role === 'asistente' ? 'Asistente' : 'Cliente'}
+                    {user.rol?.nombre || user.rolNombre || 'Sin rol'}
                   </div>
                 </div>
               </div>
@@ -977,9 +997,9 @@ function UserDetailModal({ user, onClose }) {
                 <AlertCircle className="w-5 h-5 text-gray-400" />
                 <div>
                   <div className="text-sm text-gray-600">Estado</div>
-                  <div className={`font-semibold ${user.status === 'active' ? 'text-green-600' : 'text-red-600'
+                  <div className={`font-semibold ${user.estado ? 'text-green-600' : 'text-red-600'
                     }`}>
-                    {user.status === 'active' ? 'Activo' : 'Inactivo'}
+                    {user.estado ? 'Activo' : 'Inactivo'}
                   </div>
                 </div>
               </div>
