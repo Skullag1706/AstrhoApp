@@ -663,33 +663,90 @@ function UserModal({ user, onClose, onSave, roles }: { user: any; onClose: () =>
   });
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [validatingFields, setValidatingFields] = useState<Record<string, boolean>>({});
+
+  // ── Centralized synchronous validation per field ──
+  const validateField = (name: string, value: string, docType?: string): string => {
+    const isCreate = !user;
+    switch (name) {
+      case 'nombre':
+        if (isCreate && !value.trim()) return 'El nombre es obligatorio';
+        if (isCreate && value.trim() && !/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]+$/.test(value))
+          return 'El nombre solo debe contener letras';
+        return '';
+      case 'email':
+        if (!value.trim()) return 'El correo electrónico es obligatorio';
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())) return 'El formato del correo no es válido';
+        return '';
+      case 'documentId': {
+        if (isCreate && !value.trim()) return 'El número de documento es obligatorio';
+        const effectiveDocType = docType || formData.documentType;
+        if (isCreate && effectiveDocType === 'cedula' && value.trim() && !/^\d+$/.test(value))
+          return 'El número de documento solo debe contener números, sin letras ni caracteres especiales';
+        return '';
+      }
+      case 'phone':
+        if (isCreate && !value.trim()) return 'El teléfono es obligatorio';
+        if (isCreate && value.trim() && !/^\d{10}$/.test(value))
+          return 'El teléfono debe tener exactamente 10 dígitos numéricos';
+        return '';
+      case 'direccion':
+        if (isCreate && !value.trim()) return 'La dirección es obligatoria';
+        return '';
+      default:
+        return '';
+    }
+  };
+
+  // ── Blur handler: sync validation on all fields + async uniqueness checks ──
+  const handleBlur = async (e: React.FocusEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+
+    // Always run sync validation on blur (shows "required" errors when leaving empty fields)
+    const syncError = validateField(name, value);
+    if (syncError) {
+      setFieldErrors(prev => ({ ...prev, [name]: syncError }));
+      return;
+    }
+
+    if (user) return; // skip uniqueness checks on edit
+
+    // Async uniqueness checks for email and documentId
+    if (name === 'email' && value.trim()) {
+      setValidatingFields(prev => ({ ...prev, email: true }));
+      try {
+        const { emailExists } = await authService.checkDuplicates(value);
+        if (emailExists) {
+          setFieldErrors(prev => ({ ...prev, email: 'El correo electrónico ya se encuentra registrado' }));
+        }
+      } catch { /* allow submit to re-check */ }
+      setValidatingFields(prev => ({ ...prev, email: false }));
+    }
+
+    if (name === 'documentId' && value.trim()) {
+      setValidatingFields(prev => ({ ...prev, documentId: true }));
+      try {
+        const exists = await userService.checkDocumentDuplicate(value);
+        if (exists) {
+          setFieldErrors(prev => ({ ...prev, documentId: 'El número de documento ya se encuentra registrado' }));
+        }
+      } catch { /* allow submit to re-check */ }
+      setValidatingFields(prev => ({ ...prev, documentId: false }));
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const errors: Record<string, string> = {};
 
-    if (!user) {
-      // Document number validation for Cédula de Ciudadanía
-      if (formData.documentType === 'cedula' && !/^\d+$/.test(formData.documentId)) {
-        errors.documentId = 'El número de documento solo debe contener números';
-      }
-      if (!formData.documentId.trim()) {
-        errors.documentId = 'El número de documento es obligatorio';
-      }
+    // Run all sync validations
+    const fieldsToValidate = !user
+      ? ['nombre', 'email', 'documentId', 'phone', 'direccion']
+      : ['email'];
 
-      // Phone validation — exactly 10 digits
-      if (!/^\d{10}$/.test(formData.phone)) {
-        errors.phone = 'El teléfono debe tener exactamente 10 dígitos numéricos';
-      }
-
-      if (!formData.nombre.trim()) {
-        errors.nombre = 'El nombre es obligatorio';
-      }
-    }
-
-    // Email required
-    if (!formData.email.trim()) {
-      errors.email = 'El correo electrónico es obligatorio';
+    for (const field of fieldsToValidate) {
+      const err = validateField(field, (formData as any)[field]);
+      if (err) errors[field] = err;
     }
 
     // Stop early if local validations fail
@@ -734,19 +791,19 @@ function UserModal({ user, onClose, onSave, roles }: { user: any; onClose: () =>
     const { name, value } = e.target;
     let sanitized = value;
 
-    // Strip non-numeric characters for document number when CC is selected
-    if (name === 'documentId' && formData.documentType === 'cedula') {
-      sanitized = value.replace(/[^0-9]/g, '');
-    }
-
     // Strip non-numeric characters for phone & limit to 10 digits
     if (name === 'phone') {
       sanitized = value.replace(/[^0-9]/g, '').slice(0, 10);
     }
 
-    // Clear field error when user starts typing
-    if (fieldErrors[name]) {
-      setFieldErrors(prev => ({ ...prev, [name]: '' }));
+    // Real-time synchronous validation
+    const error = validateField(name, sanitized, name === 'documentType' ? sanitized : undefined);
+    setFieldErrors(prev => ({ ...prev, [name]: error }));
+
+    // When document type changes, re-validate the document number with the new type
+    if (name === 'documentType') {
+      const docError = validateField('documentId', formData.documentId, sanitized);
+      setFieldErrors(prev => ({ ...prev, documentId: docError }));
     }
 
     setFormData({
@@ -833,11 +890,15 @@ function UserModal({ user, onClose, onSave, roles }: { user: any; onClose: () =>
                   name="documentId"
                   value={formData.documentId}
                   onChange={handleInputChange}
+                  onBlur={handleBlur}
                   className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${fieldErrors.documentId ? 'border-red-500' : 'border-gray-300'}`}
                   required={!user}
                   disabled={!!user}
                 />
-                {fieldErrors.documentId && (
+                {validatingFields.documentId && (
+                  <p className="text-blue-500 text-sm mt-1">Verificando disponibilidad...</p>
+                )}
+                {fieldErrors.documentId && !validatingFields.documentId && (
                   <p className="text-red-500 text-sm mt-1">{fieldErrors.documentId}</p>
                 )}
               </div>
@@ -852,10 +913,14 @@ function UserModal({ user, onClose, onSave, roles }: { user: any; onClose: () =>
                   name="nombre"
                   value={formData.nombre}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
+                  onBlur={handleBlur}
+                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${fieldErrors.nombre ? 'border-red-500' : 'border-gray-300'}`}
                   required={!user}
                   disabled={!!user}
                 />
+                {fieldErrors.nombre && (
+                  <p className="text-red-500 text-sm mt-1">{fieldErrors.nombre}</p>
+                )}
               </div>
 
               {/* 5. Email */}
@@ -868,10 +933,14 @@ function UserModal({ user, onClose, onSave, roles }: { user: any; onClose: () =>
                   name="email"
                   value={formData.email}
                   onChange={handleInputChange}
+                  onBlur={handleBlur}
                   className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${fieldErrors.email ? 'border-red-500' : 'border-gray-300'}`}
                   required
                 />
-                {fieldErrors.email && (
+                {validatingFields.email && (
+                  <p className="text-blue-500 text-sm mt-1">Verificando disponibilidad...</p>
+                )}
+                {fieldErrors.email && !validatingFields.email && (
                   <p className="text-red-500 text-sm mt-1">{fieldErrors.email}</p>
                 )}
               </div>
@@ -886,6 +955,7 @@ function UserModal({ user, onClose, onSave, roles }: { user: any; onClose: () =>
                   name="phone"
                   value={formData.phone}
                   onChange={handleInputChange}
+                  onBlur={handleBlur}
                   placeholder="10 dígitos"
                   maxLength={10}
                   className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${fieldErrors.phone ? 'border-red-500' : 'border-gray-300'}`}
@@ -900,17 +970,22 @@ function UserModal({ user, onClose, onSave, roles }: { user: any; onClose: () =>
               {/* 7. Dirección */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Dirección
+                  Dirección *
                 </label>
                 <input
                   type="text"
                   name="direccion"
                   value={formData.direccion}
                   onChange={handleInputChange}
+                  onBlur={handleBlur}
                   placeholder="Calle, carrera, número, barrio"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
+                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${fieldErrors.direccion ? 'border-red-500' : 'border-gray-300'}`}
+                  required={!user}
                   disabled={!!user}
                 />
+                {fieldErrors.direccion && (
+                  <p className="text-red-500 text-sm mt-1">{fieldErrors.direccion}</p>
+                )}
               </div>
             </div>
           </div>
