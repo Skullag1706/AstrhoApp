@@ -96,6 +96,10 @@ export function isEmployeeOccupied(
   const proposedStart = timeToMinutes(startTime);
   const proposedEnd = proposedStart + totalDurationMinutes;
 
+  // States that do NOT block the schedule (freed slots)
+  // API real IDs: 1=Pendiente, 2=Confirmado, 3=Cancelado, 4=Completado, 5=Sin Agendar
+  const NON_BLOCKING_STATES = ["cancelado", "cancelled", "sin agendar", "sin_agendar"];
+
   for (const apt of allAppointments) {
     // Skip the appointment being edited
     if (excludeAgendaId != null && apt.agendaId === excludeAgendaId) continue;
@@ -104,9 +108,9 @@ export function isEmployeeOccupied(
     if (String(apt.documentoEmpleado) !== String(employeeDoc)) continue;
     if (apt.fechaCita !== date) continue;
 
-    // Skip cancelled appointments
-    const estadoLower = apt.estado.toLowerCase();
-    if (estadoLower === "cancelado" || estadoLower === "cancelled") continue;
+    // Skip cancelled / unscheduled appointments — they free up the slot
+    const estadoLower = (apt.estado || "").toLowerCase().trim();
+    if (NON_BLOCKING_STATES.includes(estadoLower)) continue;
 
     // Compute existing appointment's duration from its services
     let existingDuration = 0;
@@ -127,11 +131,84 @@ export function isEmployeeOccupied(
   return false;
 }
 
+// ── Estado normalization ──
+
+// Real API estado IDs (from GET /EstadoAgenda):
+//  1 = Pendiente
+//  2 = Confirmado
+//  3 = Cancelado
+//  4 = Completado
+//  5 = Sin Agendar
+const ESTADO_MAP: Record<string | number, string> = {
+  1: 'Pendiente',
+  2: 'Confirmado',
+  3: 'Cancelado',
+  4: 'Completado',
+  5: 'Sin Agendar',
+  // String aliases → canonical label
+  pendiente: 'Pendiente',
+  pending: 'Pendiente',
+  confirmado: 'Confirmado',
+  confirmed: 'Confirmado',
+  cancelado: 'Cancelado',
+  cancelled: 'Cancelado',
+  canceled: 'Cancelado',
+  completado: 'Completado',
+  completed: 'Completado',
+  'sin agendar': 'Sin Agendar',
+  sin_agendar: 'Sin Agendar',
+  unscheduled: 'Sin Agendar',
+};
+
+function normalizeEstado(raw: any): string {
+  if (raw === null || raw === undefined) return 'Pendiente';
+  // If it's a plain number (estadoId)
+  if (typeof raw === 'number') return ESTADO_MAP[raw] ?? String(raw);
+  const s = String(raw).trim();
+  // Try exact key match first (handles numeric strings like "5")
+  if (ESTADO_MAP[s] !== undefined) return ESTADO_MAP[s];
+  // Try lower-case key
+  const lower = s.toLowerCase();
+  if (ESTADO_MAP[lower] !== undefined) return ESTADO_MAP[lower];
+  // Return the original string capitalised if nothing matched
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function normalizeAgendaItem(raw: any): AgendaItem {
+  return {
+    agendaId:           raw.agendaId          ?? raw.AgendaId          ?? 0,
+    documentoCliente:   raw.documentoCliente   ?? raw.DocumentoCliente  ?? '',
+    cliente:            raw.cliente            ?? raw.Cliente           ?? '',
+    documentoEmpleado:  raw.documentoEmpleado  ?? raw.DocumentoEmpleado ?? '',
+    empleado:           raw.empleado           ?? raw.Empleado          ?? '',
+    fechaCita:          raw.fechaCita          ?? raw.FechaCita         ?? '',
+    horaInicio:         raw.horaInicio         ?? raw.HoraInicio        ?? '',
+    estado:             normalizeEstado(raw.estado ?? raw.Estado ?? raw.estadoId ?? raw.EstadoId),
+    metodoPago:         raw.metodoPago         ?? raw.MetodoPago        ?? '',
+    servicios:          Array.isArray(raw.servicios)
+                          ? raw.servicios
+                          : Array.isArray(raw.Servicios)
+                          ? raw.Servicios
+                          : Array.isArray(raw.servicios?.$values)
+                          ? raw.servicios.$values
+                          : [],
+  };
+}
+
 // ── Agenda Service ──
 
 export const agendaService = {
   async getAll(): Promise<AgendaItem[]> {
-    return apiClient.get("/Agenda");
+    const data = await apiClient.get("/Agenda");
+    // Unwrap common .NET JSON wrapper formats
+    const raw: any[] = Array.isArray(data)
+      ? data
+      : Array.isArray(data?.data)
+      ? data.data
+      : Array.isArray(data?.$values)
+      ? data.$values
+      : [];
+    return raw.map(normalizeAgendaItem);
   },
 
   async create(data: CreateAgendaData): Promise<any> {
@@ -176,5 +253,37 @@ export const clienteService = {
 export const servicioAgendaService = {
   async getAll(): Promise<ServicioAPI[]> {
     return apiClient.get("/Servicios");
+  },
+};
+
+// ── EstadoAgenda ──
+
+export interface EstadoAgenda {
+  estadoId: number;
+  nombre: string;
+}
+
+export const estadoAgendaService = {
+  async getAll(): Promise<EstadoAgenda[]> {
+    try {
+      const data = await apiClient.get("/EstadoAgenda");
+      const raw: any[] = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.$values)
+        ? data.$values
+        : Array.isArray(data?.data)
+        ? data.data
+        : [];
+      return raw.filter((e) => e.estadoId > 0 && e.nombre);
+    } catch {
+      // Fallback to known values if endpoint is unavailable
+      return [
+        { estadoId: 1, nombre: 'Pendiente' },
+        { estadoId: 2, nombre: 'Confirmado' },
+        { estadoId: 3, nombre: 'Cancelado' },
+        { estadoId: 4, nombre: 'Completado' },
+        { estadoId: 5, nombre: 'Sin Agendar' },
+      ];
+    }
   },
 };
