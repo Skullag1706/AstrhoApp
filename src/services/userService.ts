@@ -48,4 +48,22 @@ export const userService = {
     delete: async (id: number): Promise<void> => {
         return apiClient.delete<void>(`/Usuarios/${id}`);
     },
+
+    checkDocumentDuplicate: async (documentId: string): Promise<boolean> => {
+        try {
+            const [clientes, empleados] = await Promise.all([
+                apiClient.get<any[]>('/Clientes'),
+                apiClient.get<any[]>('/Empleados'),
+            ]);
+            const existsInClientes = (clientes || []).some(
+                (c: any) => String(c.documentoCliente) === String(documentId)
+            );
+            const existsInEmpleados = (empleados || []).some(
+                (e: any) => String(e.documentoEmpleado) === String(documentId)
+            );
+            return existsInClientes || existsInEmpleados;
+        } catch {
+            return false;
+        }
+    },
 };

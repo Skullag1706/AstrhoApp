@@ -187,13 +187,6 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
 
     // ── CREATE ──
     try {
-      // Check duplicate email
-      const { emailExists } = await authService.checkDuplicates(userData.email);
-      if (emailExists) {
-        setAlertMessage('El correo ya está registrado');
-        setShowSuccessAlert(true);
-        return;
-      }
 
       // Step 1: Create temp user via auth endpoint
       const selectedRole = roles.find(r => r.rolId === userData.rolId);
@@ -655,8 +648,11 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
 
 // User Modal Component
 function UserModal({ user, onClose, onSave, roles }: { user: any; onClose: () => void; onSave: (data: any) => void; roles: RolListDto[] }) {
+  // Filter out Super Admin from the roles available for selection
+  const availableRoles = roles.filter(r => r.nombre.toLowerCase() !== 'super admin');
+
   const [formData, setFormData] = useState({
-    rolId: user?.rol?.rolId || (roles.length > 0 ? roles[0].rolId : 0),
+    rolId: user?.rol?.rolId || (availableRoles.length > 0 ? availableRoles[0].rolId : 0),
     documentType: 'cedula',
     documentId: '',
     nombre: '',
@@ -666,9 +662,66 @@ function UserModal({ user, onClose, onSave, roles }: { user: any; onClose: () =>
     estado: user?.estado !== undefined ? user.estado : true,
   });
   const [saving, setSaving] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const errors: Record<string, string> = {};
+
+    if (!user) {
+      // Document number validation for Cédula de Ciudadanía
+      if (formData.documentType === 'cedula' && !/^\d+$/.test(formData.documentId)) {
+        errors.documentId = 'El número de documento solo debe contener números';
+      }
+      if (!formData.documentId.trim()) {
+        errors.documentId = 'El número de documento es obligatorio';
+      }
+
+      // Phone validation — exactly 10 digits
+      if (!/^\d{10}$/.test(formData.phone)) {
+        errors.phone = 'El teléfono debe tener exactamente 10 dígitos numéricos';
+      }
+
+      if (!formData.nombre.trim()) {
+        errors.nombre = 'El nombre es obligatorio';
+      }
+    }
+
+    // Email required
+    if (!formData.email.trim()) {
+      errors.email = 'El correo electrónico es obligatorio';
+    }
+
+    // Stop early if local validations fail
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return;
+    }
+
+    // Async uniqueness checks (only on create)
+    if (!user) {
+      setSaving(true);
+      try {
+        const [{ emailExists }, documentExists] = await Promise.all([
+          authService.checkDuplicates(formData.email),
+          userService.checkDocumentDuplicate(formData.documentId),
+        ]);
+
+        if (emailExists) errors.email = 'El correo electrónico ya se encuentra registrado';
+        if (documentExists) errors.documentId = 'El número de documento ya se encuentra registrado';
+
+        if (Object.keys(errors).length > 0) {
+          setFieldErrors(errors);
+          setSaving(false);
+          return;
+        }
+      } catch {
+        setSaving(false);
+        return;
+      }
+    }
+
+    setFieldErrors({});
     setSaving(true);
     try {
       await onSave(formData);
@@ -679,9 +732,26 @@ function UserModal({ user, onClose, onSave, roles }: { user: any; onClose: () =>
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
+    let sanitized = value;
+
+    // Strip non-numeric characters for document number when CC is selected
+    if (name === 'documentId' && formData.documentType === 'cedula') {
+      sanitized = value.replace(/[^0-9]/g, '');
+    }
+
+    // Strip non-numeric characters for phone & limit to 10 digits
+    if (name === 'phone') {
+      sanitized = value.replace(/[^0-9]/g, '').slice(0, 10);
+    }
+
+    // Clear field error when user starts typing
+    if (fieldErrors[name]) {
+      setFieldErrors(prev => ({ ...prev, [name]: '' }));
+    }
+
     setFormData({
       ...formData,
-      [name]: name === 'rolId' ? parseInt(value) : value,
+      [name]: name === 'rolId' ? parseInt(sanitized) : sanitized,
     });
   };
 
@@ -726,7 +796,7 @@ function UserModal({ user, onClose, onSave, roles }: { user: any; onClose: () =>
                   disabled={!!user}
                 >
                   <option value="">Seleccionar rol</option>
-                  {roles.map(role => (
+                  {availableRoles.map(role => (
                     <option key={role.rolId} value={role.rolId}>{role.nombre}</option>
                   ))}
                 </select>
@@ -745,11 +815,12 @@ function UserModal({ user, onClose, onSave, roles }: { user: any; onClose: () =>
                   disabled={!!user}
                 >
                   <option value="cedula">Cédula de Ciudadanía</option>
-                  <option value="tarjeta_identidad">Tarjeta de Identidad</option>
                   <option value="cedula_extranjeria">Cédula de Extranjería</option>
                   <option value="pasaporte">Pasaporte</option>
-                  <option value="nit">NIT</option>
                 </select>
+                {fieldErrors.documentType && (
+                  <p className="text-red-500 text-sm mt-1">{fieldErrors.documentType}</p>
+                )}
               </div>
 
               {/* 3. Documento */}
@@ -762,10 +833,13 @@ function UserModal({ user, onClose, onSave, roles }: { user: any; onClose: () =>
                   name="documentId"
                   value={formData.documentId}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
+                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${fieldErrors.documentId ? 'border-red-500' : 'border-gray-300'}`}
                   required={!user}
                   disabled={!!user}
                 />
+                {fieldErrors.documentId && (
+                  <p className="text-red-500 text-sm mt-1">{fieldErrors.documentId}</p>
+                )}
               </div>
 
               {/* 4. Nombre */}
@@ -794,9 +868,12 @@ function UserModal({ user, onClose, onSave, roles }: { user: any; onClose: () =>
                   name="email"
                   value={formData.email}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
+                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${fieldErrors.email ? 'border-red-500' : 'border-gray-300'}`}
                   required
                 />
+                {fieldErrors.email && (
+                  <p className="text-red-500 text-sm mt-1">{fieldErrors.email}</p>
+                )}
               </div>
 
               {/* 6. Teléfono */}
@@ -809,10 +886,15 @@ function UserModal({ user, onClose, onSave, roles }: { user: any; onClose: () =>
                   name="phone"
                   value={formData.phone}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
+                  placeholder="10 dígitos"
+                  maxLength={10}
+                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${fieldErrors.phone ? 'border-red-500' : 'border-gray-300'}`}
                   required={!user}
                   disabled={!!user}
                 />
+                {fieldErrors.phone && (
+                  <p className="text-red-500 text-sm mt-1">{fieldErrors.phone}</p>
+                )}
               </div>
 
               {/* 7. Dirección */}
