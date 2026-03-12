@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { 
+import {
   Clock, Star, UserCheck
 } from 'lucide-react';
-import { 
+import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 
 interface DashboardOverviewProps {
@@ -38,7 +38,7 @@ export function DashboardOverview({ currentUser, hasPermission }: DashboardOverv
       revenue: 850000,
       appointments: 12,
       clients: 8,
-      products_sold: 25,
+      insumos_sold: 25,
       services_completed: 10,
       new_clients: 2
     },
@@ -46,7 +46,7 @@ export function DashboardOverview({ currentUser, hasPermission }: DashboardOverv
       revenue: 4250000,
       appointments: 67,
       clients: 45,
-      products_sold: 156,
+      insumos_sold: 156,
       services_completed: 58,
       new_clients: 12
     },
@@ -54,7 +54,7 @@ export function DashboardOverview({ currentUser, hasPermission }: DashboardOverv
       revenue: 18500000,
       appointments: 289,
       clients: 189,
-      products_sold: 678,
+      insumos_sold: 678,
       services_completed: 245,
       new_clients: 48
     }
@@ -63,17 +63,17 @@ export function DashboardOverview({ currentUser, hasPermission }: DashboardOverv
   const currentStats = dashboardStats[selectedPeriod];
 
   // Data para gráfico de ingresos
-  const revenueChartData = selectedPeriod === 'today' 
+  const revenueChartData = selectedPeriod === 'today'
     ? [
-        { name: '8am', value: 95000 },
-        { name: '10am', value: 120000 },
-        { name: '12pm', value: 185000 },
-        { name: '2pm', value: 210000 },
-        { name: '4pm', value: 140000 },
-        { name: '6pm', value: 100000 },
-      ]
+      { name: '8am', value: 95000 },
+      { name: '10am', value: 120000 },
+      { name: '12pm', value: 185000 },
+      { name: '2pm', value: 210000 },
+      { name: '4pm', value: 140000 },
+      { name: '6pm', value: 100000 },
+    ]
     : selectedPeriod === 'week'
-    ? [
+      ? [
         { name: 'Lun', value: 580000 },
         { name: 'Mar', value: 620000 },
         { name: 'Mié', value: 710000 },
@@ -81,7 +81,7 @@ export function DashboardOverview({ currentUser, hasPermission }: DashboardOverv
         { name: 'Vie', value: 890000 },
         { name: 'Sáb', value: 800000 },
       ]
-    : [
+      : [
         { name: 'Sem 1', value: 3200000 },
         { name: 'Sem 2', value: 4100000 },
         { name: 'Sem 3', value: 5500000 },
@@ -91,15 +91,15 @@ export function DashboardOverview({ currentUser, hasPermission }: DashboardOverv
   // Data para gráfico de citas
   const appointmentsChartData = selectedPeriod === 'today'
     ? [
-        { name: '8am', value: 2 },
-        { name: '10am', value: 3 },
-        { name: '12pm', value: 2 },
-        { name: '2pm', value: 1 },
-        { name: '4pm', value: 3 },
-        { name: '6pm', value: 1 },
-      ]
+      { name: '8am', value: 2 },
+      { name: '10am', value: 3 },
+      { name: '12pm', value: 2 },
+      { name: '2pm', value: 1 },
+      { name: '4pm', value: 3 },
+      { name: '6pm', value: 1 },
+    ]
     : selectedPeriod === 'week'
-    ? [
+      ? [
         { name: 'Lun', value: 10 },
         { name: 'Mar', value: 12 },
         { name: 'Mié', value: 11 },
@@ -107,7 +107,7 @@ export function DashboardOverview({ currentUser, hasPermission }: DashboardOverv
         { name: 'Vie', value: 15 },
         { name: 'Sáb', value: 10 },
       ]
-    : [
+      : [
         { name: 'Sem 1', value: 65 },
         { name: 'Sem 2', value: 72 },
         { name: 'Sem 3', value: 78 },
@@ -120,24 +120,24 @@ export function DashboardOverview({ currentUser, hasPermission }: DashboardOverv
     { name: 'Recurrentes', value: currentStats.clients - currentStats.new_clients, color: '#a855f7' },
   ];
 
-  // Data para gráfico de productos vendidos
-  const productsChartData = selectedPeriod === 'today'
+  // Data para gráfico de insumos vendidos
+  const insumosChartData = selectedPeriod === 'today'
     ? [
-        { name: 'Shampoo', value: 8 },
-        { name: 'Acondicionador', value: 6 },
-        { name: 'Tratamiento', value: 5 },
-        { name: 'Serum', value: 4 },
-        { name: 'Otros', value: 2 },
-      ]
+      { name: 'Shampoo', value: 8 },
+      { name: 'Acondicionador', value: 6 },
+      { name: 'Tratamiento', value: 5 },
+      { name: 'Serum', value: 4 },
+      { name: 'Otros', value: 2 },
+    ]
     : selectedPeriod === 'week'
-    ? [
+      ? [
         { name: 'Shampoo', value: 45 },
         { name: 'Acondicionador', value: 38 },
         { name: 'Tratamiento', value: 32 },
         { name: 'Serum', value: 25 },
         { name: 'Otros', value: 16 },
       ]
-    : [
+      : [
         { name: 'Shampoo', value: 195 },
         { name: 'Acondicionador', value: 168 },
         { name: 'Tratamiento', value: 142 },
@@ -187,13 +187,13 @@ export function DashboardOverview({ currentUser, hasPermission }: DashboardOverv
           <h2 className="text-3xl font-bold text-gray-800">Dashboard en Tiempo Real</h2>
           <p className="text-gray-600">Monitoreo operativo de AsthroApp</p>
         </div>
-        
+
         <div className="flex items-center space-x-2">
           <div className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium flex items-center space-x-1">
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
             <span>En Vivo</span>
           </div>
-          
+
           <select
             value={selectedPeriod}
             onChange={(e) => setSelectedPeriod(e.target.value)}
@@ -268,13 +268,13 @@ export function DashboardOverview({ currentUser, hasPermission }: DashboardOverv
           </ResponsiveContainer>
         </div>
 
-        {/* Products Chart */}
+        {/* Insumos Chart */}
         <div className="bg-white rounded-2xl shadow-lg p-6">
           <h3 className="text-xl font-bold text-gray-800 mb-6">
-            Productos Vendidos {selectedPeriod === 'today' ? 'Hoy' : selectedPeriod === 'week' ? 'Esta Semana' : 'Este Mes'}
+            Insumos Vendidos {selectedPeriod === 'today' ? 'Hoy' : selectedPeriod === 'week' ? 'Esta Semana' : 'Este Mes'}
           </h3>
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={productsChartData}>
+            <BarChart data={insumosChartData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="name" />
               <YAxis />
@@ -297,7 +297,7 @@ export function DashboardOverview({ currentUser, hasPermission }: DashboardOverv
               <span>Actualizado hace 2 min</span>
             </div>
           </div>
-          
+
           <div className="space-y-4">
             {upcomingAppointments.map((appointment) => (
               <div key={appointment.id} className="flex items-center space-x-4 p-4 bg-gradient-to-r from-pink-50 to-purple-50 rounded-xl">
@@ -312,18 +312,17 @@ export function DashboardOverview({ currentUser, hasPermission }: DashboardOverv
                   </p>
                 </div>
                 <div className="text-right">
-                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                    appointment.status === 'confirmed' 
-                      ? 'bg-green-100 text-green-800' 
+                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${appointment.status === 'confirmed'
+                      ? 'bg-green-100 text-green-800'
                       : 'bg-yellow-100 text-yellow-800'
-                  }`}>
+                    }`}>
                     {appointment.status === 'confirmed' ? 'Confirmada' : 'Pendiente'}
                   </span>
                 </div>
               </div>
             ))}
           </div>
-          
+
           <button className="w-full mt-4 bg-gradient-to-r from-pink-400 to-purple-500 text-white py-3 rounded-xl font-semibold hover:shadow-lg transition-all">
             Ver Todas las Citas
           </button>
@@ -332,7 +331,7 @@ export function DashboardOverview({ currentUser, hasPermission }: DashboardOverv
         {/* Top Services Performance */}
         <div className="bg-white rounded-2xl shadow-lg p-6">
           <h3 className="text-xl font-bold text-gray-800 mb-6">Servicios Más Populares</h3>
-          
+
           <div className="space-y-4">
             {topServices.map((service, index) => (
               <div key={index} className="space-y-2">
@@ -348,7 +347,7 @@ export function DashboardOverview({ currentUser, hasPermission }: DashboardOverv
                   </div>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
+                  <div
                     className="bg-gradient-to-r from-pink-400 to-purple-500 h-2 rounded-full transition-all duration-500"
                     style={{ width: `${service.percentage}%` }}
                   ></div>
@@ -356,7 +355,7 @@ export function DashboardOverview({ currentUser, hasPermission }: DashboardOverv
               </div>
             ))}
           </div>
-          
+
           <div className="mt-6 p-4 bg-gradient-to-r from-pink-50 to-purple-50 rounded-xl">
             <div className="flex items-center space-x-2 mb-2">
               <Star className="w-5 h-5 text-yellow-500" />
@@ -366,7 +365,7 @@ export function DashboardOverview({ currentUser, hasPermission }: DashboardOverv
               <strong>Coloración</strong> genera el mayor ingreso por servicio
             </p>
             <p className="text-sm text-gray-600 mt-1">
-              Promedio: ${(2380000/28).toLocaleString()} por servicio
+              Promedio: ${(2380000 / 28).toLocaleString()} por servicio
             </p>
           </div>
         </div>
