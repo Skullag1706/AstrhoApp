@@ -54,7 +54,9 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showStatusModal, setShowStatusModal] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<AgendaItem | null>(null);
+  const [appointmentToChangeStatus, setAppointmentToChangeStatus] = useState<{apt: AgendaItem, newStatusId: number} | null>(null);
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterEmployee, setFilterEmployee] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -259,6 +261,58 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
     }
   };
 
+  const handleStatusChangeClick = (apt: AgendaItem, newStatusId: number) => {
+    setAppointmentToChangeStatus({ apt, newStatusId });
+    setShowStatusModal(true);
+  };
+
+  const confirmStatusChange = async () => {
+    if (!appointmentToChangeStatus) return;
+    const { apt, newStatusId } = appointmentToChangeStatus;
+    
+    try {
+      const servicioIds = apt.servicios.map((name) => {
+         const svc = servicios.find((s) => s.nombre.trim().toLowerCase() === name.trim().toLowerCase());
+         return svc ? svc.servicioId : 0;
+      }).filter(id => id > 0);
+
+      const mp = metodosPago.find(m => m.nombre.trim().toLowerCase() === apt.metodoPago.trim().toLowerCase());
+      const metodoPagoId = mp ? mp.metodopagoId : (metodosPago.length > 0 ? metodosPago[0].metodopagoId : 0);
+
+      const observaciones = (apt as any).observaciones || 'Cambio de estado manual';
+      const hora = apt.horaInicio.length === 5 ? apt.horaInicio + ':00' : apt.horaInicio;
+      const fecha = apt.fechaCita.split('T')[0];
+
+      const payload = {
+        agendaId: apt.agendaId,
+        AgendaId: apt.agendaId,
+        documentoCliente: apt.documentoCliente,
+        DocumentoCliente: apt.documentoCliente,
+        documentoEmpleado: apt.documentoEmpleado,
+        DocumentoEmpleado: apt.documentoEmpleado,
+        fechaCita: fecha,
+        FechaCita: fecha,
+        horaInicio: hora,
+        HoraInicio: hora,
+        metodoPagoId: metodoPagoId,
+        MetodoPagoId: metodoPagoId,
+        observaciones: observaciones,
+        Observaciones: observaciones,
+        serviciosIds: servicioIds,
+        ServiciosIds: servicioIds,
+        estadoId: newStatusId,
+        EstadoId: newStatusId
+      };
+
+      await handleSaveAppointment(payload, true, apt.agendaId);
+      setShowStatusModal(false);
+      setAppointmentToChangeStatus(null);
+    } catch (error) {
+       console.error("Error changing status", error);
+       toast.error('Error al cambiar el estado');
+    }
+  };
+
   // ── Loading state ──
   if (loading) {
     return (
@@ -395,7 +449,11 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
               </tr>
             </thead>
             <tbody>
-              {paginatedAppointments.map((apt) => (
+              {paginatedAppointments.map((apt) => {
+                const estadoLower = apt.estado.toLowerCase();
+                const isLocked = estadoLower === 'completado' || estadoLower === 'completed' || estadoLower === 'cancelado' || estadoLower === 'cancelled';
+                
+                return (
                 <tr key={apt.agendaId} className="border-b border-gray-100 hover:bg-gray-50">
                   <td className="p-4">
                     <div className="flex items-center space-x-3">
@@ -435,9 +493,23 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
                     <div className="font-semibold text-gray-800">{apt.empleado}</div>
                   </td>
                   <td className="p-4">
-                    <span className={`px-3 py-1 rounded-full text-sm font-semibold border ${getStatusColor(apt.estado)}`}>
-                      {apt.estado}
-                    </span>
+                    {isLocked || !hasPermission('manage_appointments') ? (
+                      <span className={`px-3 py-1 rounded-full text-sm font-semibold border inline-block ${getStatusColor(apt.estado)}`}>
+                        {apt.estado}
+                      </span>
+                    ) : (
+                      <select
+                        value={getEstadoId(apt.estado)}
+                        onChange={(e) => handleStatusChangeClick(apt, Number(e.target.value))}
+                        className={`px-3 py-1 rounded-full text-sm font-bold border-2 cursor-pointer transition-all duration-200 focus:outline-none ${getStatusColor(apt.estado)}`}
+                      >
+                        {estadosAgenda.map((est) => (
+                          <option key={est.estadoId} value={est.estadoId}>
+                            {est.nombre}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </td>
                   <td className="p-4">
                     <div className="text-gray-700">{apt.metodoPago}</div>
@@ -453,7 +525,8 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
                       </button>
                       <button
                         onClick={() => handleEditAppointment(apt)}
-                        className="p-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
+                        disabled={isLocked}
+                        className={`p-2 rounded-lg transition-colors ${isLocked ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}
                         title="Editar cita"
                       >
                         <Edit className="w-4 h-4" />
@@ -468,7 +541,7 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
                     </div>
                   </td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
 
@@ -526,6 +599,46 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
           onClose={() => setShowDeleteModal(false)}
           onConfirm={confirmDeleteAppointment}
         />
+      )}
+
+      {/* Status Change Modal */}
+      {showStatusModal && appointmentToChangeStatus && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center space-x-4 mb-6">
+              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                <AlertCircle className="w-6 h-6 text-blue-600" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-gray-800">Confirmar Cambio de Estado</h3>
+                <p className="text-gray-600">¿Estás seguro de cambiar el estado?</p>
+              </div>
+            </div>
+            
+            <p className="text-gray-700 mb-6">
+              Se cambiará el estado de la cita de <strong>{appointmentToChangeStatus.apt.cliente}</strong> a{' '}
+              <strong>{estadosAgenda.find(e => e.estadoId === appointmentToChangeStatus.newStatusId)?.nombre}</strong>.
+            </p>
+            
+            <div className="flex space-x-3">
+              <button
+                onClick={() => {
+                  setShowStatusModal(false);
+                  setAppointmentToChangeStatus(null);
+                }}
+                className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmStatusChange}
+                className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-600 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -725,6 +838,8 @@ function AppointmentModal({
       const obs = formData.observaciones || 'Sin observaciones';
 
       const payload: any = {
+        agendaId: isEdit && appointment ? appointment.agendaId : 0,
+        AgendaId: isEdit && appointment ? appointment.agendaId : 0,
         documentoCliente: formData.documentoCliente,
         DocumentoCliente: formData.documentoCliente,
         documentoEmpleado: formData.documentoEmpleado,
