@@ -12,26 +12,123 @@ interface DashboardOverviewProps {
   hasPermission: (permission: string) => boolean;
 }
 
-export function DashboardOverview({ currentUser, hasPermission }: DashboardOverviewProps) {
-  const [selectedPeriod, setSelectedPeriod] = useState('today');
-  const [realTimeData, setRealTimeData] = useState({
-    activeClients: 12,
-    todayAppointments: 8,
-    pendingOrders: 3,
-    lowStockItems: 5
+type Period = "today" | "week" | "month";
+
+interface DashboardStats {
+  revenue: number;
+  appointments: number;
+  clients: number;
+  products_sold: number;
+  services_completed: number;
+  new_clients: number;
+}
+
+interface ChartPoint {
+  name: string;
+  value: number;
+}
+
+interface TopService {
+  name: string;
+  count: number;
+  revenue: number;
+  percentage: number;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+const TODAY = new Date();
+TODAY.setHours(0, 0, 0, 0);
+
+function toLocalDateStr(d: Date): string {
+  return d.toISOString().split("T")[0];
+}
+
+function getWeekStart(): Date {
+  const d = new Date();
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday
+  const monday = new Date(d.setDate(diff));
+  monday.setHours(0, 0, 0, 0);
+  return monday;
+}
+
+function getMonthStart(): Date {
+  const d = new Date();
+  d.setDate(1);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function isInPeriod(dateStr: string, period: Period): boolean {
+  if (!dateStr) return false;
+  const date = new Date(dateStr + (dateStr.includes("T") ? "" : "T00:00:00"));
+  date.setHours(0, 0, 0, 0);
+  const todayStr = toLocalDateStr(new Date());
+  if (period === "today") return dateStr.startsWith(todayStr);
+  if (period === "week") return date >= getWeekStart();
+  if (period === "month") return date >= getMonthStart();
+  return false;
+}
+
+const DAY_NAMES = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+const HOUR_LABELS = [
+  "8am",
+  "9am",
+  "10am",
+  "11am",
+  "12pm",
+  "1pm",
+  "2pm",
+  "3pm",
+  "4pm",
+  "5pm",
+  "6pm",
+  "7pm",
+];
+const HOUR_MAP: Record<string, string> = {
+  "08": "8am",
+  "09": "9am",
+  "10": "10am",
+  "11": "11am",
+  "12": "12pm",
+  "13": "1pm",
+  "14": "2pm",
+  "15": "3pm",
+  "16": "4pm",
+  "17": "5pm",
+  "18": "6pm",
+  "19": "7pm",
+};
+
+function groupSalesByHour(sales: SaleView[]): ChartPoint[] {
+  const map: Record<string, number> = {};
+  HOUR_LABELS.forEach((h) => (map[h] = 0));
+  sales.forEach((s) => {
+    const h = (s.time || "").slice(0, 2);
+    const label = HOUR_MAP[h];
+    if (label) map[label] = (map[label] || 0) + s.total;
   });
+  return HOUR_LABELS.map((h) => ({ name: h, value: map[h] }));
+}
 
-  // Simulate real-time updates
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setRealTimeData(prev => ({
-        ...prev,
-        activeClients: prev.activeClients + Math.floor(Math.random() * 3) - 1,
-      }));
-    }, 30000); // Update every 30 seconds
-
-    return () => clearInterval(interval);
-  }, []);
+function groupSalesByDay(sales: SaleView[]): ChartPoint[] {
+  const map: Record<string, number> = {};
+  DAY_NAMES.slice(1)
+    .concat(DAY_NAMES.slice(0, 1))
+    .forEach((d) => (map[d] = 0)); // Mon–Sun
+  sales.forEach((s) => {
+    if (!s.date) return;
+    const d = new Date(s.date + "T00:00:00");
+    const label = DAY_NAMES[d.getDay()];
+    map[label] = (map[label] || 0) + s.total;
+  });
+  return ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
+    .filter((d) => map[d] > 0 || true)
+    .map((d) => ({ name: d, value: map[d] || 0 }));
+}
 
   const dashboardStats = {
     today: {
@@ -58,6 +155,58 @@ export function DashboardOverview({ currentUser, hasPermission }: DashboardOverv
       services_completed: 245,
       new_clients: 48
     }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // ── Filter by period ──
+  const periodAgenda = allAgenda.filter((a) =>
+    isInPeriod(a.fechaCita, selectedPeriod),
+  );
+  const periodSales = allSales.filter((s) =>
+    isInPeriod(s.date, selectedPeriod),
+  );
+  const todayAgenda = allAgenda.filter((a) => isInPeriod(a.fechaCita, "today"));
+
+  // ── Compute Stats ──
+  const revenue = periodSales.reduce((sum, s) => sum + (s.total || 0), 0);
+  const appointments = periodAgenda.length;
+
+  const uniqueClientIds = new Set(
+    periodAgenda.map((a) => a.documentoCliente).filter(Boolean),
+  );
+  const clientsCount = uniqueClientIds.size;
+
+  // New clients = clients who appear for the first time in this period
+  const allPriorAgenda = allAgenda.filter(
+    (a) => !isInPeriod(a.fechaCita, selectedPeriod),
+  );
+  const priorClientIds = new Set(
+    allPriorAgenda.map((a) => a.documentoCliente).filter(Boolean),
+  );
+  const newClientsCount = [...uniqueClientIds].filter(
+    (id) => !priorClientIds.has(id),
+  ).length;
+
+  // Products sold: sum quantities from sales items
+  const productsSold = periodSales.reduce((sum, s) => {
+    return sum + s.items.reduce((acc, item) => acc + (item.quantity || 1), 0);
+  }, 0);
+
+  // Services completed: appointments with 'Completado' status
+  const servicesCompleted = periodAgenda.filter(
+    (a) => a.estado.toLowerCase() === "completado",
+  ).length;
+
+  const currentStats: DashboardStats = {
+    revenue,
+    appointments,
+    clients: clientsCount,
+    products_sold: productsSold,
+    services_completed: servicesCompleted,
+    new_clients: newClientsCount,
   };
 
   const currentStats = dashboardStats[selectedPeriod];
@@ -155,48 +304,103 @@ export function DashboardOverview({ currentUser, hasPermission }: DashboardOverv
       employee: 'María F. Gómez'
     },
     {
-      id: 2,
-      client: 'Isabel Torres',
-      service: 'Tratamiento Capilar',
-      time: '11:00 AM',
-      status: 'pending',
-      employee: 'Astrid E. Hoyos'
+      name: "Recurrentes",
+      value: Math.max(0, currentStats.clients - currentStats.new_clients),
+      color: "#a855f7",
     },
-    {
-      id: 3,
-      client: 'Carolina Jiménez',
-      service: 'Coloración',
-      time: '2:00 PM',
-      status: 'confirmed',
-      employee: 'María F. Gómez'
-    }
-  ];
+  ].filter((d) => d.value > 0);
 
-  const topServices = [
-    { name: 'Corte y Peinado', count: 45, revenue: 1575000, percentage: 35 },
-    { name: 'Tratamiento Capilar', count: 32, revenue: 1760000, percentage: 28 },
-    { name: 'Coloración', count: 28, revenue: 2380000, percentage: 25 },
-    { name: 'Manicure & Pedicure', count: 20, revenue: 900000, percentage: 12 }
-  ];
+  // Top products bar chart
+  const productFreq: Record<string, number> = {};
+  periodSales.forEach((sale) => {
+    sale.items.forEach((item) => {
+      if (item.name) {
+        productFreq[item.name] =
+          (productFreq[item.name] || 0) + (item.quantity || 1);
+      }
+    });
+  });
+  const productsChartData: ChartPoint[] = Object.entries(productFreq)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([name, value]) => ({ name, value }));
+
+  // Upcoming appointments (today, pending or confirmed, sorted by time)
+  const upcomingAppointments = todayAgenda
+    .filter((a) => ["pendiente", "confirmado"].includes(a.estado.toLowerCase()))
+    .sort((a, b) => (a.horaInicio || "").localeCompare(b.horaInicio || ""))
+    .slice(0, 5);
+
+  // Top services from agenda
+  const servicioFreq: Record<string, { count: number; revenue: number }> = {};
+  periodAgenda.forEach((apt) => {
+    apt.servicios.forEach((sName) => {
+      if (!servicioFreq[sName]) servicioFreq[sName] = { count: 0, revenue: 0 };
+      servicioFreq[sName].count += 1;
+      const srv = servicesMap.get(sName);
+      servicioFreq[sName].revenue += srv?.precio || 0;
+    });
+  });
+  const totalServiceCount =
+    Object.values(servicioFreq).reduce((sum, v) => sum + v.count, 0) || 1;
+  const topServices: TopService[] = Object.entries(servicioFreq)
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, 5)
+    .map(([name, data]) => ({
+      name,
+      count: data.count,
+      revenue: data.revenue,
+      percentage: Math.round((data.count / totalServiceCount) * 100),
+    }));
+
+  // Star service: highest revenue per unit
+  const starService = topServices.reduce<TopService | null>((best, s) => {
+    if (
+      !best ||
+      (s.count > 0 && s.revenue / s.count > best.revenue / best.count)
+    )
+      return s;
+    return best;
+  }, null);
+
+  const periodLabel =
+    selectedPeriod === "today"
+      ? "Hoy"
+      : selectedPeriod === "week"
+        ? "Esta Semana"
+        : "Este Mes";
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Render
+  // ─────────────────────────────────────────────────────────────────────────
 
   return (
     <div className="p-8">
-      {/* Header with Period Selector */}
+      {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h2 className="text-3xl font-bold text-gray-800">Dashboard en Tiempo Real</h2>
-          <p className="text-gray-600">Monitoreo operativo de AsthroApp</p>
+          <h2 className="text-3xl font-bold text-gray-800">
+            Dashboard en Tiempo Real
+          </h2>
+          <p className="text-gray-600">
+            Monitoreo operativo de AstrhoApp
+            {lastUpdated && (
+              <span className="text-xs text-gray-400 ml-2">
+                — Actualizado a las {lastUpdated.toLocaleTimeString()}
+              </span>
+            )}
+          </p>
         </div>
 
         <div className="flex items-center space-x-2">
           <div className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium flex items-center space-x-1">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
             <span>En Vivo</span>
           </div>
 
           <select
             value={selectedPeriod}
-            onChange={(e) => setSelectedPeriod(e.target.value)}
+            onChange={(e) => setSelectedPeriod(e.target.value as Period)}
             className="bg-white border border-gray-300 rounded-xl px-4 py-2 font-medium text-gray-700 focus:ring-2 focus:ring-pink-300"
           >
             <option value="today">Hoy</option>
@@ -206,66 +410,148 @@ export function DashboardOverview({ currentUser, hasPermission }: DashboardOverv
         </div>
       </div>
 
-      {/* Charts Section */}
+      {/* Error banner */}
+      {error && (
+        <div className="mb-6 flex items-center space-x-2 bg-red-50 text-red-700 px-4 py-3 rounded-xl border border-red-200">
+          <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+          <span className="text-sm">
+            {error} Los datos mostrados pueden ser incompletos.
+          </span>
+        </div>
+      )}
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <StatCard
+          title={`Ingresos ${periodLabel}`}
+          value={`$${currentStats.revenue.toLocaleString()}`}
+          icon={<TrendingUp className="w-7 h-7" />}
+          color="border-pink-500"
+          loading={isLoading}
+        />
+        <StatCard
+          title={`Citas ${periodLabel}`}
+          value={currentStats.appointments}
+          icon={<Calendar className="w-7 h-7" />}
+          color="border-purple-500"
+          loading={isLoading}
+        />
+        <StatCard
+          title="Clientes Activos"
+          value={totalClients}
+          icon={<Users className="w-7 h-7" />}
+          color="border-blue-500"
+          loading={isLoading}
+        />
+        <StatCard
+          title="Insumos Stock Bajo"
+          value={lowStockCount}
+          icon={<Package className="w-7 h-7" />}
+          color={lowStockCount > 0 ? "border-orange-500" : "border-green-500"}
+          loading={isLoading}
+        />
+      </div>
+
+      {/* Charts */}
       <div className="grid lg:grid-cols-2 gap-8 mb-8">
         {/* Revenue Chart */}
         <div className="bg-white rounded-2xl shadow-lg p-6">
           <h3 className="text-xl font-bold text-gray-800 mb-6">
-            Ingresos {selectedPeriod === 'today' ? 'Hoy' : selectedPeriod === 'week' ? 'Esta Semana' : 'Este Mes'}
+            Ingresos {periodLabel}
           </h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={revenueChartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip formatter={(value) => `$${value.toLocaleString()}`} />
-              <Legend />
-              <Line type="monotone" dataKey="value" name="Ingresos" stroke="#ec4899" strokeWidth={2} activeDot={{ r: 8 }} />
-            </LineChart>
-          </ResponsiveContainer>
+          {isLoading ? (
+            <div className="h-[300px] bg-gray-100 animate-pulse rounded-xl" />
+          ) : revenueChartData.every((d) => d.value === 0) ? (
+            <EmptyChart label="Sin ventas registradas en este período" />
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={revenueChartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
+                <Tooltip
+                  formatter={(value: number) => [
+                    `$${value.toLocaleString()}`,
+                    "Ingresos",
+                  ]}
+                />
+                <Legend />
+                <Line
+                  type="monotone"
+                  dataKey="value"
+                  name="Ingresos"
+                  stroke="#ec4899"
+                  strokeWidth={2}
+                  activeDot={{ r: 8 }}
+                  dot={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
         {/* Appointments Chart */}
         <div className="bg-white rounded-2xl shadow-lg p-6">
           <h3 className="text-xl font-bold text-gray-800 mb-6">
-            Citas {selectedPeriod === 'today' ? 'Hoy' : selectedPeriod === 'week' ? 'Esta Semana' : 'Este Mes'}
+            Citas {periodLabel}
           </h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={appointmentsChartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Line type="monotone" dataKey="value" name="Citas" stroke="#a855f7" strokeWidth={2} activeDot={{ r: 8 }} />
-            </LineChart>
-          </ResponsiveContainer>
+          {isLoading ? (
+            <div className="h-[300px] bg-gray-100 animate-pulse rounded-xl" />
+          ) : appointmentsChartData.every((d) => d.value === 0) ? (
+            <EmptyChart label="Sin citas registradas en este período" />
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={appointmentsChartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis allowDecimals={false} />
+                <Tooltip formatter={(value: number) => [value, "Citas"]} />
+                <Legend />
+                <Line
+                  type="monotone"
+                  dataKey="value"
+                  name="Citas"
+                  stroke="#a855f7"
+                  strokeWidth={2}
+                  activeDot={{ r: 8 }}
+                  dot={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
-        {/* Clients Chart */}
+        {/* Clients Pie Chart */}
         <div className="bg-white rounded-2xl shadow-lg p-6">
           <h3 className="text-xl font-bold text-gray-800 mb-6">
-            Clientes {selectedPeriod === 'today' ? 'Hoy' : selectedPeriod === 'week' ? 'Esta Semana' : 'Este Mes'}
+            Clientes {periodLabel}
           </h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={clientsChartData}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                outerRadius={100}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                {clientsChartData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
+          {isLoading ? (
+            <div className="h-[300px] bg-gray-100 animate-pulse rounded-xl" />
+          ) : clientsChartData.length === 0 ? (
+            <EmptyChart label="Sin clientes en este período" />
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={clientsChartData}
+                  cx="50%"
+                  cy="50%"
+                  labelLine={false}
+                  label={({ name, percent }) =>
+                    `${name}: ${(percent * 100).toFixed(0)}%`
+                  }
+                  outerRadius={100}
+                  dataKey="value"
+                >
+                  {clientsChartData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value: number) => [value, "Clientes"]} />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
         </div>
 
         {/* Insumos Chart */}
@@ -286,15 +572,21 @@ export function DashboardOverview({ currentUser, hasPermission }: DashboardOverv
         </div>
       </div>
 
-      {/* Two Column Layout */}
+      {/* Two Column: Upcoming Appointments + Top Services */}
       <div className="grid lg:grid-cols-2 gap-8">
         {/* Upcoming Appointments */}
         <div className="bg-white rounded-2xl shadow-lg p-6">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-bold text-gray-800">Próximas Citas</h3>
+            <h3 className="text-xl font-bold text-gray-800">
+              Próximas Citas (Hoy)
+            </h3>
             <div className="flex items-center space-x-2 text-sm text-gray-600">
               <Clock className="w-4 h-4" />
-              <span>Actualizado hace 2 min</span>
+              {lastUpdated ? (
+                <span>Actualizado {lastUpdated.toLocaleTimeString()}</span>
+              ) : (
+                <span>Cargando...</span>
+              )}
             </div>
           </div>
 
@@ -328,7 +620,7 @@ export function DashboardOverview({ currentUser, hasPermission }: DashboardOverv
           </button>
         </div>
 
-        {/* Top Services Performance */}
+        {/* Top Services */}
         <div className="bg-white rounded-2xl shadow-lg p-6">
           <h3 className="text-xl font-bold text-gray-800 mb-6">Servicios Más Populares</h3>
 
@@ -342,9 +634,30 @@ export function DashboardOverview({ currentUser, hasPermission }: DashboardOverv
                       {service.count} servicios • ${service.revenue.toLocaleString()}
                     </p>
                   </div>
-                  <div className="text-right">
-                    <span className="text-2xl font-bold text-pink-600">{service.percentage}%</span>
+                ))}
+              </div>
+
+              {starService && (
+                <div className="mt-6 p-4 bg-gradient-to-r from-pink-50 to-purple-50 rounded-xl">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <Star className="w-5 h-5 text-yellow-500" />
+                    <span className="font-semibold text-gray-800">
+                      Servicio Estrella
+                    </span>
                   </div>
+                  <p className="text-gray-700">
+                    <strong>{starService.name}</strong> es el más solicitado en
+                    este período
+                  </p>
+                  {starService.revenue > 0 && starService.count > 0 && (
+                    <p className="text-sm text-gray-600 mt-1">
+                      Promedio: $
+                      {(
+                        starService.revenue / starService.count
+                      ).toLocaleString()}{" "}
+                      por servicio
+                    </p>
+                  )}
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div
@@ -370,6 +683,19 @@ export function DashboardOverview({ currentUser, hasPermission }: DashboardOverv
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Empty state chart placeholder
+// ─────────────────────────────────────────────────────────────────────────────
+
+function EmptyChart({ label }: { label: string }) {
+  return (
+    <div className="h-[300px] flex flex-col items-center justify-center text-gray-400">
+      <TrendingUp className="w-12 h-12 opacity-20 mb-3" />
+      <p className="text-sm">{label}</p>
     </div>
   );
 }
