@@ -605,76 +605,131 @@ export function PersonManagement({ hasPermission }: PersonManagementProps) {
 // Person Profile Modal Component
 function PersonProfileModal({ person, onClose, personType }: { person: Person, onClose: () => void, personType: string }) {
     return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-                <div className={`bg-gradient-to-r ${personType === 'client' ? 'from-pink-400 to-purple-500' : 'from-purple-500 to-blue-500'} p-6 text-white rounded-t-3xl`}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+                {/* Header - Fixed at top */}
+                <div className={`bg-gradient-to-r ${personType === 'client' ? 'from-pink-500 to-purple-600' : 'from-purple-500 to-blue-600'} p-5 text-white shrink-0 shadow-md z-20`}>
                     <div className="flex items-center justify-between">
-                        <div>
-                            <h3 className="text-2xl font-bold">Detalles de {personType === 'client' ? 'Cliente' : 'Empleado'}</h3>
-                            <p className="text-white/80">Información completa</p>
+                        <div className="flex items-center space-x-4">
+                            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                                {personType === 'client' ? <Users className="w-6 h-6 text-white" /> : <Briefcase className="w-6 h-6 text-white" />}
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-bold leading-tight">
+                                    Detalles de {personType === 'client' ? 'Cliente' : 'Empleado'}
+                                </h3>
+                                <p className="text-white/80 text-[10px] font-black uppercase tracking-widest mt-0.5">
+                                    Documento: {person.documentId}
+                                </p>
+                            </div>
                         </div>
                         <button
                             onClick={onClose}
-                            className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
+                            className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
                         >
                             <X className="w-5 h-5" />
                         </button>
                     </div>
                 </div>
 
-                <div className="p-6 space-y-6 overflow-y-auto">
-                    <div className="bg-gray-50 rounded-xl p-6 border border-gray-100">
-                        <h4 className="text-lg font-bold text-gray-800 mb-4 flex items-center space-x-2">
-                            <Users className={`w-5 h-5 ${personType === 'client' ? 'text-pink-500' : 'text-purple-500'}`} />
-                            <span>Información Personal</span>
-                        </h4>
+                {/* Scrollable Body */}
+                <div className="flex-1 overflow-y-auto p-6 lg:p-8 bg-gray-50/30 no-scrollbar">
+                    <style>{`
+                        .no-scrollbar::-webkit-scrollbar { display: none; }
+                        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+                    `}</style>
 
-                        <div className="grid md:grid-cols-2 gap-y-6 gap-x-4">
-                            <div>
-                                <label className="text-sm font-medium text-gray-500 block mb-1">Nombre Completo</label>
-                                <p className="font-semibold text-gray-800">{person.name}</p>
+                    <div className="max-w-4xl mx-auto space-y-6">
+                        {/* Info Cards Row */}
+                        <div className="grid md:grid-cols-3 gap-4">
+                            {/* Personal Info Card */}
+                            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+                                <div className="flex items-center space-x-2 text-purple-500 mb-3">
+                                    <Users className="w-4 h-4" />
+                                    <h4 className="font-bold uppercase text-[10px] tracking-widest">Información Personal</h4>
+                                </div>
+                                <div className="mb-1">
+                                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Nombre Completo:</span>
+                                    <p className="font-bold text-gray-800 text-lg mb-1 truncate">{person.name}</p>
+                                </div>
+                                <div className="flex items-center space-x-2 text-gray-500">
+                                    <Shield className="w-3.5 h-3.5" />
+                                    <span className="text-sm">{person.documentType || 'CC'}: {person.documentId}</span>
+                                </div>
                             </div>
 
-                            <div>
-                                <label className="text-sm font-medium text-gray-500 block mb-1">Tipo de Documento</label>
-                                <p className="font-semibold text-gray-800">{person.documentType || 'CC'}</p>
+                            {/* Contact Card */}
+                            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+                                <div className="flex items-center space-x-2 text-pink-500 mb-3">
+                                    <Phone className="w-4 h-4" />
+                                    <h4 className="font-bold uppercase text-[10px] tracking-widest">Contacto y Ubicación</h4>
+                                </div>
+                                <div className="space-y-3">
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Teléfono:</span>
+                                        <div className="flex items-center space-x-2">
+                                            <Phone className="w-3.5 h-3.5 text-gray-400" />
+                                            <span className="font-bold text-gray-700">{person.phone || 'N/A'}</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Dirección:</span>
+                                        <div className="flex items-start space-x-2">
+                                            <MapPin className="w-3.5 h-3.5 text-gray-400 mt-1 shrink-0" />
+                                            <span className="font-bold text-gray-700 break-words">{person.address || 'N/A'}</span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
-                            <div>
-                                <label className="text-sm font-medium text-gray-500 block mb-1">Número de Documento</label>
-                                <p className="font-semibold text-gray-800">{person.documentId}</p>
-                            </div>
-
-                            <div>
-                                <label className="text-sm font-medium text-gray-500 block mb-1">Teléfono</label>
-                                <p className="font-semibold text-gray-800 flex items-center">
-                                    <Phone className="w-4 h-4 mr-2 text-gray-400" />
-                                    {person.phone || 'N/A'}
-                                </p>
-                            </div>
-                            <div>
-                                <label className="text-sm font-medium text-gray-500 block mb-1">Dirección</label>
-                                <p className="font-semibold text-gray-800 flex items-center">
-                                    <MapPin className="w-4 h-4 mr-2 text-gray-400" />
-                                    {person.address || 'N/A'}
-                                </p>
-                            </div>
-
-                            <div>
-                                <label className="text-sm font-medium text-gray-500 block mb-1">Estado</label>
-                                <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${person.status === 'active' ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-red-100 text-red-800 border border-red-200'
+                            {/* Status Card */}
+                            <div className={`rounded-2xl p-5 border shadow-sm flex flex-col items-center justify-center ${person.status === 'active'
+                                ? 'bg-green-50/50 border-green-100 text-green-600'
+                                : 'bg-red-50/50 border-red-100 text-red-600'
+                                }`}>
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-2 ${person.status === 'active' ? 'bg-green-100' : 'bg-red-100'
                                     }`}>
-                                    {person.status === 'active' ? 'Activo' : 'Inactivo'}
+                                    {person.status === 'active' ? <CheckCircle className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+                                </div>
+                                <span className="font-black uppercase text-[10px] tracking-[0.2em]">
+                                    {person.status === 'active' ? 'Estado Activo' : 'Estado Inactivo'}
                                 </span>
                             </div>
                         </div>
+
+                        {/* Extra Info (If any) */}
+                        {person.email && (
+                            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                                <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100 flex items-center justify-between">
+                                    <h4 className="font-bold text-gray-700 text-sm flex items-center space-x-2">
+                                        <Mail className="w-4 h-4 text-blue-400" />
+                                        <span>Información de Cuenta</span>
+                                    </h4>
+                                </div>
+                                <div className="p-6">
+                                    <div className="grid md:grid-cols-2 gap-4">
+                                        <div>
+                                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Correo Electrónico:</span>
+                                            <p className="font-bold text-gray-800">{person.email}</p>
+                                        </div>
+                                        {personType === 'employee' && (
+                                            <div>
+                                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Tipo de Perfil:</span>
+                                                <p className="font-bold text-gray-800">Personal del Salón</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 
-                <div className="p-6 border-t border-gray-100 bg-gray-50 rounded-b-3xl flex justify-end">
+                {/* Footer - Fixed at bottom */}
+                <div className="p-5 bg-white border-t border-gray-100 flex justify-end shrink-0 z-20">
                     <button
                         onClick={onClose}
-                        className="px-6 py-2 bg-white border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
+                        className="px-8 py-2.5 rounded-xl font-black text-gray-500 hover:bg-gray-200 hover:text-gray-800 active:scale-95 transition-all text-sm uppercase tracking-widest shadow-sm"
                     >
                         Cerrar
                     </button>
