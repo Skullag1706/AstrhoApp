@@ -178,7 +178,12 @@ export function Navigation({
             )}
 
             {/* Notification Bell */}
-            {currentUser && <NotificationBell currentUser={currentUser} />}
+            {currentUser && (
+              <NotificationBell 
+                currentUser={currentUser} 
+                setCurrentView={setCurrentView}
+              />
+            )}
 
             {/* User Menu */}
             {currentUser ? (

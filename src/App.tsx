@@ -18,6 +18,14 @@ function App() {
   const [showUserProfile, setShowUserProfile] = useState(false);
   const [isClientView, setIsClientView] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [adminTab, setAdminTab] = useState("dashboard");
+
+  const handleNavigate = (view, tab = null) => {
+    setCurrentView(view);
+    if (tab) {
+      setAdminTab(tab);
+    }
+  };
 
   // Redirect admin users to admin panel automatically
   useEffect(() => {
@@ -239,6 +247,8 @@ function App() {
           <AdminPanel
             currentUser={currentUser}
             hasPermission={hasPermission}
+            activeTab={adminTab}
+            onTabChange={setAdminTab}
           />
         ) : (
           <div className="text-center py-8">
@@ -260,6 +270,8 @@ function App() {
             <AdminPanel
               currentUser={currentUser}
               hasPermission={hasPermission}
+              activeTab={adminTab}
+              onTabChange={setAdminTab}
             />
           );
         }
@@ -279,7 +291,7 @@ function App() {
       <Navigation
         currentUser={currentUser}
         currentView={currentView}
-        setCurrentView={setCurrentView}
+        setCurrentView={handleNavigate}
         setShowAuthModal={setShowAuthModal}
         setShowUserProfile={setShowUserProfile}
         hasPermission={hasPermission}

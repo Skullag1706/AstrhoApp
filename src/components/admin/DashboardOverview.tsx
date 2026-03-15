@@ -166,7 +166,7 @@ function groupSalesByDay(sales: SaleView[]): ChartPoint[] {
     isInPeriod(a.fechaCita, selectedPeriod),
   );
   const periodSales = allSales.filter((s) =>
-    isInPeriod(s.date, selectedPeriod),
+    isInPeriod(s.date, selectedPeriod) && s.status === "completed"
   );
   const todayAgenda = allAgenda.filter((a) => isInPeriod(a.fechaCita, "today"));
 
@@ -310,20 +310,6 @@ function groupSalesByDay(sales: SaleView[]): ChartPoint[] {
     },
   ].filter((d) => d.value > 0);
 
-  // Top products bar chart
-  const productFreq: Record<string, number> = {};
-  periodSales.forEach((sale) => {
-    sale.items.forEach((item) => {
-      if (item.name) {
-        productFreq[item.name] =
-          (productFreq[item.name] || 0) + (item.quantity || 1);
-      }
-    });
-  });
-  const productsChartData: ChartPoint[] = Object.entries(productFreq)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([name, value]) => ({ name, value }));
 
   // Upcoming appointments (today, pending or confirmed, sorted by time)
   const upcomingAppointments = todayAgenda
@@ -452,9 +438,10 @@ function groupSalesByDay(sales: SaleView[]): ChartPoint[] {
         />
       </div>
 
-      {/* Charts */}
-      <div className="grid lg:grid-cols-2 gap-8 mb-8">
-        {/* Revenue Chart */}
+      {/* Charts Layout */}
+
+      {/* Row 1: Full-width Revenue Chart */}
+      <div className="w-full mb-8">
         <div className="bg-white rounded-2xl shadow-lg p-6">
           <h3 className="text-xl font-bold text-gray-800 mb-6">
             Ingresos {periodLabel}
@@ -489,7 +476,10 @@ function groupSalesByDay(sales: SaleView[]): ChartPoint[] {
             </ResponsiveContainer>
           )}
         </div>
+      </div>
 
+      {/* Row 2: Appointments + Clients */}
+      <div className="grid lg:grid-cols-2 gap-8 mb-8">
         {/* Appointments Chart */}
         <div className="bg-white rounded-2xl shadow-lg p-6">
           <h3 className="text-xl font-bold text-gray-800 mb-6">
@@ -572,7 +562,7 @@ function groupSalesByDay(sales: SaleView[]): ChartPoint[] {
         </div>
       </div>
 
-      {/* Two Column: Upcoming Appointments + Top Services */}
+      {/* Row 3: Upcoming Appointments + Top Services */}
       <div className="grid lg:grid-cols-2 gap-8">
         {/* Upcoming Appointments */}
         <div className="bg-white rounded-2xl shadow-lg p-6">

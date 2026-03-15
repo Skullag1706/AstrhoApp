@@ -1,21 +1,26 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Bell, AlertTriangle, ShoppingBag, CheckCircle, X } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Bell, AlertTriangle, CheckCircle, X, Calendar as CalendarIcon, LucideIcon } from 'lucide-react';
+import { supplyService } from '../services/supplyService';
+import { agendaService } from '../services/agendaService';
 
 interface Alert {
-  id: number;
+  id: number | string;
   type: 'warning' | 'info' | 'success';
   message: string;
   action: string;
   time: string;
-  icon: any;
+  icon: LucideIcon;
   color: string;
+  view?: string;
+  tabId?: string;
 }
 
 interface NotificationBellProps {
   currentUser: any;
+  setCurrentView?: (view: string, tab?: string) => void;
 }
 
-export function NotificationBell({ currentUser }: NotificationBellProps) {
+export function NotificationBell({ currentUser, setCurrentView }: NotificationBellProps) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [alerts, setAlerts] = useState<Alert[]>([
     {
@@ -51,8 +56,8 @@ export function NotificationBell({ currentUser }: NotificationBellProps) {
 
   // Close dropdown when clicking outside
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setShowNotifications(false);
       }
     };
@@ -91,14 +96,30 @@ export function NotificationBell({ currentUser }: NotificationBellProps) {
         const randomNotification = newNotifications[Math.floor(Math.random() * newNotifications.length)];
         setAlerts(prev => [randomNotification, ...prev].slice(0, 10));
       }
-    }, 45000); // Check every 45 seconds
 
+      setAlerts(newAlerts);
+    } catch (err) {
+      console.error("Failed to fetch notifications:", err);
+    }
+  }, [currentUser]);
+
+  // Initial load and auto-refresh every 60 seconds
+  useEffect(() => {
+    loadNotifications();
+    const interval = setInterval(loadNotifications, 60000);
     return () => clearInterval(interval);
-  }, [alerts]);
+  }, [loadNotifications]);
 
-  const handleDismiss = (id: number, e: React.MouseEvent) => {
+  const handleDismiss = (id: number | string, e: React.MouseEvent) => {
     e.stopPropagation();
     setAlerts(alerts.filter(alert => alert.id !== id));
+  };
+
+  const handleAction = (view?: string, tabId?: string) => {
+    if (view && setCurrentView) {
+      setCurrentView(view, tabId);
+    }
+    setShowNotifications(false);
   };
 
   const unreadCount = alerts.length;
@@ -158,7 +179,10 @@ export function NotificationBell({ currentUser }: NotificationBellProps) {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-800">{alert.message}</p>
                         <p className="text-xs text-gray-500 mt-0.5">Hace {alert.time}</p>
-                        <button className="text-xs bg-gradient-to-r from-pink-400 to-purple-500 text-white px-3 py-1 rounded-lg mt-2 hover:shadow-md transition-all">
+                        <button 
+                          onClick={() => handleAction(alert.view, alert.tabId)}
+                          className="text-xs bg-gradient-to-r from-pink-400 to-purple-500 text-white px-3 py-1 rounded-lg mt-2 hover:shadow-md transition-all"
+                        >
                           {alert.action}
                         </button>
                       </div>

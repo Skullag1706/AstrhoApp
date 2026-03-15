@@ -25,10 +25,15 @@ import { AppointmentManagement } from './admin/AppointmentManagement';
 interface AdminPanelProps {
   currentUser: any;
   hasPermission: (permission: string) => boolean;
+  activeTab?: string;
+  onTabChange?: (tab: string) => void;
 }
 
-export function AdminPanel({ currentUser, hasPermission }: AdminPanelProps) {
-  const [activeTab, setActiveTab] = useState('dashboard');
+export function AdminPanel({ currentUser, hasPermission, activeTab: propActiveTab, onTabChange }: AdminPanelProps) {
+  const [internalActiveTab, setInternalActiveTab] = useState('dashboard');
+  
+  const activeTab = propActiveTab || internalActiveTab;
+  const setActiveTab = onTabChange || setInternalActiveTab;
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   const menuCategories = getMenuItemsByCategory(ADMIN_MENU_ITEMS, hasPermission);
