@@ -22,8 +22,37 @@ interface NotificationBellProps {
 
 export function NotificationBell({ currentUser, setCurrentView }: NotificationBellProps) {
   const [showNotifications, setShowNotifications] = useState(false);
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [alerts, setAlerts] = useState<Alert[]>([
+    {
+      id: 1,
+      type: 'warning',
+      message: '5 insumos con stock bajo',
+      action: 'Ver inventario',
+      time: '5 min',
+      icon: AlertTriangle,
+      color: 'text-yellow-600 bg-yellow-100'
+    },
+    {
+      id: 2,
+      type: 'info',
+      message: '3 pedidos listos para entregar',
+      action: 'Gestionar pedidos',
+      time: '15 min',
+      icon: ShoppingBag,
+      color: 'text-blue-600 bg-blue-100'
+    },
+    {
+      id: 3,
+      type: 'success',
+      message: 'Cita completada: María González',
+      action: 'Ver detalles',
+      time: '30 min',
+      icon: CheckCircle,
+      color: 'text-green-600 bg-green-100'
+    }
+  ]);
+
+  const dropdownRef = useRef(null);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -39,53 +68,33 @@ export function NotificationBell({ currentUser, setCurrentView }: NotificationBe
     };
   }, []);
 
-  // Fetch real data
-  const loadNotifications = useCallback(async () => {
-    if (!currentUser || currentUser.role === 'customer') return;
-    
-    try {
-      const newAlerts: Alert[] = [];
-
-      // 1. Check supplies with low stock
-      const supplies = await supplyService.getSupplies();
-      const lowStockSupplies = supplies.filter(s => s.estado && s.stock <= 5);
-      
-      if (lowStockSupplies.length > 0) {
-        newAlerts.push({
-          id: 'low-stock-alert',
-          type: 'warning',
-          message: `${lowStockSupplies.length} producto(s) con stock bajo`,
-          action: 'Ver inventario',
-          time: 'Ahora',
-          icon: AlertTriangle,
-          color: 'text-yellow-600 bg-yellow-100',
-          view: 'admin',
-          tabId: 'products'
-        });
-      }
-
-      // 2. Check pending appointments
-      const agenda = await agendaService.getAll();
-      const today = new Date().toISOString().split('T')[0];
-      
-      const pendingAppointments = agenda.filter(a => {
-        const isPending = (a.estado || '').toLowerCase().includes("pendiente");
-        const isTodayOrFuture = (a.fechaCita || '').localeCompare(today) >= 0;
-        return isPending && isTodayOrFuture;
-      });
-
-      if (pendingAppointments.length > 0) {
-        newAlerts.push({
-          id: 'pending-apt-alert',
-          type: 'info',
-          message: `${pendingAppointments.length} cita(s) por confirmar`,
-          action: 'Ver agenda',
-          time: 'Ahora',
-          icon: CalendarIcon,
-          color: 'text-blue-600 bg-blue-100',
-          view: 'admin',
-          tabId: 'appointments'
-        });
+  // Simulate real-time updates
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Simulate new notifications appearing randomly
+      if (Math.random() > 0.7 && alerts.length < 8) {
+        const newNotifications = [
+          {
+            id: Date.now(),
+            type: 'info' as const,
+            message: 'Nueva cita programada',
+            action: 'Ver cita',
+            time: 'Ahora',
+            icon: CheckCircle,
+            color: 'text-blue-600 bg-blue-100'
+          },
+          {
+            id: Date.now(),
+            type: 'warning' as const,
+            message: 'Insumo agotándose',
+            action: 'Ver inventario',
+            time: 'Ahora',
+            icon: AlertTriangle,
+            color: 'text-yellow-600 bg-yellow-100'
+          }
+        ];
+        const randomNotification = newNotifications[Math.floor(Math.random() * newNotifications.length)];
+        setAlerts(prev => [randomNotification, ...prev].slice(0, 10));
       }
 
       setAlerts(newAlerts);
@@ -160,8 +169,8 @@ export function NotificationBell({ currentUser, setCurrentView }: NotificationBe
                 {alerts.map((alert) => {
                   const Icon = alert.icon;
                   return (
-                    <div 
-                      key={alert.id} 
+                    <div
+                      key={alert.id}
                       className="flex items-start space-x-3 p-3 hover:bg-gray-50 rounded-xl transition-colors mb-2 group relative"
                     >
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${alert.color}`}>

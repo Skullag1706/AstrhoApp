@@ -64,5 +64,9 @@ export const purchaseService = {
             return { compraId: id, ...data } as unknown as PurchaseAPI;
         }
         return result as PurchaseAPI;
+    },
+
+    delete: async (id: number): Promise<void> => {
+        return apiClient.delete(`/Compras/${id}`);
     }
 };

@@ -43,16 +43,17 @@ export const supplyService = {
     async updateStock(insumoId: number, delta: number): Promise<Supply> {
         // 1. Fetch the full current supply
         const supply = await supplyService.getSupplyById(insumoId);
-        const currentStock = supply.stock ?? 0;
+        const currentStock = supply.stock ?? (supply as any).Stock ?? (supply as any).cantidad ?? (supply as any).Cantidad ?? (supply as any).existencias ?? 0;
         const newStock = Math.max(0, currentStock + delta);
 
         // 2. Send full object to the PUT endpoint
         const updatePayload: any = {
-            sku: supply.sku,
-            nombre: supply.nombre,
-            descripcion: supply.descripcion ?? '',
-            categoriaId: supply.categoriaId,
-            estado: supply.estado,
+            insumoId: insumoId, // Siempre útil enviarlo
+            sku: supply.sku ?? (supply as any).Sku ?? (supply as any).SKU ?? '',
+            nombre: supply.nombre ?? (supply as any).Nombre ?? '',
+            descripcion: supply.descripcion ?? (supply as any).Descripcion ?? '',
+            categoriaId: supply.categoriaId ?? (supply as any).CategoriaId ?? 0,
+            estado: supply.estado ?? (supply as any).Estado ?? true,
             stock: newStock,
         };
 

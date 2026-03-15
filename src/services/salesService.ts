@@ -9,8 +9,8 @@ export interface SaleServiceItem {
   name?: string;
 }
 
-export interface SaleProductItem {
-  productId?: number | string;
+export interface SaleInsumoItem {
+  insumoId?: number | string;
   quantity?: number;
   unitPrice?: number;
   discount?: number;
@@ -26,7 +26,7 @@ export interface SaleView {
   employeeName?: string;
   date: string;
   time: string;
-  items: SaleProductItem[];
+  items: SaleInsumoItem[];
   services: SaleServiceItem[];
   subtotal: number;
   discount: number;
@@ -83,32 +83,32 @@ function mapApiSaleToView(apiSale: any): SaleView {
 
   const dt = extractDateTime(apiSale?.sale_date || apiSale?.fechaVenta || apiSale?.fecha || apiSale?.createdAt);
 
-  const items: SaleProductItem[] = Array.isArray(apiSale?.items)
+  const items: SaleInsumoItem[] = Array.isArray(apiSale?.items)
     ? apiSale.items
-        .filter((it: any) => String(it?.item_type || it?.tipo)?.toLowerCase().includes('product'))
-        .map((it: any) => ({
-          productId: it?.product_id ?? it?.productoId,
-          quantity: safeNumber(it?.quantity ?? it?.cantidad ?? 1, 1),
-          unitPrice: safeNumber(it?.unit_price ?? it?.precioUnitario),
-          discount: safeNumber(it?.discount ?? it?.descuento),
-          totalPrice: safeNumber(it?.total ?? it?.totalPrice ?? it?.subtotal),
-          name: it?.product_name ?? it?.nombreProducto,
-        }))
+      .filter((it: any) => String(it?.item_type || it?.tipo || it?.item_tipo)?.toLowerCase().includes('insumo') || String(it?.item_type || it?.tipo || it?.item_tipo)?.toLowerCase().includes('product'))
+      .map((it: any) => ({
+        insumoId: it?.insumo_id ?? it?.insumoId ?? it?.product_id ?? it?.productoId,
+        quantity: safeNumber(it?.quantity ?? it?.cantidad ?? 1, 1),
+        unitPrice: safeNumber(it?.unit_price ?? it?.precioUnitario),
+        discount: safeNumber(it?.discount ?? it?.descuento),
+        totalPrice: safeNumber(it?.total ?? it?.totalPrice ?? it?.subtotal),
+        name: it?.insumo_name ?? it?.nombreInsumo ?? it?.product_name ?? it?.nombreProducto,
+      }))
     : [];
 
   const services: SaleServiceItem[] = Array.isArray(apiSale?.items)
     ? apiSale.items
-        .filter((it: any) => String(it?.item_type || it?.tipo)?.toLowerCase().includes('serv'))
-        .map((it: any) => ({
-          serviceId: it?.service_id ?? it?.servicioId,
-          appointmentId: apiSale?.appointment_id ?? apiSale?.citaId,
-          price: safeNumber(it?.unit_price ?? it?.precio),
-          discount: safeNumber(it?.discount ?? it?.descuento),
-          totalPrice: safeNumber(it?.total ?? it?.totalPrice ?? it?.subtotal),
-          name: it?.service_name ?? it?.nombreServicio,
-        }))
+      .filter((it: any) => String(it?.item_type || it?.tipo)?.toLowerCase().includes('serv'))
+      .map((it: any) => ({
+        serviceId: it?.service_id ?? it?.servicioId,
+        appointmentId: apiSale?.appointment_id ?? apiSale?.citaId,
+        price: safeNumber(it?.unit_price ?? it?.precio),
+        discount: safeNumber(it?.discount ?? it?.descuento),
+        totalPrice: safeNumber(it?.total ?? it?.totalPrice ?? it?.subtotal),
+        name: it?.service_name ?? it?.nombreServicio,
+      }))
     : Array.isArray(apiSale?.servicios)
-    ? apiSale.servicios.map((s: any) => ({
+      ? apiSale.servicios.map((s: any) => ({
         serviceId: s?.servicioId ?? s?.id,
         appointmentId: s?.appointmentId ?? apiSale?.appointment_id,
         price: safeNumber(s?.precio),
@@ -116,7 +116,7 @@ function mapApiSaleToView(apiSale: any): SaleView {
         totalPrice: safeNumber(s?.totalPrice ?? s?.subtotal ?? s?.precio),
         name: s?.nombre,
       }))
-    : [];
+      : [];
 
   const subtotal = safeNumber(apiSale?.subtotal);
   const discount = safeNumber(apiSale?.discount ?? apiSale?.descuento);
@@ -124,7 +124,7 @@ function mapApiSaleToView(apiSale: any): SaleView {
   const total =
     safeNumber(apiSale?.total) ||
     items.reduce((acc, i) => acc + safeNumber(i.totalPrice), 0) +
-      services.reduce((acc, s) => acc + safeNumber(s.totalPrice), 0);
+    services.reduce((acc, s) => acc + safeNumber(s.totalPrice), 0);
 
   return {
     id: String(id),

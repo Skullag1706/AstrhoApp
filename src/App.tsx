@@ -81,7 +81,7 @@ function App() {
         "module_sales",
         "module_purchases",
         "module_suppliers",
-        "module_products",
+        "module_insumos",
         "module_clients",
         "module_categories",
         "module_schedules",
@@ -98,7 +98,7 @@ function App() {
         "manage_sales",
         "manage_purchases",
         "manage_suppliers",
-        "manage_products",
+        "manage_insumos",
         "manage_clients",
         "manage_categories",
         "manage_schedules",
@@ -126,11 +126,11 @@ function App() {
       customer: [
         "module_appointments",
         "module_services",
-        "module_products",
+        "module_insumos",
         // Legacy
         "book_appointments",
         "view_services",
-        "view_products",
+        "view_insumos",
         "view_own_appointments"
       ],
     };

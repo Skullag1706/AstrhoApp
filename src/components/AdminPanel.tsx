@@ -13,8 +13,7 @@ import { UserManagement } from './admin/UserManagement';
 import { PersonManagement } from './admin/PersonManagement';
 import { ScheduleManagement } from './admin/ScheduleManagement';
 import { ServiceManagement } from './admin/ServiceManagement';
-import { ProductManagement } from './admin/ProductManagement';
-import { SuppliesList } from './admin/SuppliesList';
+import { SupplyManagement } from './admin/SupplyManagement';
 import { PurchaseManagement } from './admin/PurchaseManagement';
 import { SupplierManagement } from './admin/SupplierManagement';
 import { CategoryManagement } from './admin/CategoryManagement';
@@ -55,8 +54,8 @@ export function AdminPanel({ currentUser, hasPermission, activeTab: propActiveTa
         return <ScheduleManagement hasPermission={hasPermission} />;
       case 'services':
         return <ServiceManagement hasPermission={hasPermission} />;
-      case 'products':
-        return <ProductManagement hasPermission={hasPermission} />;
+      case 'insumos':
+        return <SupplyManagement hasPermission={hasPermission} />;
       case 'categories':
         return <CategoryManagement hasPermission={hasPermission} />;
       case 'sales':
@@ -118,8 +117,8 @@ export function AdminPanel({ currentUser, hasPermission, activeTab: propActiveTa
                           <button
                             onClick={() => setActiveTab(item.id)}
                             className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center' : 'space-x-3'} px-4 py-3 rounded-xl text-left transition-all duration-200 ${activeTab === item.id
-                                ? 'bg-gradient-to-r from-pink-400 to-purple-500 text-white shadow-lg'
-                                : 'text-gray-900 hover:bg-pink-50 hover:text-pink-600'
+                              ? 'bg-gradient-to-r from-pink-400 to-purple-500 text-white shadow-lg'
+                              : 'text-gray-900 hover:bg-pink-50 hover:text-pink-600'
                               }`}
                           >
                             <Icon className={`w-5 h-5 flex-shrink-0 ${activeTab === item.id ? 'text-white stroke-white' : 'text-gray-900 stroke-gray-900'}`} />
