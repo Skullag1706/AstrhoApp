@@ -264,13 +264,12 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
 
   return (
     <div className="p-8">
-
-      {/* Header */}
+      {/* Header Section */}
       <div className="flex items-center justify-between mb-8">
         <div>
           <h2 className="text-3xl font-bold text-gray-800">Gestión de Insumos</h2>
           <p className="text-gray-600">
-            Control completo del inventario y características de insumos
+            Catálogo maestro • Control de inventario global
           </p>
         </div>
 
@@ -280,108 +279,128 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
             className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all flex items-center space-x-2"
           >
             <Plus className="w-5 h-5" />
-            <span>Registrar Insumo</span>
+            <span>Registrar Nuevo Insumo</span>
           </button>
         )}
       </div>
 
       {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-20 translate-y-10">
-          <div className="w-16 h-16 border-4 border-pink-200 border-t-pink-500 rounded-full animate-spin mb-4"></div>
-          <p className="text-gray-500 font-medium animate-pulse">Cargando insumos...</p>
+        <div className="bg-white rounded-2xl shadow-lg p-12 text-center mb-8">
+          <div className="w-8 h-8 border-4 border-pink-200 border-t-pink-500 rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Sincronizando insumos...</p>
         </div>
       ) : (
         <>
-          {/* Search */}
+          {/* Search and Filters */}
           <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
                 type="text"
                 placeholder="Buscar por nombre o SKU..."
+                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
               />
             </div>
           </div>
 
-          {/* Table */}
+          {/* Table Container */}
           <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+            <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-6 border-b border-gray-100">
+              <h3 className="text-xl font-bold text-gray-800">Listado de Productos</h3>
+            </div>
+
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gradient-to-r from-pink-50 to-purple-50">
+                <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-4 text-left font-semibold text-gray-800">Nombre</th>
+                    <th className="px-6 py-4 text-left font-semibold text-gray-800">Insumo</th>
                     <th className="px-6 py-4 text-left font-semibold text-gray-800">SKU</th>
                     <th className="px-6 py-4 text-left font-semibold text-gray-800">Categoría</th>
-                    <th className="px-6 py-4 text-left font-semibold text-gray-800">Stock</th>
+                    <th className="px-6 py-4 text-left font-semibold text-gray-800">Existencias</th>
                     <th className="px-6 py-4 text-left font-semibold text-gray-800">Estado</th>
-                    <th className="px-6 py-4 text-left font-semibold text-gray-800">Acciones</th>
+                    <th className="px-6 py-4 text-right font-semibold text-gray-800">Acciones</th>
                   </tr>
                 </thead>
-
                 <tbody className="divide-y divide-gray-100">
-                  {paginatedProducts.map(product => {
-                    return (
-                      <tr key={product.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 font-semibold text-gray-800">{product.name}</td>
-                        <td className="px-6 py-4 text-gray-700">{product.sku}</td>
-                        <td className="px-6 py-4 text-gray-700">{product.category}</td>
-                        <td className="px-6 py-4">
-                          <span className={`px-2 py-1 rounded-md text-sm font-bold ${product.quantity <= 0 ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
+                  {paginatedProducts.map((product) => (
+                    <tr key={product.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-gray-800">{product.name}</span>
+                          <span className="text-xs text-gray-500 truncate max-w-[200px]">{product.description}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-sm font-mono text-gray-600">{product.sku}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-purple-50 text-purple-600 border border-purple-100">
+                          {product.category}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center space-x-2">
+                           <span className={`px-3 py-1 rounded-lg text-sm font-bold ${
+                            product.quantity <= 0
+                              ? 'bg-red-50 text-red-600 border border-red-100'
+                              : product.quantity <= 5
+                                ? 'bg-orange-50 text-orange-600 border border-orange-100'
+                                : 'bg-green-50 text-green-600 border border-green-100'
                             }`}>
-                            {product.quantity} uds
+                            {product.quantity}
                           </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center space-x-3">
-                            <label className="relative inline-flex items-center cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={product.status === 'active'}
-                                onChange={() => handleToggleStatus(product)}
-                                className="sr-only peer"
-                                disabled={!hasPermission('manage_products')}
-                              />
-                              <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-pink-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-pink-400 peer-checked:to-purple-500"></div>
-                              <span className={`ml-3 text-sm font-medium ${product.status === 'active' ? 'text-green-600' : 'text-red-600'
-                                }`}>
-                                {product.status === 'active' ? 'Activo' : 'Inactivo'}
-                              </span>
-                            </label>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex space-x-2">
-                            <button
-                              onClick={() => handleViewDetail(product)}
-                              className="p-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </button>
-
-                            {hasPermission('manage_products') && (
-                              <>
-                                <button
-                                  onClick={() => handleEditProduct(product)}
-                                  className="p-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200"
-                                >
-                                  <Edit className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteProduct(product)}
-                                  className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center">
+                          <label className="relative inline-flex items-center cursor-pointer group">
+                            <input
+                              type="checkbox"
+                              checked={product.status === 'active'}
+                              onChange={() => handleToggleStatus(product)}
+                              className="sr-only peer"
+                              disabled={!hasPermission('manage_products')}
+                            />
+                            <div className={`relative w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-pink-500 peer-checked:to-purple-600 ${!hasPermission('manage_products') ? 'opacity-50 cursor-not-allowed' : ''}`}></div>
+                            <span className={`ml-3 text-xs font-bold ${product.status === 'active' ? 'text-green-600' : 'text-red-500'}`}>
+                              {product.status === 'active' ? 'On' : 'Off'}
+                            </span>
+                          </label>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-end space-x-2">
+                          <button
+                            onClick={() => handleViewDetail(product)}
+                            className="p-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
+                            title="Ver Detalle"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          {hasPermission('manage_products') && (
+                            <>
+                              <button
+                                onClick={() => handleEditProduct(product)}
+                                className="p-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
+                                title="Editar"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteProduct(product)}
+                                className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
+                                title="Eliminar"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -389,13 +408,8 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
             {/* Pagination */}
             <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
               <div className="text-sm text-gray-600">
-                Mostrando {filteredProducts.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0}
-                {' - '}
-                {Math.min(currentPage * itemsPerPage, filteredProducts.length)}
-                {' de '}
-                {filteredProducts.length} registros
+                Mostrando {filteredProducts.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} - {Math.min(currentPage * itemsPerPage, filteredProducts.length)} de {filteredProducts.length} registros
               </div>
-
               <SimplePagination
                 totalPages={totalPages}
                 currentPage={currentPage}
@@ -441,7 +455,7 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
         />
       )}
 
-      {/* Success Alert - rendered at root level for highest z-index */}
+      {/* Success Alert */}
       {showSuccessAlert && (
         <div className="fixed top-24 right-4 z-[2147483647] animate-in slide-in-from-top-5 duration-300">
           <div className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center space-x-4 min-w-[320px]">
@@ -462,7 +476,6 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
           </div>
         </div>
       )}
-
     </div>
   );
 }
@@ -473,14 +486,14 @@ function ErrorModal({ message, onClose }: { message: string, onClose: () => void
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" style={{ zIndex: 99999 }}>
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md animate-in zoom-in-95 duration-200">
         <div className="p-8 text-center">
-          <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+          <div className="w-20 h-20 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
             <AlertCircle className="w-10 h-10 text-red-500" />
           </div>
           <h3 className="text-2xl font-bold text-gray-800 mb-2">¡Ups! Algo salió mal</h3>
-          <p className="text-gray-600 mb-8">{message}</p>
+          <p className="text-gray-500 mb-8 leading-relaxed">{message}</p>
           <button
             onClick={onClose}
-            className="w-full bg-gradient-to-r from-red-400 to-red-500 text-white px-6 py-4 rounded-xl font-bold shadow-lg hover:shadow-xl transition-all"
+            className="w-full bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg hover:shadow-red-200 transition-all uppercase tracking-wider text-sm"
           >
             Entendido
           </button>
@@ -490,7 +503,6 @@ function ErrorModal({ message, onClose }: { message: string, onClose: () => void
   );
 }
 
-// Modal para crear/editar insumo
 interface ProductModalProps {
   product: any;
   onClose: () => void;
@@ -509,31 +521,22 @@ function ProductModal({ product, onClose, onSave, categories }: ProductModalProp
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
-
-  // Filtrar solo categorías activas
   const activeCategories = categories.filter((cat: APICategory) => cat.estado === true);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
     const newErrors: any = {};
     if (!formData.name.trim()) newErrors.name = 'El nombre es requerido';
-
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       return;
     }
-
     onSave(formData);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value
-    });
-
+    setFormData({ ...formData, [name]: value });
     if (errors[name]) {
       setErrors({ ...errors, [name]: '' });
     }
@@ -541,102 +544,78 @@ function ProductModal({ product, onClose, onSave, categories }: ProductModalProp
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[1000] flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto">
-        <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-6 text-white rounded-t-3xl">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-300">
+        <div className="bg-gradient-to-r from-pink-500 to-purple-600 p-6 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-2xl font-bold">
-                {product ? 'Editar Insumo' : 'Registrar Nuevo Insumo'}
-              </h3>
-              <p className="text-pink-100">Complete los datos del insumo</p>
+              <h3 className="text-2xl font-bold">{product ? 'Editar Insumo' : 'Registrar Insumo'}</h3>
+              <p className="text-pink-100/80 text-sm">Información completa del registro</p>
             </div>
-            <button
-              onClick={onClose}
-              className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
-            >
-              <X className="w-5 h-5" />
+            <button onClick={onClose} className="w-10 h-10 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center transition-all">
+              <X className="w-6 h-6" />
             </button>
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="p-8 space-y-6">
           <div className="grid md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Nombre del Insumo *
-              </label>
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Nombre del Insumo *</label>
               <input
                 type="text"
                 name="name"
                 value={formData.name}
                 onChange={handleInputChange}
-                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${errors.name ? 'border-red-300' : 'border-gray-300'}`}
-                placeholder="Ej: Shampoo Keratina"
+                className={`w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-pink-400 focus:bg-white transition-all outline-none ${errors.name ? 'border-red-300' : ''}`}
+                placeholder="Ej: Shampoo"
               />
               {errors.name && (
-                <div className="flex items-center space-x-1 mt-1 text-red-600">
-                  <AlertCircle className="w-4 h-4" />
-                  <span className="text-sm">{errors.name}</span>
+                <div className="flex items-center space-x-1 mt-1 text-red-500 text-xs">
+                  <AlertCircle className="w-3 h-3" />
+                  <span>{errors.name}</span>
                 </div>
               )}
             </div>
 
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                SKU *
-              </label>
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">SKU</label>
               <input
                 type="text"
-                name="sku"
                 value={formData.sku}
-                onChange={handleInputChange}
-                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${errors.sku ? 'border-red-300' : 'border-gray-300'}`}
-                placeholder="Ej: SHP-KER-001"
+                readOnly
+                className="w-full px-4 py-2 bg-gray-100 border border-transparent rounded-xl text-sm text-gray-400 font-mono"
               />
-              {errors.sku && (
-                <div className="flex items-center space-x-1 mt-1 text-red-600">
-                  <AlertCircle className="w-4 h-4" />
-                  <span className="text-sm">{errors.sku}</span>
-                </div>
-              )}
             </div>
           </div>
 
           <div className="grid md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Categoría
-              </label>
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Categoría</label>
               <select
                 name="categoryId"
                 value={formData.categoryId}
                 onChange={handleInputChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
+                className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-pink-400 focus:bg-white transition-all outline-none"
               >
-                <option value="">Seleccionar categoría</option>
+                <option value="">Seleccionar</option>
                 {activeCategories.map((cat: any) => (
-                  <option key={cat.categoriaId} value={cat.categoriaId}>
-                    {cat.nombre}
-                  </option>
+                  <option key={cat.categoriaId} value={cat.categoriaId}>{cat.nombre}</option>
                 ))}
               </select>
             </div>
 
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Estado
-              </label>
-              <div className="flex items-center space-x-3 h-[50px]">
-                <label className="relative inline-flex items-center cursor-pointer">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1 text-center block w-full">Estado</label>
+              <div className="flex items-center justify-center pt-2">
+                <label className="relative inline-flex items-center cursor-pointer group">
                   <input
                     type="checkbox"
                     checked={formData.status === 'active'}
                     onChange={() => setFormData({ ...formData, status: formData.status === 'active' ? 'inactive' : 'active' })}
                     className="sr-only peer"
                   />
-                  <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-pink-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-pink-400 peer-checked:to-purple-500"></div>
-                  <span className={`ml-3 text-sm font-medium ${formData.status === 'active' ? 'text-green-600' : 'text-red-600'
-                    }`}>
+                  <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-pink-500 peer-checked:to-purple-600"></div>
+                  <span className={`ml-3 text-xs font-bold ${formData.status === 'active' ? 'text-green-600' : 'text-red-500'}`}>
                     {formData.status === 'active' ? 'Activo' : 'Inactivo'}
                   </span>
                 </label>
@@ -644,108 +623,99 @@ function ProductModal({ product, onClose, onSave, categories }: ProductModalProp
             </div>
           </div>
 
-
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Descripción (Opcional)
-            </label>
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-gray-400 uppercase tracking-wider ml-1">Descripción</label>
             <textarea
               name="description"
               value={formData.description}
               onChange={handleInputChange}
-              rows={3}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
-              placeholder="Descripción del insumo..."
+              rows={2}
+              className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-pink-400 focus:bg-white transition-all outline-none resize-none"
+              placeholder="Descripción detallada..."
             />
           </div>
 
-          <div className="flex space-x-4">
+          <div className="flex gap-4 pt-6">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors flex items-center justify-center space-x-2"
+              className="flex-1 py-3 text-sm font-bold text-gray-500 hover:bg-gray-50 border border-gray-200 rounded-xl transition-all uppercase tracking-wider"
             >
-              <X className="w-5 h-5" />
-              <span>Cancelar</span>
+              Cancelar
             </button>
             <button
               type="submit"
-              className="flex-1 bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all flex items-center justify-center space-x-2"
+              className="flex-1 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl font-bold shadow-lg hover:shadow-pink-200 transition-all uppercase tracking-wider text-sm"
             >
-              <Save className="w-5 h-5" />
-              <span>{product ? 'Actualizar' : 'Registrar'} Insumo</span>
+              {product ? 'Actualizar Registro' : 'Registrar Insumo'}
             </button>
           </div>
         </form>
       </div>
-
-
     </div>
   );
 }
 
-// Modal de detalles del insumo
+
 function ProductDetailModal({ product, onClose }: any) {
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl">
-        <div className="bg-gradient-to-r from-blue-400 to-purple-500 p-6 text-white rounded-t-3xl">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[1000] flex items-center justify-center p-4">
+      <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-2xl overflow-hidden border border-white/20 animate-in zoom-in-95 duration-300">
+        <div className="bg-gradient-to-r from-pink-500 to-purple-600 p-8 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-2xl font-bold">Detalles del Insumo</h3>
-              <p className="text-blue-100">Información completa</p>
+              <h3 className="text-2xl font-black tracking-tight tracking-widest uppercase">Detalles del Insumo</h3>
+              <p className="text-pink-100 text-[10px] font-black uppercase tracking-[0.2em] opacity-80 mt-1 italic">Ficha técnica completa</p>
             </div>
-            <button
-              onClick={onClose}
-              className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
-            >
-              <X className="w-5 h-5" />
+            <button onClick={onClose} className="w-12 h-12 bg-white/10 hover:bg-white/20 rounded-2xl flex items-center justify-center transition-all">
+              <X className="w-6 h-6" />
             </button>
           </div>
         </div>
 
-        <div className="p-6 space-y-4">
-          <div className="grid md:grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm text-gray-600">Nombre</p>
-              <p className="text-lg font-semibold text-gray-800">{product.name}</p>
+        <div className="p-10 space-y-8">
+          <div className="grid grid-cols-2 gap-8">
+            <div className="bg-gray-50/50 p-6 rounded-[2rem] border border-gray-100">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 block">Nombre del Insumo</label>
+              <p className="text-xl font-black text-gray-800 tracking-tight">{product.name}</p>
             </div>
-            <div>
-              <p className="text-sm text-gray-600">SKU</p>
-              <p className="text-lg font-semibold text-gray-800">{product.sku}</p>
+            <div className="bg-gray-50/50 p-6 rounded-[2rem] border border-gray-100">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 block">SKU de Referencia</label>
+              <p className="text-xl font-mono font-black text-purple-600 tracking-wider">{product.sku}</p>
             </div>
           </div>
 
-          <div>
-            <p className="text-sm text-gray-600">Categoría</p>
-            <p className="text-lg font-semibold text-gray-800">{product.category}</p>
-          </div>
-
-          <div>
-            <p className="text-sm text-gray-600">Estado</p>
-            <span className={`px-3 py-1 rounded-full text-xs font-semibold inline-block mt-1 ${getStatusColor(product.status)}`}>
-              {getStatusLabel(product.status)}
-            </span>
-          </div>
-
-          <div>
-            <p className="text-sm text-gray-600">Stock Disponible</p>
-            <p className="text-lg font-bold text-blue-600">{product.quantity} unidades</p>
+          <div className="grid grid-cols-3 gap-6">
+            <div className="space-y-1 text-center">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Categoría</label>
+              <p className="text-sm font-bold text-gray-600 uppercase">{product.category}</p>
+            </div>
+            <div className="space-y-1 text-center border-x border-gray-100">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Estado</label>
+              <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest inline-block mt-2 border-2 ${getStatusColor(product.status)}`}>
+                {getStatusLabel(product.status)}
+              </span>
+            </div>
+            <div className="space-y-1 text-center">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Existencias</label>
+              <p className="text-sm font-black text-pink-500 uppercase">{product.quantity} Disponibles</p>
+            </div>
           </div>
 
           {product.description && (
-            <div className="mt-4 pt-4 border-t border-gray-100">
-              <p className="text-sm text-gray-600 mb-1">Descripción</p>
-              <p className="text-gray-700 italic">"{product.description}"</p>
+            <div className="bg-pink-50/30 p-8 rounded-[2rem] border-2 border-dashed border-pink-100 relative overflow-hidden">
+              <label className="text-[10px] font-black text-pink-400 uppercase tracking-widest mb-4 block">Descripción Técnica</label>
+              <p className="text-gray-600 italic leading-relaxed relative z-10">"{product.description}"</p>
+              <Package className="absolute -bottom-4 -right-4 w-24 h-24 text-pink-100/50 -rotate-12" />
             </div>
           )}
 
-          <div className="pt-6">
+          <div className="pt-4">
             <button
               onClick={onClose}
-              className="w-full bg-gradient-to-r from-blue-400 to-purple-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all"
+              className="w-full py-5 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-2xl font-black shadow-xl shadow-pink-100 hover:shadow-pink-200 transition-all uppercase tracking-[0.3em] text-xs"
             >
-              Cerrar
+              Cerrar Vista
             </button>
           </div>
         </div>
@@ -754,40 +724,37 @@ function ProductDetailModal({ product, onClose }: any) {
   );
 }
 
-// Modal de confirmación de eliminación
 function DeleteConfirmModal({ productName, onConfirm, onCancel }: any) {
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md">
-        <div className="bg-gradient-to-r from-red-400 to-pink-500 p-6 text-white rounded-t-3xl">
-          <div className="flex items-center space-x-3">
-            <AlertCircle className="w-8 h-8" />
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[2000] flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in slide-in-from-bottom-5 duration-300">
+        <div className="bg-gradient-to-r from-red-500 to-pink-500 p-6 text-white">
+          <div className="flex items-center space-x-4">
+            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center shrink-0">
+              <AlertCircle className="w-6 h-6" />
+            </div>
             <div>
-              <h3 className="text-2xl font-bold">Confirmar Eliminación</h3>
-              <p className="text-red-100">Esta acción no se puede deshacer</p>
+              <h3 className="text-xl font-bold uppercase">Eliminar Registro</h3>
+              <p className="text-red-100/80 text-xs">Acción irreversible</p>
             </div>
           </div>
         </div>
 
-        <div className="p-6 space-y-4">
-          <p className="text-gray-700">
-            ¿Estás seguro de que quieres eliminar el insumo{' '}
-            <span className="font-bold">"{productName}"</span>?
-          </p>
-          <p className="text-sm text-gray-600">
-            Se eliminarán todos los datos asociados a este insumo.
+        <div className="p-8 text-center">
+          <p className="text-gray-600 mb-6 leading-relaxed">
+            ¿Estás completamente seguro de que quieres eliminar el insumo <span className="font-bold text-gray-800 underline decoration-red-300 decoration-2">"{productName}"</span>?
           </p>
 
-          <div className="flex space-x-4 pt-4">
+          <div className="grid grid-cols-2 gap-4">
             <button
               onClick={onCancel}
-              className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
+              className="py-3 text-sm font-bold text-gray-500 hover:bg-gray-50 rounded-xl transition-all uppercase tracking-wider border border-gray-200"
             >
               Cancelar
             </button>
             <button
               onClick={onConfirm}
-              className="flex-1 bg-gradient-to-r from-red-400 to-pink-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all"
+              className="py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl font-bold shadow-lg hover:shadow-red-200 transition-all uppercase tracking-wider text-sm"
             >
               Eliminar
             </button>

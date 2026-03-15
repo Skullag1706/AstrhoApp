@@ -21,7 +21,7 @@ export function NotificationBell({ currentUser }: NotificationBellProps) {
     {
       id: 1,
       type: 'warning',
-      message: '5 productos con stock bajo',
+      message: '5 insumos con stock bajo',
       action: 'Ver inventario',
       time: '5 min',
       icon: AlertTriangle,
@@ -81,7 +81,7 @@ export function NotificationBell({ currentUser }: NotificationBellProps) {
           {
             id: Date.now(),
             type: 'warning' as const,
-            message: 'Producto agotándose',
+            message: 'Insumo agotándose',
             action: 'Ver inventario',
             time: 'Ahora',
             icon: AlertTriangle,
@@ -148,8 +148,8 @@ export function NotificationBell({ currentUser }: NotificationBellProps) {
                 {alerts.map((alert) => {
                   const Icon = alert.icon;
                   return (
-                    <div 
-                      key={alert.id} 
+                    <div
+                      key={alert.id}
                       className="flex items-start space-x-3 p-3 hover:bg-gray-50 rounded-xl transition-colors mb-2 group relative"
                     >
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${alert.color}`}>

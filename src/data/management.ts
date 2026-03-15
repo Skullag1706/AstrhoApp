@@ -54,14 +54,14 @@ export interface Service {
   price: number;
   duration: number; // in minutes
   category: string;
-  supplies: ServiceSupply[];
+  insumos: ServiceInsumo[];
   employeeRequired: boolean;
   status: 'active' | 'inactive';
   createdAt: string;
 }
 
-export interface ServiceSupply {
-  productId: number;
+export interface ServiceInsumo {
+  insumoId: number;
   quantity: number;
   unit: string;
 }
@@ -83,14 +83,14 @@ export interface Appointment {
   updatedAt: string;
 }
 
-export interface AppointmentSupply {
-  productId: number;
+export interface AppointmentInsumo {
+  insumoId: number;
   quantityUsed: number;
   cost: number;
 }
 
-// Product and Supply Management
-export interface Product {
+// Insumo Management
+export interface Insumo {
   id: number;
   name: string;
   description: string;
@@ -154,8 +154,8 @@ export interface Category {
   name: string;
   description: string;
   parentId?: number;
-  type: 'service' | 'product';
-  productCount?: number;
+  type: 'service' | 'insumo';
+  insumoCount?: number;
   totalDemand?: number;
   createdAt: string;
   updatedAt?: string;
@@ -176,7 +176,7 @@ export interface Supplier {
   paymentTerms: string;
   rating: number;
   status: 'active' | 'inactive' | 'blacklisted';
-  products: SupplierProduct[];
+  insumos: SupplierInsumo[];
   lastOrderDate?: string;
   totalOrders: number;
   image?: string;
@@ -184,10 +184,10 @@ export interface Supplier {
   updatedAt?: string;
 }
 
-export interface SupplierProduct {
-  productId: number;
-  productName: string;
-  productImage?: string;
+export interface SupplierInsumo {
+  insumoId: number;
+  insumoName: string;
+  insumoImage?: string;
   supplierPrice: number;
   minimumOrder: number;
   leadTime: number; // days
@@ -212,8 +212,8 @@ export interface PurchaseOrder {
 }
 
 export interface PurchaseItem {
-  productId: number;
-  productName: string;
+  insumoId: number;
+  insumoName: string;
   quantity: number;
   unitPrice: number;
   totalPrice: number;
@@ -240,7 +240,7 @@ export interface Sale {
 }
 
 export interface SaleItem {
-  productId: number;
+  insumoId: number;
   quantity: number;
   unitPrice: number;
   discount: number;
@@ -298,7 +298,7 @@ export interface Order {
 }
 
 export interface OrderItem {
-  productId: number;
+  insumoId: number;
   quantity: number;
   unitPrice: number;
   totalPrice: number;
@@ -481,7 +481,7 @@ export const mockRoles: Role[] = [
     permissions: [
       'module_dashboard', 'module_users', 'module_appointments', 'module_services',
       'module_inventory', 'module_sales', 'module_purchases', 'module_suppliers',
-      'module_products', 'module_clients', 'module_categories', 'module_schedules',
+      'module_insumos', 'module_clients', 'module_categories', 'module_schedules',
       'module_supplies', 'module_deliveries', 'module_reports'
     ],
     status: 'active',
@@ -496,7 +496,7 @@ export const mockRoles: Role[] = [
     permissions: [
       'module_dashboard', 'module_users', 'module_appointments', 'module_services',
       'module_inventory', 'module_sales', 'module_purchases', 'module_suppliers',
-      'module_products', 'module_clients', 'module_categories', 'module_schedules',
+      'module_insumos', 'module_clients', 'module_categories', 'module_schedules',
       'module_supplies', 'module_deliveries', 'module_reports'
     ],
     status: 'active',
@@ -522,7 +522,7 @@ export const mockRoles: Role[] = [
     name: 'Cliente',
     description: 'Acceso para clientes del salón',
     permissions: [
-      'module_appointments', 'module_services', 'module_products'
+      'module_appointments', 'module_services', 'module_insumos'
     ],
     status: 'active',
     isSuperUser: false,
@@ -540,13 +540,14 @@ export const mockPermissions: Permission[] = [
   { id: 'module_sales', name: 'Ventas', description: 'Registro de ventas de productos y servicios agendados', module: 'sales' },
   { id: 'module_purchases', name: 'Compras', description: 'Gestión de órdenes de compra y abastecimiento', module: 'purchases' },
   { id: 'module_suppliers', name: 'Proveedores', description: 'Directorio y gestión de proveedores del salón', module: 'suppliers' },
-  { id: 'module_products', name: 'Productos', description: 'Administración del catálogo de productos para la venta', module: 'products' },
+  { id: 'module_insumos', name: 'Insumos', description: 'Administración del catálogo de insumos para la venta', module: 'insumos' },
   { id: 'module_clients', name: 'Clientes', description: 'Gestión de base de datos de clientes y expedientes', module: 'clients' },
   { id: 'module_categories', name: 'Categorías', description: 'Organización de servicios y productos por categorías', module: 'categories' },
   { id: 'module_schedules', name: 'Horarios', description: 'Administración de jornadas laborales y excepciones', module: 'schedules' },
   { id: 'module_supplies', name: 'Insumos', description: 'Control detallado de insumos de uso interno', module: 'supplies' },
   { id: 'module_deliveries', name: 'Entregas', description: 'Registro de entregas de insumos al personal', module: 'deliveries' },
-  { id: 'module_reports', name: 'Reportes', description: 'Generación de informes y analítica de datos', module: 'reports' }
+  { id: 'module_reports', name: 'Reportes', description: 'Generación de informes y analítica de datos', module: 'reports' },
+  { id: 'module_roles', name: 'Roles', description: 'Gestión avanzada de seguridad, roles y permisos', module: 'roles' }
 ];
 
 export const mockServices = [
@@ -612,7 +613,7 @@ export const mockServices = [
   }
 ];
 
-export const mockProducts = [
+export const mockInsumos = [
   {
     id: 1,
     name: 'Shampoo Hidratante',
@@ -786,8 +787,8 @@ export const mockSales: Sale[] = [
     date: '2024-01-16',
     time: '10:30',
     items: [
-      { productId: 1, quantity: 1, unitPrice: 25000, discount: 0, totalPrice: 25000 },
-      { productId: 3, quantity: 1, unitPrice: 35000, discount: 0, totalPrice: 35000 }
+      { insumoId: 1, quantity: 1, unitPrice: 25000, discount: 0, totalPrice: 25000 },
+      { insumoId: 3, quantity: 1, unitPrice: 35000, discount: 0, totalPrice: 35000 }
     ],
     services: [
       { serviceId: 1, price: 35000, discount: 0, totalPrice: 35000 }
