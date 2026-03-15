@@ -1,58 +1,34 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Bell, AlertTriangle, ShoppingBag, CheckCircle, X } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Bell, AlertTriangle, CheckCircle, X, Calendar as CalendarIcon, LucideIcon } from 'lucide-react';
+import { supplyService } from '../services/supplyService';
+import { agendaService } from '../services/agendaService';
 
 interface Alert {
-  id: number;
+  id: number | string;
   type: 'warning' | 'info' | 'success';
   message: string;
   action: string;
   time: string;
-  icon: any;
+  icon: LucideIcon;
   color: string;
+  view?: string;
+  tabId?: string;
 }
 
 interface NotificationBellProps {
   currentUser: any;
+  setCurrentView?: (view: string, tab?: string) => void;
 }
 
-export function NotificationBell({ currentUser }: NotificationBellProps) {
+export function NotificationBell({ currentUser, setCurrentView }: NotificationBellProps) {
   const [showNotifications, setShowNotifications] = useState(false);
-  const [alerts, setAlerts] = useState<Alert[]>([
-    {
-      id: 1,
-      type: 'warning',
-      message: '5 productos con stock bajo',
-      action: 'Ver inventario',
-      time: '5 min',
-      icon: AlertTriangle,
-      color: 'text-yellow-600 bg-yellow-100'
-    },
-    {
-      id: 2,
-      type: 'info',
-      message: '3 pedidos listos para entregar',
-      action: 'Gestionar pedidos',
-      time: '15 min',
-      icon: ShoppingBag,
-      color: 'text-blue-600 bg-blue-100'
-    },
-    {
-      id: 3,
-      type: 'success',
-      message: 'Cita completada: María González',
-      action: 'Ver detalles',
-      time: '30 min',
-      icon: CheckCircle,
-      color: 'text-green-600 bg-green-100'
-    }
-  ]);
-
-  const dropdownRef = useRef(null);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setShowNotifications(false);
       }
     };
@@ -63,42 +39,78 @@ export function NotificationBell({ currentUser }: NotificationBellProps) {
     };
   }, []);
 
-  // Simulate real-time updates
-  useEffect(() => {
-    const interval = setInterval(() => {
-      // Simulate new notifications appearing randomly
-      if (Math.random() > 0.7 && alerts.length < 8) {
-        const newNotifications = [
-          {
-            id: Date.now(),
-            type: 'info' as const,
-            message: 'Nueva cita programada',
-            action: 'Ver cita',
-            time: 'Ahora',
-            icon: CheckCircle,
-            color: 'text-blue-600 bg-blue-100'
-          },
-          {
-            id: Date.now(),
-            type: 'warning' as const,
-            message: 'Producto agotándose',
-            action: 'Ver inventario',
-            time: 'Ahora',
-            icon: AlertTriangle,
-            color: 'text-yellow-600 bg-yellow-100'
-          }
-        ];
-        const randomNotification = newNotifications[Math.floor(Math.random() * newNotifications.length)];
-        setAlerts(prev => [randomNotification, ...prev].slice(0, 10));
+  // Fetch real data
+  const loadNotifications = useCallback(async () => {
+    if (!currentUser || currentUser.role === 'customer') return;
+    
+    try {
+      const newAlerts: Alert[] = [];
+
+      // 1. Check supplies with low stock
+      const supplies = await supplyService.getSupplies();
+      const lowStockSupplies = supplies.filter(s => s.estado && s.stock <= 5);
+      
+      if (lowStockSupplies.length > 0) {
+        newAlerts.push({
+          id: 'low-stock-alert',
+          type: 'warning',
+          message: `${lowStockSupplies.length} producto(s) con stock bajo`,
+          action: 'Ver inventario',
+          time: 'Ahora',
+          icon: AlertTriangle,
+          color: 'text-yellow-600 bg-yellow-100',
+          view: 'admin',
+          tabId: 'products'
+        });
       }
-    }, 45000); // Check every 45 seconds
 
+      // 2. Check pending appointments
+      const agenda = await agendaService.getAll();
+      const today = new Date().toISOString().split('T')[0];
+      
+      const pendingAppointments = agenda.filter(a => {
+        const isPending = (a.estado || '').toLowerCase().includes("pendiente");
+        const isTodayOrFuture = (a.fechaCita || '').localeCompare(today) >= 0;
+        return isPending && isTodayOrFuture;
+      });
+
+      if (pendingAppointments.length > 0) {
+        newAlerts.push({
+          id: 'pending-apt-alert',
+          type: 'info',
+          message: `${pendingAppointments.length} cita(s) por confirmar`,
+          action: 'Ver agenda',
+          time: 'Ahora',
+          icon: CalendarIcon,
+          color: 'text-blue-600 bg-blue-100',
+          view: 'admin',
+          tabId: 'appointments'
+        });
+      }
+
+      setAlerts(newAlerts);
+    } catch (err) {
+      console.error("Failed to fetch notifications:", err);
+    }
+  }, [currentUser]);
+
+  // Initial load and auto-refresh every 60 seconds
+  useEffect(() => {
+    loadNotifications();
+    const interval = setInterval(loadNotifications, 60000);
     return () => clearInterval(interval);
-  }, [alerts]);
+  }, [loadNotifications]);
 
-  const handleDismiss = (id: number, e: React.MouseEvent) => {
+  const handleDismiss = (id: number | string, e: React.MouseEvent) => {
     e.stopPropagation();
     setAlerts(alerts.filter(alert => alert.id !== id));
+  };
+
+  const handleAction = (view?: string, tabId?: string) => {
+    if (view && setCurrentView) {
+      setCurrentView(view, tabId);
+    }
+    setShowNotifications(false);
   };
 
   const unreadCount = alerts.length;
@@ -158,7 +170,10 @@ export function NotificationBell({ currentUser }: NotificationBellProps) {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-800">{alert.message}</p>
                         <p className="text-xs text-gray-500 mt-0.5">Hace {alert.time}</p>
-                        <button className="text-xs bg-gradient-to-r from-pink-400 to-purple-500 text-white px-3 py-1 rounded-lg mt-2 hover:shadow-md transition-all">
+                        <button 
+                          onClick={() => handleAction(alert.view, alert.tabId)}
+                          className="text-xs bg-gradient-to-r from-pink-400 to-purple-500 text-white px-3 py-1 rounded-lg mt-2 hover:shadow-md transition-all"
+                        >
                           {alert.action}
                         </button>
                       </div>

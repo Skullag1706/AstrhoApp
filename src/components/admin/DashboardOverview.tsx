@@ -333,7 +333,7 @@ export function DashboardOverview({
     isInPeriod(a.fechaCita, selectedPeriod),
   );
   const periodSales = allSales.filter((s) =>
-    isInPeriod(s.date, selectedPeriod),
+    isInPeriod(s.date, selectedPeriod) && s.status === "completed"
   );
   const todayAgenda = allAgenda.filter((a) => isInPeriod(a.fechaCita, "today"));
 
@@ -404,20 +404,6 @@ export function DashboardOverview({
     },
   ].filter((d) => d.value > 0);
 
-  // Top products bar chart
-  const productFreq: Record<string, number> = {};
-  periodSales.forEach((sale) => {
-    sale.items.forEach((item) => {
-      if (item.name) {
-        productFreq[item.name] =
-          (productFreq[item.name] || 0) + (item.quantity || 1);
-      }
-    });
-  });
-  const productsChartData: ChartPoint[] = Object.entries(productFreq)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([name, value]) => ({ name, value }));
 
   // Upcoming appointments (today, pending or confirmed, sorted by time)
   const upcomingAppointments = todayAgenda
@@ -560,9 +546,10 @@ export function DashboardOverview({
         />
       </div>
 
-      {/* Charts */}
-      <div className="grid lg:grid-cols-2 gap-8 mb-8">
-        {/* Revenue Chart */}
+      {/* Charts Layout */}
+
+      {/* Row 1: Full-width Revenue Chart */}
+      <div className="w-full mb-8">
         <div className="bg-white rounded-2xl shadow-lg p-6">
           <h3 className="text-xl font-bold text-gray-800 mb-6">
             Ingresos {periodLabel}
@@ -597,7 +584,10 @@ export function DashboardOverview({
             </ResponsiveContainer>
           )}
         </div>
+      </div>
 
+      {/* Row 2: Appointments + Clients */}
+      <div className="grid lg:grid-cols-2 gap-8 mb-8">
         {/* Appointments Chart */}
         <div className="bg-white rounded-2xl shadow-lg p-6">
           <h3 className="text-xl font-bold text-gray-800 mb-6">
@@ -661,37 +651,9 @@ export function DashboardOverview({
             </ResponsiveContainer>
           )}
         </div>
-
-        {/* Products Chart */}
-        <div className="bg-white rounded-2xl shadow-lg p-6">
-          <h3 className="text-xl font-bold text-gray-800 mb-6">
-            Productos Vendidos {periodLabel}
-          </h3>
-          {isLoading ? (
-            <div className="h-[300px] bg-gray-100 animate-pulse rounded-xl" />
-          ) : productsChartData.length === 0 ? (
-            <EmptyChart label="Sin productos vendidos en este período" />
-          ) : (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={productsChartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                <YAxis allowDecimals={false} />
-                <Tooltip formatter={(value: number) => [value, "Cantidad"]} />
-                <Legend />
-                <Bar
-                  dataKey="value"
-                  name="Cantidad"
-                  fill="#ec4899"
-                  radius={[4, 4, 0, 0]}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </div>
       </div>
 
-      {/* Two Column: Upcoming Appointments + Top Services */}
+      {/* Row 3: Upcoming Appointments + Top Services */}
       <div className="grid lg:grid-cols-2 gap-8">
         {/* Upcoming Appointments */}
         <div className="bg-white rounded-2xl shadow-lg p-6">
