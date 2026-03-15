@@ -43,12 +43,11 @@ interface DashboardOverviewProps {
 type Period = "today" | "week" | "month";
 
 interface DashboardStats {
-  revenue: number;
   appointments: number;
   clients: number;
-  products_sold: number;
   services_completed: number;
   new_clients: number;
+  total_income: number;
 }
 
 interface ChartPoint {
@@ -63,9 +62,9 @@ interface TopService {
   percentage: number;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 // Helpers
-// ─────────────────────────────────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 const TODAY = new Date();
 TODAY.setHours(0, 0, 0, 0);
@@ -131,31 +130,89 @@ const HOUR_MAP: Record<string, string> = {
   "19": "7pm",
 };
 
-function groupSalesByHour(sales: SaleView[]): ChartPoint[] {
+function groupAgendaByHour(items: AgendaItem[]): ChartPoint[] {
   const map: Record<string, number> = {};
   HOUR_LABELS.forEach((h) => (map[h] = 0));
-  sales.forEach((s) => {
-    const h = (s.time || "").slice(0, 2);
+  items.forEach((i) => {
+    const h = (i.horaInicio || "").slice(0, 2);
     const label = HOUR_MAP[h];
-    if (label) map[label] = (map[label] || 0) + s.total;
+    if (label) map[label] = (map[label] || 0) + 1;
   });
   return HOUR_LABELS.map((h) => ({ name: h, value: map[h] }));
 }
 
-function groupSalesByDay(sales: SaleView[]): ChartPoint[] {
-  const map: Record<string, number> = {};
-  DAY_NAMES.slice(1)
-    .concat(DAY_NAMES.slice(0, 1))
-    .forEach((d) => (map[d] = 0)); // Mon–Sun
-  sales.forEach((s) => {
-    if (!s.date) return;
-    const d = new Date(s.date + "T00:00:00");
+function groupAgendaByDay(items: AgendaItem[]): ChartPoint[] {
+  const map: Record<string, number> = {
+    Lun: 0,
+    Mar: 0,
+    Mié: 0,
+    Jue: 0,
+    Vie: 0,
+    Sáb: 0,
+    Dom: 0,
+  };
+  items.forEach((i) => {
+    if (!i.fechaCita) return;
+    const d = new Date(i.fechaCita + "T00:00:00");
     const label = DAY_NAMES[d.getDay()];
-    map[label] = (map[label] || 0) + s.total;
+    if (label) map[label] = (map[label] || 0) + 1;
   });
-  return ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
-    .filter((d) => map[d] > 0 || true)
-    .map((d) => ({ name: d, value: map[d] || 0 }));
+  return ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((d) => ({
+    name: d,
+    value: map[d] || 0,
+  }));
+}
+
+function groupAgendaByWeek(items: AgendaItem[]): ChartPoint[] {
+  const map: Record<string, number> = {
+    "Sem 1": 0,
+    "Sem 2": 0,
+    "Sem 3": 0,
+    "Sem 4": 0,
+    "Sem 5": 0,
+  };
+  items.forEach((i) => {
+    if (!i.fechaCita) return;
+    const day = new Date(i.fechaCita + "T00:00:00").getDate();
+    const label = `Sem ${Math.ceil(day / 7)}`;
+    if (map[label] !== undefined) map[label] += 1;
+  });
+  return Object.entries(map)
+    .filter(([, v]) => v > 0)
+    .map(([name, value]) => ({ name, value }));
+}
+
+function groupSalesByHour(items: SaleView[]): ChartPoint[] {
+  const map: Record<string, number> = {};
+  HOUR_LABELS.forEach((h) => (map[h] = 0));
+  items.forEach((i) => {
+    const h = (i.time || "").slice(0, 2);
+    const label = HOUR_MAP[h];
+    if (label) map[label] = (map[label] || 0) + i.total;
+  });
+  return HOUR_LABELS.map((h) => ({ name: h, value: map[h] }));
+}
+
+function groupSalesByDay(items: SaleView[]): ChartPoint[] {
+  const map: Record<string, number> = {
+    Lun: 0,
+    Mar: 0,
+    Mié: 0,
+    Jue: 0,
+    Vie: 0,
+    Sáb: 0,
+    Dom: 0,
+  };
+  items.forEach((i) => {
+    if (!i.date) return;
+    const d = new Date(i.date + "T00:00:00");
+    const label = DAY_NAMES[d.getDay()];
+    if (label) map[label] = (map[label] || 0) + i.total;
+  });
+  return ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((d) => ({
+    name: d,
+    value: map[d] || 0,
+  }));
 }
 
 function groupSalesByWeek(sales: SaleView[]): ChartPoint[] {
@@ -335,18 +392,16 @@ export function DashboardOverview({
   const periodSales = allSales.filter((s) =>
     isInPeriod(s.date, selectedPeriod),
   );
-  const todayAgenda = allAgenda.filter((a) => isInPeriod(a.fechaCita, "today"));
 
   // ── Compute Stats ──
-  const revenue = periodSales.reduce((sum, s) => sum + (s.total || 0), 0);
-  const appointments = periodAgenda.length;
+  const appointmentsCount = periodAgenda.length;
+  const totalIncome = periodSales.reduce((sum, s) => sum + s.total, 0);
 
   const uniqueClientIds = new Set(
     periodAgenda.map((a) => a.documentoCliente).filter(Boolean),
   );
   const clientsCount = uniqueClientIds.size;
 
-  // New clients = clients who appear for the first time in this period
   const allPriorAgenda = allAgenda.filter(
     (a) => !isInPeriod(a.fechaCita, selectedPeriod),
   );
@@ -357,23 +412,16 @@ export function DashboardOverview({
     (id) => !priorClientIds.has(id),
   ).length;
 
-  // Products sold: sum quantities from sales items
-  const productsSold = periodSales.reduce((sum, s) => {
-    return sum + s.items.reduce((acc, item) => acc + (item.quantity || 1), 0);
-  }, 0);
-
-  // Services completed: appointments with 'Completado' status
   const servicesCompleted = periodAgenda.filter(
     (a) => a.estado.toLowerCase() === "completado",
   ).length;
 
   const currentStats: DashboardStats = {
-    revenue,
-    appointments,
+    appointments: appointmentsCount,
     clients: clientsCount,
-    products_sold: productsSold,
     services_completed: servicesCompleted,
     new_clients: newClientsCount,
+    total_income: totalIncome,
   };
 
   // ── Charts ──
@@ -419,22 +467,20 @@ export function DashboardOverview({
     .slice(0, 5)
     .map(([name, value]) => ({ name, value }));
 
-  // Upcoming appointments (today, pending or confirmed, sorted by time)
+  const todayAgenda = allAgenda.filter((a) => isInPeriod(a.fechaCita, "today"));
   const upcomingAppointments = todayAgenda
     .filter((a) => ["pendiente", "confirmado"].includes(a.estado.toLowerCase()))
     .sort((a, b) => (a.horaInicio || "").localeCompare(b.horaInicio || ""))
     .slice(0, 5);
 
-  // Top services from agenda
-  const servicioFreq: Record<string, { count: number; revenue: number }> = {};
+  const servicioFreq: Record<string, { count: number }> = {};
   periodAgenda.forEach((apt) => {
     apt.servicios.forEach((sName) => {
-      if (!servicioFreq[sName]) servicioFreq[sName] = { count: 0, revenue: 0 };
+      if (!servicioFreq[sName]) servicioFreq[sName] = { count: 0 };
       servicioFreq[sName].count += 1;
-      const srv = servicesMap.get(sName);
-      servicioFreq[sName].revenue += srv?.precio || 0;
     });
   });
+
   const totalServiceCount =
     Object.values(servicioFreq).reduce((sum, v) => sum + v.count, 0) || 1;
   const topServices: TopService[] = Object.entries(servicioFreq)
@@ -443,17 +489,12 @@ export function DashboardOverview({
     .map(([name, data]) => ({
       name,
       count: data.count,
-      revenue: data.revenue,
+      revenue: 0,
       percentage: Math.round((data.count / totalServiceCount) * 100),
     }));
 
-  // Star service: highest revenue per unit
   const starService = topServices.reduce<TopService | null>((best, s) => {
-    if (
-      !best ||
-      (s.count > 0 && s.revenue / s.count > best.revenue / best.count)
-    )
-      return s;
+    if (!best || s.count > best.count) return s;
     return best;
   }, null);
 
@@ -464,14 +505,10 @@ export function DashboardOverview({
         ? "Esta Semana"
         : "Este Mes";
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Render
-  // ─────────────────────────────────────────────────────────────────────────
-
   return (
-    <div className="p-8">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+    <div className="p-8 pb-32 flex flex-col gap-y-16 space-y-16 min-h-screen">
+      {/* Header Section */}
+      <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold text-gray-800">
             Dashboard en Tiempo Real
@@ -518,9 +555,8 @@ export function DashboardOverview({
         </div>
       </div>
 
-      {/* Error banner */}
       {error && (
-        <div className="mb-6 flex items-center space-x-2 bg-red-50 text-red-700 px-4 py-3 rounded-xl border border-red-200">
+        <div className="flex items-center space-x-2 bg-red-50 text-red-700 px-4 py-3 rounded-xl border border-red-200">
           <AlertTriangle className="w-5 h-5 flex-shrink-0" />
           <span className="text-sm">
             {error} Los datos mostrados pueden ser incompletos.
@@ -528,13 +564,13 @@ export function DashboardOverview({
         </div>
       )}
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      {/* Row 0: KPI Cards Section */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
           title={`Ingresos ${periodLabel}`}
-          value={`$${currentStats.revenue.toLocaleString()}`}
-          icon={<TrendingUp className="w-7 h-7" />}
-          color="border-pink-500"
+          value={`$${currentStats.total_income.toLocaleString()}`}
+          icon={<DollarSign className="w-7 h-7" />}
+          color="border-green-500"
           loading={isLoading}
         />
         <StatCard
@@ -552,10 +588,10 @@ export function DashboardOverview({
           loading={isLoading}
         />
         <StatCard
-          title="Insumos Stock Bajo"
-          value={lowStockCount}
-          icon={<Package className="w-7 h-7" />}
-          color={lowStockCount > 0 ? "border-orange-500" : "border-green-500"}
+          title="Servicios Completados"
+          value={currentStats.services_completed}
+          icon={<Star className="w-7 h-7" />}
+          color="border-pink-500"
           loading={isLoading}
         />
       </div>
@@ -569,14 +605,14 @@ export function DashboardOverview({
           </h3>
           {isLoading ? (
             <div className="h-[300px] bg-gray-100 animate-pulse rounded-xl" />
-          ) : revenueChartData.every((d) => d.value === 0) ? (
-            <EmptyChart label="Sin ventas registradas en este período" />
+          ) : incomeChartData.every((d) => d.value === 0) ? (
+            <EmptyChart label="Sin ingresos registrados en este período" />
           ) : (
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={revenueChartData}>
+            <ResponsiveContainer width="100%" height={400}>
+              <LineChart data={incomeChartData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" />
-                <YAxis tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
+                <YAxis />
                 <Tooltip
                   formatter={(value: number) => [
                     `$${value.toLocaleString()}`,
@@ -588,7 +624,7 @@ export function DashboardOverview({
                   type="monotone"
                   dataKey="value"
                   name="Ingresos"
-                  stroke="#ec4899"
+                  stroke="#10b981"
                   strokeWidth={2}
                   activeDot={{ r: 8 }}
                   dot={false}
@@ -600,67 +636,34 @@ export function DashboardOverview({
 
         {/* Appointments Chart */}
         <div className="bg-white rounded-2xl shadow-lg p-6">
-          <h3 className="text-xl font-bold text-gray-800 mb-6">
-            Citas {periodLabel}
-          </h3>
-          {isLoading ? (
-            <div className="h-[300px] bg-gray-100 animate-pulse rounded-xl" />
-          ) : appointmentsChartData.every((d) => d.value === 0) ? (
-            <EmptyChart label="Sin citas registradas en este período" />
-          ) : (
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={appointmentsChartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis allowDecimals={false} />
-                <Tooltip formatter={(value: number) => [value, "Citas"]} />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="value"
-                  name="Citas"
-                  stroke="#a855f7"
-                  strokeWidth={2}
-                  activeDot={{ r: 8 }}
-                  dot={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-
-        {/* Clients Pie Chart */}
-        <div className="bg-white rounded-2xl shadow-lg p-6">
-          <h3 className="text-xl font-bold text-gray-800 mb-6">
-            Clientes {periodLabel}
-          </h3>
-          {isLoading ? (
-            <div className="h-[300px] bg-gray-100 animate-pulse rounded-xl" />
-          ) : clientsChartData.length === 0 ? (
-            <EmptyChart label="Sin clientes en este período" />
-          ) : (
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={clientsChartData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={({ name, percent }) =>
-                    `${name}: ${(percent * 100).toFixed(0)}%`
-                  }
-                  outerRadius={100}
-                  dataKey="value"
-                >
-                  {clientsChartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(value: number) => [value, "Clientes"]} />
-              </PieChart>
-            </ResponsiveContainer>
-          )}
-        </div>
+            <h3 className="text-xl font-bold text-gray-800 mb-6">
+              Citas {periodLabel}
+            </h3>
+            {isLoading ? (
+              <div className="h-[300px] bg-gray-100 animate-pulse rounded-xl" />
+            ) : appointmentsChartData.every((d) => d.value === 0) ? (
+              <EmptyChart label="Sin citas registradas en este período" />
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={appointmentsChartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip formatter={(value: number) => [value, "Citas"]} />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="value"
+                    name="Citas"
+                    stroke="#a855f7"
+                    strokeWidth={2}
+                    activeDot={{ r: 8 }}
+                    dot={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </div>
 
         {/* Products Chart */}
         <div className="bg-white rounded-2xl shadow-lg p-6">
@@ -690,24 +693,25 @@ export function DashboardOverview({
           )}
         </div>
       </div>
+    </div>
 
       {/* Two Column: Upcoming Appointments + Top Services */}
       <div className="grid lg:grid-cols-2 gap-8">
         {/* Upcoming Appointments */}
         <div className="bg-white rounded-2xl shadow-lg p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-bold text-gray-800">
-              Próximas Citas (Hoy)
-            </h3>
-            <div className="flex items-center space-x-2 text-sm text-gray-600">
-              <Clock className="w-4 h-4" />
-              {lastUpdated ? (
-                <span>Actualizado {lastUpdated.toLocaleTimeString()}</span>
-              ) : (
-                <span>Cargando...</span>
-              )}
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-gray-800">
+                Próximas Citas (Hoy)
+              </h3>
+              <div className="flex items-center space-x-2 text-sm text-gray-600">
+                <Clock className="w-4 h-4" />
+                {lastUpdated ? (
+                  <span>Actualizado {lastUpdated.toLocaleTimeString()}</span>
+                ) : (
+                  <span>Cargando...</span>
+                )}
+              </div>
             </div>
-          </div>
 
           {isLoading ? (
             <div className="space-y-3">
@@ -853,9 +857,9 @@ export function DashboardOverview({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 // Empty state chart placeholder
-// ─────────────────────────────────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 function EmptyChart({ label }: { label: string }) {
   return (
