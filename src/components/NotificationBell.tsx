@@ -1,32 +1,27 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Bell, AlertTriangle, CheckCircle, X, Calendar as CalendarIcon, LucideIcon, ShoppingBag } from 'lucide-react';
-import { supplyService } from '../services/supplyService';
-import { agendaService } from '../services/agendaService';
+import React, { useState, useRef, useEffect } from 'react';
+import { Bell, AlertTriangle, ShoppingBag, CheckCircle, X } from 'lucide-react';
 
 interface Alert {
-  id: number | string;
+  id: number;
   type: 'warning' | 'info' | 'success';
   message: string;
   action: string;
   time: string;
-  icon: LucideIcon;
+  icon: any;
   color: string;
-  view?: string;
-  tabId?: string;
 }
 
 interface NotificationBellProps {
   currentUser: any;
-  setCurrentView?: (view: string, tab?: string) => void;
 }
 
-export function NotificationBell({ currentUser, setCurrentView }: NotificationBellProps) {
+export function NotificationBell({ currentUser }: NotificationBellProps) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [alerts, setAlerts] = useState<Alert[]>([
     {
       id: 1,
       type: 'warning',
-      message: '5 insumos con stock bajo',
+      message: '5 productos con stock bajo',
       action: 'Ver inventario',
       time: '5 min',
       icon: AlertTriangle,
@@ -56,8 +51,8 @@ export function NotificationBell({ currentUser, setCurrentView }: NotificationBe
 
   // Close dropdown when clicking outside
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setShowNotifications(false);
       }
     };
@@ -115,7 +110,7 @@ export function NotificationBell({ currentUser, setCurrentView }: NotificationBe
           {
             id: Date.now() + 1,
             type: 'warning' as const,
-            message: 'Insumo agotándose',
+            message: 'Producto agotándose',
             action: 'Ver inventario',
             time: 'Ahora',
             icon: AlertTriangle,
@@ -126,28 +121,14 @@ export function NotificationBell({ currentUser, setCurrentView }: NotificationBe
         const randomNotification = newNotifications[Math.floor(Math.random() * newNotifications.length)];
         setAlerts(prev => [randomNotification, ...prev].slice(0, 10));
       }
-    }, 30000);
+    }, 45000); // Check every 45 seconds
 
     return () => clearInterval(interval);
-  }, [alerts.length]);
+  }, [alerts]);
 
-  // Initial load and auto-refresh every 60 seconds
-  useEffect(() => {
-    loadNotifications();
-    const interval = setInterval(loadNotifications, 60000);
-    return () => clearInterval(interval);
-  }, [loadNotifications]);
-
-  const handleDismiss = (id: number | string, e: React.MouseEvent) => {
+  const handleDismiss = (id: number, e: React.MouseEvent) => {
     e.stopPropagation();
     setAlerts(alerts.filter(alert => alert.id !== id));
-  };
-
-  const handleAction = (view?: string, tabId?: string) => {
-    if (view && setCurrentView) {
-      setCurrentView(view, tabId);
-    }
-    setShowNotifications(false);
   };
 
   const unreadCount = alerts.length;
@@ -197,8 +178,8 @@ export function NotificationBell({ currentUser, setCurrentView }: NotificationBe
                 {alerts.map((alert) => {
                   const Icon = alert.icon;
                   return (
-                    <div
-                      key={alert.id}
+                    <div 
+                      key={alert.id} 
                       className="flex items-start space-x-3 p-3 hover:bg-gray-50 rounded-xl transition-colors mb-2 group relative"
                     >
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${alert.color}`}>
@@ -207,10 +188,7 @@ export function NotificationBell({ currentUser, setCurrentView }: NotificationBe
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-800">{alert.message}</p>
                         <p className="text-xs text-gray-500 mt-0.5">Hace {alert.time}</p>
-                        <button 
-                          onClick={() => handleAction(alert.view, alert.tabId)}
-                          className="text-xs bg-gradient-to-r from-pink-400 to-purple-500 text-white px-3 py-1 rounded-lg mt-2 hover:shadow-md transition-all"
-                        >
+                        <button className="text-xs bg-gradient-to-r from-pink-400 to-purple-500 text-white px-3 py-1 rounded-lg mt-2 hover:shadow-md transition-all">
                           {alert.action}
                         </button>
                       </div>

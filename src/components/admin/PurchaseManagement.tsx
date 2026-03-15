@@ -262,7 +262,7 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
     const receiptContent = `
       <div style="font-family: Arial, sans-serif; max-width: 400px; margin: 0 auto; padding: 20px;">
         <div style="text-align: center; border-bottom: 2px solid #e91e63; padding-bottom: 15px; margin-bottom: 15px;">
-          <h1 style="color: #e91e63; margin: 0;">AstroApp</h1>
+          <h1 style="color: #e91e63; margin: 0;">AsthroApp</h1>
           <p style="margin: 5px 0; color: #666;">Salón de Belleza</p>
           <p style="margin: 5px 0; color: #666;">Cll 55 #42-16 Medellín</p>
         </div>
@@ -323,23 +323,26 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
     `;
 
     const newWindow = window.open('', '_blank');
-    newWindow.document.write(`
-      <html>
-        <head>
-          <title>Factura de Compra - #${purchase.compraId}</title>
-        </head>
-        <body>
-          ${receiptContent}
-          <script>
-            window.onload = function() {
-              window.print();
-              window.close();
-            };
-          </script>
-        </body>
-      </html>
-    `);
-    newWindow.document.close();
+    if (newWindow) {
+      newWindow.document.write(`
+        <html>
+          <head>
+            <title>Factura de Compra - #${purchase.compraId}</title>
+          </head>
+          <body>
+            ${receiptContent}
+            <script>
+              window.onload = function() {
+                setTimeout(function() {
+                  window.print();
+                }, 500);
+              };
+            </script>
+          </body>
+        </html>
+      `);
+      newWindow.document.close();
+    }
   };
 
   const handleCancelPurchase = (purchase: PurchaseAPI) => {

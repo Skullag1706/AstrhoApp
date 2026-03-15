@@ -85,10 +85,10 @@ export const ADMIN_MENU_ITEMS: MenuItem[] = [
     category: 'COMPRAS'
   },
   {
-    id: 'insumos',
+    id: 'products',
     label: 'Insumos',
     icon: Package,
-    permission: 'manage_insumos',
+    permission: 'manage_products',
     category: 'COMPRAS'
   },
   {

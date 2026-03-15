@@ -3,7 +3,7 @@ import {
   FolderTree, Plus, Edit, Trash2, Search, AlertCircle, X, Save,
   Eye, CheckCircle
 } from 'lucide-react';
-import { mockInsumos } from '../../data/management';
+import { mockProducts } from '../../data/management';
 import { SimplePagination } from '../ui/simple-pagination';
 import { supplyCategoryService, Category as APICategory } from '../../services/supplyCategoryService';
 
@@ -33,10 +33,10 @@ export function CategoryManagement({ hasPermission }: CategoryManagementProps) {
     name: apiCat.nombre,
     description: apiCat.descripcion,
     status: apiCat.estado ? 'active' : 'inactive',
-    productCount: apiCat.cantidadInsumos || 0,
+    productCount: apiCat.cantidadProductos || 0,
     createdAt: apiCat.fechaCreacion || new Date().toISOString().split('T')[0],
     updatedAt: apiCat.fechaActualizacion || new Date().toISOString().split('T')[0],
-    type: 'insumo' // Default type as per requirement
+    type: 'product' // Default type as per requirement
   });
 
   // Map UI category to API category
@@ -96,9 +96,9 @@ export function CategoryManagement({ hasPermission }: CategoryManagementProps) {
   };
 
   const confirmDeleteCategory = async () => {
-    const hasInsumos = getInsumosByCategory(selectedCategory.id).length > 0;
+    const hasProducts = getProductsByCategory(selectedCategory.id).length > 0;
 
-    if (hasInsumos) {
+    if (hasProducts) {
       setErrorModalMessage('No se puede eliminar una categoría que tiene insumos asociados. Por favor, reasigne o elimine los insumos primero.');
       setShowErrorModal(true);
       return;
@@ -207,19 +207,19 @@ export function CategoryManagement({ hasPermission }: CategoryManagementProps) {
     setShowEditModal(true);
   };
 
-  const getInsumosByCategory = (categoryId: number) => {
+  const getProductsByCategory = (categoryId: number) => {
     const category = categories.find(c => c.id === categoryId);
-    return mockInsumos.filter(insumo => insumo.category === category?.name) || [];
+    return mockProducts.filter(product => product.category === category?.name) || [];
   };
 
   const getCategoryMetrics = (category: any) => {
-    const insumos = getInsumosByCategory(category.id);
-    const insumoCount = insumos.length;
-    const totalValue = insumos.reduce((sum, p) => sum + (p.stock * p.price), 0);
-    const lowStockCount = insumos.filter(p => p.stock <= p.minStock).length;
+    const products = getProductsByCategory(category.id);
+    const productCount = products.length;
+    const totalValue = products.reduce((sum, p) => sum + (p.stock * p.price), 0);
+    const lowStockCount = products.filter(p => p.stock <= p.minStock).length;
 
     return {
-      insumoCount,
+      productCount,
       totalValue,
       lowStockCount
     };
@@ -419,7 +419,7 @@ export function CategoryManagement({ hasPermission }: CategoryManagementProps) {
         <CategoryDetailModal
           category={selectedCategory}
           onClose={() => setShowDetailModal(false)}
-          getInsumosByCategory={getInsumosByCategory}
+          getProductsByCategory={getProductsByCategory}
         />
       )}
 
@@ -644,8 +644,8 @@ function CategoryEditModal({ category, onClose, onSave }) {
 }
 
 // Category Detail Modal Component
-function CategoryDetailModal({ category, onClose, getInsumosByCategory }) {
-  const insumos = getInsumosByCategory(category.id);
+function CategoryDetailModal({ category, onClose, getProductsByCategory }) {
+  const products = getProductsByCategory(category.id);
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[1000] flex items-center justify-center p-4">
@@ -705,26 +705,26 @@ function CategoryDetailModal({ category, onClose, getInsumosByCategory }) {
 
           <div>
             <h4 className="font-semibold text-gray-800 mb-2">
-              Insumos en Categoría ({insumos.length})
+              Insumos en Categoría ({products.length})
             </h4>
             <div className="space-y-2 max-h-32 overflow-y-auto">
-              {insumos.slice(0, 5).map((insumo) => (
-                <div key={insumo.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
-                  <span className="text-sm text-gray-700">{insumo.name}</span>
-                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${insumo.stock <= insumo.minStock
+              {products.slice(0, 5).map((product) => (
+                <div key={product.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                  <span className="text-sm text-gray-700">{product.name}</span>
+                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${product.stock <= product.minStock
                     ? 'bg-red-100 text-red-800'
                     : 'bg-green-100 text-green-800'
                     }`}>
-                    Stock: {insumo.stock}
+                    Stock: {product.stock}
                   </span>
                 </div>
               ))}
-              {insumos.length > 5 && (
+              {products.length > 5 && (
                 <div className="text-center text-xs text-gray-500">
-                  +{insumos.length - 5} insumos más
+                  +{products.length - 5} insumos más
                 </div>
               )}
-              {insumos.length === 0 && (
+              {products.length === 0 && (
                 <div className="text-center text-gray-500 py-4">
                   No hay insumos en esta categoría
                 </div>

@@ -32,18 +32,7 @@ export interface CreateDeliveryData {
 // Map Backend DTO to Frontend Model
 const mapBackendToDelivery = (data: any): Delivery => {
     if (!data) return {} as Delivery;
-    
-    // DEBUG: Ver la estructura real que llega del backend
-    console.log("Raw delivery from API:", data);
 
-    // Unwrap $values if present
-    const rawDetalles = data.detalles?.$values || data.detalles || 
-                        data.Detalles?.$values || data.Detalles || 
-                        data.detallesEntregas?.$values || data.detallesEntregas || 
-                        data.DetallesEntregas?.$values || data.DetallesEntregas || 
-                        data.detalleEntrega?.$values || data.detalleEntrega || 
-                        data.DetalleEntrega?.$values || data.DetalleEntrega || [];
-    
     // More resilient property access for status
     let estadoRaw = data.estado || data.Estado || data.status || data.Status || '';
     let estado = estadoRaw.toString();
@@ -57,18 +46,9 @@ const mapBackendToDelivery = (data: any): Delivery => {
     } else if (s.includes('pendiente') || s.includes('pending')) {
         estado = 'Pendiente';
     } else {
+        // Fallback or explicit pendiene
         estado = s ? (s.charAt(0).toUpperCase() + s.slice(1)) : 'Pendiente';
     }
-
-    const mappedDetalles = Array.isArray(rawDetalles) ? rawDetalles.map((d: any) => ({
-        insumoId: d.insumoId ?? d.InsumoId ?? 0,
-        cantidad: d.cantidad ?? d.Cantidad ?? 0,
-        insumoNombre: d.insumoNombre ?? d.InsumoNombre,
-        sku: d.sku ?? d.Sku ?? d.SKU
-    })) : [];
-
-    // Calculate total units (sum of quantities)
-    const totalUnits = mappedDetalles.reduce((acc, item) => acc + (item.cantidad || 0), 0);
 
     return {
         id: data.entregainsumoId || data.id,
@@ -78,24 +58,22 @@ const mapBackendToDelivery = (data: any): Delivery => {
         fechaEntrega: data.fechaEntrega,
         fechaCompletado: data.fechaCompletado,
         estado: estado,
-        cantidadItems: mappedDetalles.length > 0
-            ? mappedDetalles.length
-            : (data.cantidadItems ?? data.CantidadItems ?? data.totalItems ?? data.totalInsumos ?? 0),
-        detalles: mappedDetalles,
-        _rawKeys: Object.keys(data).join(', ')
-    } as any;
+        cantidadItems: data.cantidadItems || (data.detalles ? data.detalles.length : 0),
+        detalles: data.detalles?.map((d: any) => ({
+            insumoId: d.insumoId,
+            cantidad: d.cantidad,
+            insumoNombre: d.insumoNombre,
+            sku: d.sku
+        })) || []
+    };
 };
 
 export const deliveryService = {
     // GET ALL
     async getDeliveries(): Promise<Delivery[]> {
-        const response: any = await apiClient.get('/Entregas');
-        
-        // Unwrap $values for top level
-        const data = response?.$values || response;
-        if (!Array.isArray(data)) return [];
-        
-        return data.map(mapBackendToDelivery);
+        const response = await apiClient.get('/Entregas');
+        if (!Array.isArray(response)) return [];
+        return response.map(mapBackendToDelivery);
     },
 
     // GET ONE

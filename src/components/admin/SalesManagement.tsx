@@ -3,10 +3,12 @@ import { CheckCircle,
   DollarSign, Plus, Search, Filter, Eye, X, Calendar,
   CreditCard, TrendingUp, Users,
   Ban, FileText, Scissors,
-  AlertCircle, Save
+  AlertCircle, Save, Clock, ShoppingBag, Phone
 } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { salesService, SaleView } from '../../services/salesService';
+import { userService } from '../../services/userService';
+import { personService } from '../../services/personService';
 import { SimplePagination } from '../ui/simple-pagination';
 
 interface SalesManagementProps {
@@ -15,19 +17,6 @@ interface SalesManagementProps {
 }
 
 export function SalesManagement({ hasPermission, currentUser }: SalesManagementProps) {
-  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
-  const [alertMessage, setAlertMessage] = useState('');
-
-  // Auto-hide success alert after 4 seconds
-  useEffect(() => {
-    if (showSuccessAlert) {
-      const timer = setTimeout(() => {
-        setShowSuccessAlert(false);
-      }, 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [showSuccessAlert]);
-
   const [sales, setSales] = useState<SaleView[]>([]);
   const [selectedSale, setSelectedSale] = useState<SaleView | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -35,7 +24,6 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
   const [saleToCancel, setSaleToCancel] = useState<SaleView | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
-  const [filterDate, setFilterDate] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(5);
   const [loading, setLoading] = useState(true);
@@ -63,11 +51,11 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
   const filteredSales = sales.filter(sale => {
     const matchesSearch =
       sale.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (sale.customerName || '').toLowerCase().includes(searchTerm.toLowerCase());
+      (sale.customerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (String(sale.customerId || '')).toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = filterStatus === 'all' || sale.status === filterStatus;
-    const matchesDate = !filterDate || sale.date === filterDate;
     
-    return matchesSearch && matchesStatus && matchesDate;
+    return matchesSearch && matchesStatus;
   });
 
   // Pagination
@@ -89,7 +77,7 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
     setCurrentPage(prev => Math.min(prev + 1, totalPages));
   };
 
-  if (loading) {
+  if (loading && sales.length === 0) {
     return (
       <div className="p-8 flex items-center justify-center min-h-[300px]">
         <div className="text-center">
@@ -126,16 +114,38 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
     setCancelModal(true);
   };
 
-  const confirmCancelSale = () => {
+  const confirmCancelSale = async (observacion: string) => {
     if (saleToCancel) {
-      setSales(sales.map(sale => 
-        sale.id === saleToCancel.id 
-          ? { ...sale, status: 'refunded', updatedAt: new Date().toISOString().split('T')[0] }
-          : sale
-      ));
-      toast.success(`Venta ${saleToCancel.id} anulada correctamente`);
-      setCancelModal(false);
-      setSaleToCancel(null);
+      try {
+        setLoading(true);
+        // Llamada real a la API para anular
+        await salesService.cancel(saleToCancel.id, observacion);
+        
+        const updatedSale = { 
+          ...saleToCancel, 
+          status: 'refunded' as const, 
+          notes: observacion, 
+          updatedAt: new Date().toISOString().split('T')[0] 
+        };
+
+        setSales(sales.map(sale => 
+          sale.id === saleToCancel.id ? updatedSale : sale
+        ));
+
+        // Si la venta anulada es la que se está viendo en el detalle, actualizarla también
+        if (selectedSale && selectedSale.id === saleToCancel.id) {
+          setSelectedSale(updatedSale);
+        }
+        
+        toast.success(`Venta ${saleToCancel.id} anulada correctamente`);
+        setCancelModal(false);
+        setSaleToCancel(null);
+      } catch (err) {
+        console.error('Error al anular venta:', err);
+        toast.error('Error al anular la venta. Verifique la conexión o el ID.');
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -179,7 +189,7 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
             ${sale.services.map(service => {
               return `<div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
                 <span>${service.name || service.serviceId}</span>
-                <span>$${service.totalPrice.toLocaleString()}</span>
+                <span>$${(service.totalPrice || 0).toLocaleString()}</span>
               </div>`;
             }).join('')}
           </div>
@@ -188,26 +198,28 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
         <div style="border-top: 1px solid #ddd; padding-top: 10px; margin-top: 15px;">
           <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
             <span>Subtotal:</span>
-            <span>$${sale.subtotal.toLocaleString()}</span>
+            <span>$${(sale.subtotal || 0).toLocaleString()}</span>
           </div>
           ${sale.discount > 0 ? `
             <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
               <span>Descuento:</span>
-              <span style="color: #e91e63;">-$${sale.discount.toLocaleString()}</span>
+              <span style="color: #e91e63;">-$${(sale.discount || 0).toLocaleString()}</span>
             </div>
           ` : ''}
           <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 16px; border-top: 1px solid #ddd; padding-top: 5px; margin-top: 5px;">
             <span>TOTAL:</span>
-            <span>$${sale.total.toLocaleString()}</span>
+            <span>$${(sale.total || 0).toLocaleString()}</span>
           </div>
         </div>
         
         <div style="margin-top: 15px; font-size: 12px; color: #666;">
           <p><strong>Método de Pago:</strong> ${
             sale.paymentMethod === 'cash' ? 'Efectivo' :
-            sale.paymentMethod === 'transfer' ? 'Transferencia' : 'Otro'
+            sale.paymentMethod === 'transfer' ? 'Transferencia' : 
+            sale.paymentMethod === 'nequi' ? 'Nequi' :
+            sale.paymentMethod === 'daviplata' ? 'Daviplata' : 'Otro'
           }</p>
-          ${sale.notes ? `<p><strong>Notas:</strong> ${sale.notes}</p>` : ''}
+          ${sale.notes ? `<p><strong>Observaciones:</strong> ${sale.notes}</p>` : ''}
         </div>
         
         <div style="text-align: center; margin-top: 20px; font-size: 12px; color: #666;">
@@ -259,7 +271,7 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
               type="text"
-              placeholder="Buscar ventas por ID o cliente..."
+              placeholder="Buscar por ID, documento o cliente..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
@@ -275,14 +287,6 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
             <option value="completed">Completadas</option>
             <option value="refunded">Anuladas</option>
           </select>
-          
-          <input
-            type="date"
-            value={filterDate}
-            onChange={(e) => setFilterDate(e.target.value)}
-            className="px-3 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
-            placeholder="Filtrar por fecha"
-          />
         </div>
       </div>
 
@@ -292,8 +296,8 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
+                <th className="px-6 py-4 text-left font-semibold text-gray-800">Documento</th>
                 <th className="px-6 py-4 text-left font-semibold text-gray-800">Cliente</th>
-                <th className="px-6 py-4 text-left font-semibold text-gray-800">Fecha</th>
                 <th className="px-6 py-4 text-left font-semibold text-gray-800">Servicios</th>
                 <th className="px-6 py-4 text-left font-semibold text-gray-800">Total</th>
                 <th className="px-6 py-4 text-left font-semibold text-gray-800">Estado</th>
@@ -312,11 +316,10 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
                   return (
                     <tr key={sale.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4">
-                        <div className="font-medium text-gray-800">{sale.customerName || 'Cliente'}</div>
+                        <div className="text-gray-800">{sale.customerId || '---'}</div>
                       </td>
-                      
                       <td className="px-6 py-4">
-                        <div className="text-gray-800">{sale.date}</div>
+                        <div className="font-medium text-gray-800">{sale.customerName || 'Cliente'}</div>
                       </td>
                       
                       <td className="px-6 py-4">
@@ -348,7 +351,7 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
                             <Eye className="w-4 h-4" />
                           </button>
                           
-                          {hasPermission('manage_sales') && sale.status === 'completed' && (
+                          {hasPermission('manage_sales') && (
                             <>
                               <button
                                 className="p-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors"
@@ -358,13 +361,15 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
                                 <FileText className="w-4 h-4" />
                               </button>
                               
-                              <button
-                                onClick={() => handleCancelSale(sale)}
-                                className="p-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors"
-                                title="Anular venta"
-                              >
-                                <Ban className="w-4 h-4" />
-                              </button>
+                              {sale.status === 'completed' && (
+                                <button
+                                  onClick={() => handleCancelSale(sale)}
+                                  className="p-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors"
+                                  title="Anular venta"
+                                >
+                                  <Ban className="w-4 h-4" />
+                                </button>
+                              )}
                             </>
                           )}
                         </div>
@@ -390,42 +395,17 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
         </div>
       </div>
 
-      {/* Cancel Sale Modal */}
+      {/* Cancel Confirmation Modal */}
       {showCancelModal && saleToCancel && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-            <div className="p-6">
-              <div className="flex items-center space-x-3 mb-4">
-                <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
-                  <AlertCircle className="w-6 h-6 text-red-600" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-800">Confirmar Anulación</h3>
-                  <p className="text-sm text-gray-600">Esta acción no se puede deshacer</p>
-                </div>
-              </div>
-              
-              <p className="text-gray-700 mb-6">
-                ¿Estás segura de que quieres anular la venta <strong>{saleToCancel.id}</strong>?
-              </p>
-              
-              <div className="flex space-x-3">
-                <button
-                  onClick={confirmCancelSale}
-                  className="flex-1 bg-gradient-to-r from-red-400 to-red-500 text-white py-3 px-4 rounded-xl font-semibold hover:shadow-lg transition-all"
-                >
-                  Anular
-                </button>
-                <button
-                  onClick={() => setCancelModal(false)}
-                  className="flex-1 bg-gray-300 text-gray-700 py-3 px-4 rounded-xl font-semibold hover:bg-gray-400 transition-all"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <CancelSaleModal
+          sale={saleToCancel}
+          isConfirming={loading}
+          onClose={() => {
+            setCancelModal(false);
+            setSaleToCancel(null);
+          }}
+          onConfirm={confirmCancelSale}
+        />
       )}
 
       {/* Sale Detail Modal */}
@@ -438,183 +418,335 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
           hasPermission={hasPermission}
         />
       )}
+    </div>
+  );
+}
 
-      {/* Success Alert */}
-      {showSuccessAlert && (
-        <div className="fixed top-4 right-4 z-[9999] animate-in slide-in-from-top-5 duration-300">
-          <div className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center space-x-4 min-w-[320px]">
-            <div className="flex-shrink-0">
-              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                <CheckCircle className="w-6 h-6 text-white" />
+// Cancel Sale Modal Component
+function CancelSaleModal({ sale, isConfirming, onClose, onConfirm }: {
+  sale: SaleView;
+  isConfirming: boolean;
+  onClose: () => void;
+  onConfirm: (observation: string) => void;
+}) {
+  const [observation, setObservation] = useState('');
+
+  const handleConfirm = () => {
+    if (isConfirming) return;
+    onConfirm(observation);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md animate-in zoom-in-95 duration-200">
+        <div className="p-6">
+          <div className="flex items-center space-x-4 mb-6">
+            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+              <AlertCircle className="w-6 h-6 text-red-600" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-gray-800">Confirmar Anulación</h3>
+              <p className="text-gray-600">Esta acción no se puede deshacer</p>
+            </div>
+          </div>
+
+          <div className="mb-6">
+            <p className="text-gray-700 mb-4">
+              ¿Estás segura de que quieres anular la venta <strong>#{sale.id}</strong>?
+            </p>
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+              <div className="space-y-2">
+                <div className="font-semibold text-gray-800">
+                  Venta #{sale.id}
+                </div>
+                <div className="text-sm text-gray-600">
+                  Hora: {sale.time}
+                </div>
+                <div className="text-sm text-gray-600">
+                  Total: ${(sale.total || 0).toLocaleString()}
+                </div>
+                <div className="text-sm text-red-600 font-medium">
+                  El estado cambiará a "Anulada" y no se podrá revertir
+                </div>
               </div>
             </div>
-            <div className="flex-1">
-              <p className="font-semibold">{alertMessage}</p>
-            </div>
+          </div>
+
+          {/* Campo de Observación */}
+          <div className="mb-6">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Motivo de Anulación *
+            </label>
+            <textarea
+              value={observation}
+              onChange={(e) => setObservation(e.target.value)}
+              rows={3}
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-300 focus:border-transparent resize-none"
+              placeholder="Escribe el motivo por el cual se anula esta venta..."
+              required
+              disabled={isConfirming}
+            />
+          </div>
+
+          <div className="flex space-x-3">
             <button
-              onClick={() => setShowSuccessAlert(false)}
-              className="flex-shrink-0 w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
+              onClick={onClose}
+              disabled={isConfirming}
+              className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors disabled:opacity-50"
             >
-              <X className="w-5 h-5" />
+              Cancelar
+            </button>
+            <button
+              onClick={handleConfirm}
+              disabled={!observation.trim() || isConfirming}
+              className={`flex-1 px-6 py-3 rounded-xl font-semibold transition-all flex items-center justify-center space-x-2 ${!observation.trim() || isConfirming
+                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                : 'bg-gradient-to-r from-red-400 to-red-500 text-white hover:shadow-lg'
+                }`}
+            >
+              {isConfirming && (
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              )}
+              <span>{isConfirming ? 'Procesando...' : 'Anular Venta'}</span>
             </button>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
 
 // Sale Detail Modal Component
 function SaleDetailModal({ sale, onClose, onCancel, onPrint, hasPermission }) {
+  const [customerInfo, setCustomerInfo] = useState<{ email?: string; phone?: string }>({
+    email: sale.customerEmail,
+    phone: sale.customerPhone
+  });
+  const [loadingInfo, setLoadingInfo] = useState(false);
+
+  useEffect(() => {
+    const fetchExtraInfo = async () => {
+      if (customerInfo.email && customerInfo.phone) return;
+      
+      setLoadingInfo(true);
+      try {
+        // 1. Try to find by customerId if it's a usuarioId
+        if (sale.customerId && typeof sale.customerId === 'number') {
+          const users = await userService.getAll();
+          const user = users.find(u => u.usuarioId === sale.customerId);
+          if (user) {
+            setCustomerInfo(prev => ({ ...prev, email: user.email }));
+          }
+        }
+
+        // 2. Try to find in Clientes to get phone/email
+        const clients = await personService.getPersons('client');
+        const client = clients.find(c => 
+          (sale.customerId && (String(c.usuarioId) === String(sale.customerId) || String(c.documentId) === String(sale.customerId))) ||
+          (sale.customerName && c.name === sale.customerName)
+        );
+
+        if (client) {
+          setCustomerInfo(prev => ({ 
+            ...prev, 
+            email: prev.email || client.email, 
+            phone: prev.phone || client.phone 
+          }));
+        }
+      } catch (err) {
+        console.error('Error fetching extra customer info:', err);
+      } finally {
+        setLoadingInfo(false);
+      }
+    };
+
+    fetchExtraInfo();
+  }, [sale]);
+
+  const getPaymentMethodLabel = (method) => {
+    switch (method) {
+      case 'cash': return 'Efectivo';
+      case 'card': return 'Tarjeta';
+      case 'transfer': return 'Transferencia';
+      case 'nequi': return 'Nequi';
+      case 'daviplata': return 'Daviplata';
+      case 'mixed': return 'Mixto';
+      default: return 'Otro';
+    }
+  };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
-        <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-6 text-white rounded-t-3xl shrink-0">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+        {/* Header - Fixed at top */}
+        <div className="bg-gradient-to-r from-pink-500 to-purple-600 p-5 text-white shrink-0 shadow-md z-20">
           <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-2xl font-bold">Detalle de Venta {sale.id}</h3>
-              <p className="text-pink-100">Información completa de la transacción</p>
+            <div className="flex items-center space-x-4">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                <ShoppingBag className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold leading-tight">Detalle de Venta {sale.id}</h3>
+              </div>
             </div>
             <button
               onClick={onClose}
-              className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
+              className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        <div className="p-6">
-          {/* Sale and Customer Info */}
-          <div className="grid md:grid-cols-2 gap-8 mb-8">
-            <div>
-              <h4 className="font-bold text-gray-800 mb-4">Información de la Venta</h4>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">ID Venta:</span>
-                  <span className="font-semibold text-gray-800">{sale.id}</span>
+        {/* Scrollable Body */}
+        <div className="flex-1 overflow-y-auto p-6 lg:p-8 bg-gray-50/30 no-scrollbar">
+          <style>{`
+            .no-scrollbar::-webkit-scrollbar { display: none; }
+            .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+          `}</style>
+          <div className="max-w-5xl mx-auto space-y-6">
+            {/* Info Cards Row */}
+            <div className="grid md:grid-cols-3 gap-4">
+              {/* Customer Card */}
+              <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+                <div className="flex items-center space-x-2 text-purple-500 mb-3">
+                  <Users className="w-4 h-4" />
+                  <h4 className="font-bold uppercase text-[10px] tracking-widest">Cliente</h4>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Fecha:</span>
-                  <span className="text-gray-800">{sale.date} - {sale.time}</span>
+                <div className="mb-1">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Documento:</span>
+                  <p className="font-mono text-gray-600 text-sm">{sale.customerId || 'No registrado'}</p>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Empleado:</span>
-                  <span className="text-gray-800">{sale.employeeName || ''}</span>
+                <p className="font-bold text-gray-800 text-lg mb-1 truncate">
+                  {sale.customerName || 'Cliente No Registrado'}
+                </p>
+                <div className="flex items-center space-x-2 text-gray-500">
+                  <Phone className="w-3.5 h-3.5" />
+                  <span className="text-sm">{customerInfo.phone || 'N/A'}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Método de Pago:</span>
-                  <span className="text-gray-800">
-                    {sale.paymentMethod === 'cash' ? 'Efectivo' :
-                     sale.paymentMethod === 'transfer' ? 'Transferencia' : 'Otro'}
-                  </span>
+              </div>
+
+              {/* Payment Card */}
+              <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+                <div className="flex items-center space-x-2 text-pink-500 mb-3">
+                  <CreditCard className="w-4 h-4" />
+                  <h4 className="font-bold uppercase text-[10px] tracking-widest">Pago y Atención</h4>
                 </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Método:</span>
+                    <span className="font-bold text-gray-700">{getPaymentMethodLabel(sale.paymentMethod)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Atendido por:</span>
+                    <span className="font-bold text-gray-700 truncate ml-2">{sale.employeeName || 'Personal'}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Doc. Empleado:</span>
+                    <span className="font-mono text-gray-600 text-xs">{sale.employeeId || 'N/A'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Status Card */}
+              <div className={`rounded-2xl p-5 border shadow-sm flex flex-col items-center justify-center ${
+                sale.status === 'completed' 
+                ? 'bg-green-50/50 border-green-100 text-green-600' 
+                : 'bg-red-50/50 border-red-100 text-red-600'
+              }`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-2 ${
+                  sale.status === 'completed' ? 'bg-green-100' : 'bg-red-100'
+                }`}>
+                  {sale.status === 'completed' ? <CheckCircle className="w-5 h-5" /> : <Ban className="w-5 h-5" />}
+                </div>
+                <span className="font-black uppercase text-[10px] tracking-[0.2em]">
+                  {sale.status === 'completed' ? 'Venta Exitosa' : 'Venta Anulada'}
+                </span>
               </div>
             </div>
 
-            <div>
-              <h4 className="font-bold text-gray-800 mb-4">Información del Cliente</h4>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Cliente:</span>
-                  <span className="font-semibold text-gray-800">{sale.customerName || ''}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Email:</span>
-                  <span className="text-gray-800"></span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Teléfono:</span>
-                  <span className="text-gray-800"></span>
-                </div>
+            {/* Services Section */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100 flex items-center justify-between">
+                <h4 className="font-bold text-gray-700 text-sm flex items-center space-x-2">
+                  <Scissors className="w-4 h-4 text-pink-400" />
+                  <span>Servicios y Productos</span>
+                </h4>
+                <span className="text-[10px] font-black bg-pink-100 text-pink-600 px-2 py-0.5 rounded-full uppercase">
+                  {sale.services?.length || 0} ítems
+                </span>
               </div>
-            </div>
-          </div>
-
-          {/* Services */}
-          {sale.services && sale.services.length > 0 && (
-            <div className="mb-8">
-              <h4 className="font-bold text-gray-800 mb-4">Servicios Prestados</h4>
-              <div className="overflow-x-auto">
-                <table className="w-full border border-gray-200 rounded-lg">
-                  <thead className="bg-gray-50">
+              
+              <div className="max-h-[250px] overflow-y-auto no-scrollbar">
+                <table className="w-full">
+                  <thead className="bg-gray-50/80 sticky top-0 backdrop-blur-sm z-10">
                     <tr>
-                      <th className="px-4 py-3 text-left font-semibold text-gray-800">Servicio</th>
-                      <th className="px-4 py-3 text-left font-semibold text-gray-800">Precio</th>
+                      <th className="px-6 py-3 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100">Nombre del Servicio</th>
+                      <th className="px-6 py-3 text-right text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100">Precio</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {sale.services.map((service, index) => (
-                      <tr key={index}>
-                        <td className="px-4 py-3 font-medium text-gray-800">{service.name || service.serviceId}</td>
-                        <td className="px-4 py-3 font-semibold text-gray-800">${service.totalPrice.toLocaleString()}</td>
+                  <tbody className="divide-y divide-gray-50">
+                    {sale.services?.map((service, index) => (
+                      <tr key={index} className="hover:bg-gray-50/30 transition-colors">
+                        <td className="px-6 py-4 text-sm font-semibold text-gray-700">{service.name || 'Servicio'}</td>
+                        <td className="px-6 py-4 text-right text-sm font-bold text-gray-900">
+                          ${(service.totalPrice || 0).toLocaleString()}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             </div>
-          )}
 
-          {/* Financial Summary */}
-          <div className="grid md:grid-cols-2 gap-8">
-            <div>
-              {sale.notes && (
-                <div>
-                  <h4 className="font-bold text-gray-800 mb-4">Notas</h4>
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <p className="text-gray-700">{sale.notes}</p>
-                  </div>
+            {/* Bottom Section: Observations and Totals */}
+            <div className="grid md:grid-cols-2 gap-6 pb-4">
+              {/* Observations */}
+              <div className="space-y-3">
+                <div className="flex items-center space-x-2 text-blue-500">
+                  <FileText className="w-4 h-4" />
+                  <h4 className="font-bold text-[10px] uppercase tracking-widest">Observaciones</h4>
                 </div>
-              )}
-            </div>
+                <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm min-h-[120px]">
+                  <p className="text-gray-600 text-sm italic leading-relaxed">
+                    {sale.notes || 'Sin observaciones adicionales.'}
+                  </p>
+                </div>
+              </div>
 
-            <div>
-              <h4 className="font-bold text-gray-800 mb-4">Resumen Financiero</h4>
-              <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Subtotal:</span>
-                    <span className="text-gray-800">${sale.subtotal.toLocaleString()}</span>
+              {/* Summary */}
+              <div className="bg-green-50 rounded-3xl p-8 border border-green-100 shadow-sm flex flex-col justify-center min-h-[160px]">
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-bold uppercase tracking-widest text-green-700/70">Subtotal</span>
+                    <span className="font-bold text-lg text-green-600">${(sale.subtotal || 0).toLocaleString()}</span>
                   </div>
-                  {sale.discount > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Descuento:</span>
-                      <span className="text-red-600">-${sale.discount.toLocaleString()}</span>
+                  {(sale.discount || 0) > 0 && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-bold uppercase tracking-widest text-green-700/70">Descuento</span>
+                      <span className="font-bold text-lg text-green-600">-${(sale.discount || 0).toLocaleString()}</span>
                     </div>
                   )}
-                  <div className="border-t border-gray-300 pt-2">
-                    <div className="flex justify-between">
-                      <span className="font-bold text-gray-800">Total:</span>
-                      <span className="font-bold text-green-600 text-lg">${sale.total.toLocaleString()}</span>
-                    </div>
+                  <div className="pt-6 mt-2 border-t border-green-200 flex justify-between items-center px-2">
+                    <span className="text-sm font-black uppercase tracking-[0.2em] text-green-800">Total</span>
+                    <span className="font-bold text-lg text-green-600">
+                      ${(sale.total || 0).toLocaleString()}
+                    </span>
                   </div>
                 </div>
               </div>
             </div>
           </div>
+        </div>
 
-          {/* Actions */}
-          {hasPermission('manage_sales') && sale.status === 'completed' && (
-            <div className="mt-8 flex space-x-4 justify-end">
-              <button
-                onClick={() => onPrint(sale)}
-                className="bg-gradient-to-r from-green-400 to-green-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all flex items-center space-x-2"
-              >
-                <FileText className="w-5 h-5" />
-                <span>Imprimir Recibo</span>
-              </button>
-              
-              <button
-                onClick={() => onCancel(sale)}
-                className="bg-gradient-to-r from-red-400 to-red-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all flex items-center space-x-2"
-              >
-                <Ban className="w-5 h-5" />
-                <span>Anular Venta</span>
-              </button>
-            </div>
-          )}
+        {/* Footer - Fixed at bottom */}
+        <div className="p-5 bg-white border-t border-gray-100 flex flex-wrap gap-3 justify-end shrink-0 z-20">
+          <button
+            onClick={onClose}
+            className="px-8 py-2.5 rounded-xl font-black text-gray-500 hover:bg-gray-200 hover:text-gray-800 active:scale-95 transition-all text-sm uppercase tracking-widest shadow-sm"
+          >
+            Cerrar
+          </button>
         </div>
       </div>
     </div>

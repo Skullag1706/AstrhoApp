@@ -25,7 +25,7 @@ const mapApiToFrontend = (apiData: any) => {
     status: apiData.estado === false ? 'inactive' : 'active',
     totalOrders: 0,
     rating: 0,
-    insumos: []
+    products: []
   };
 };
 
@@ -300,7 +300,7 @@ export function SupplierManagement({ hasPermission }: SupplierManagementProps) {
         <div>
           <h2 className="text-3xl font-bold text-gray-800">Gestión de Proveedores</h2>
           <p className="text-gray-600">
-            Administra la información de proveedores y sus insumos
+            Administra la información de proveedores y sus productos
           </p>
         </div>
 

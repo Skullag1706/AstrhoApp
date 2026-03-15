@@ -49,6 +49,24 @@ export const userService = {
         return apiClient.delete<void>(`/Usuarios/${id}`);
     },
 
+    getPersonForUser: async (usuarioId: number): Promise<{ documentId: string; type: 'client' | 'employee' } | null> => {
+        try {
+            const [clientes, empleados] = await Promise.all([
+                apiClient.get<any[]>('/Clientes'),
+                apiClient.get<any[]>('/Empleados'),
+            ]);
+            const client = (clientes || []).find((c: any) => c.usuarioId === usuarioId);
+            if (client) return { documentId: client.documentoCliente, type: 'client' };
+
+            const employee = (empleados || []).find((e: any) => e.usuarioId === usuarioId);
+            if (employee) return { documentId: employee.documentoEmpleado, type: 'employee' };
+
+            return null;
+        } catch {
+            return null;
+        }
+    },
+
     checkDocumentDuplicate: async (documentId: string): Promise<boolean> => {
         try {
             const [clientes, empleados] = await Promise.all([

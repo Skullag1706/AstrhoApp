@@ -9,7 +9,6 @@ import {
   Calendar,
   TrendingUp,
   Package,
-  DollarSign,
 } from "lucide-react";
 import {
   LineChart,
@@ -27,13 +26,14 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { agendaService, AgendaItem } from "../../services/agendaService";
-import { personService } from "../../services/personService";
-import { serviceService, Service } from "../../services/serviceService";
 import { salesService, SaleView } from "../../services/salesService";
+import { personService } from "../../services/personService";
+import { supplyService } from "../../services/supplyService";
+import { serviceService, Service } from "../../services/serviceService";
 
-// ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// ─────────────────────────────────────────────────────────────────────────────
 // Types
-// ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// ─────────────────────────────────────────────────────────────────────────────
 
 interface DashboardOverviewProps {
   currentUser: any;
@@ -215,7 +215,60 @@ function groupSalesByDay(items: SaleView[]): ChartPoint[] {
   }));
 }
 
-function groupSalesByWeek(items: SaleView[]): ChartPoint[] {
+function groupSalesByWeek(sales: SaleView[]): ChartPoint[] {
+  const map: Record<string, number> = {
+    "Sem 1": 0,
+    "Sem 2": 0,
+    "Sem 3": 0,
+    "Sem 4": 0,
+    "Sem 5": 0,
+  };
+  sales.forEach((s) => {
+    if (!s.date) return;
+    const day = new Date(s.date + "T00:00:00").getDate();
+    const week = Math.ceil(day / 7);
+    const label = `Sem ${week}`;
+    if (map[label] !== undefined) map[label] += s.total;
+  });
+  return Object.entries(map)
+    .filter(([, v]) => v > 0)
+    .map(([name, value]) => ({ name, value }));
+}
+
+function groupAgendaByHour(items: AgendaItem[]): ChartPoint[] {
+  const map: Record<string, number> = {};
+  HOUR_LABELS.forEach((h) => (map[h] = 0));
+  items.forEach((i) => {
+    const h = (i.horaInicio || "").slice(0, 2);
+    const label = HOUR_MAP[h];
+    if (label) map[label] = (map[label] || 0) + 1;
+  });
+  return HOUR_LABELS.map((h) => ({ name: h, value: map[h] }));
+}
+
+function groupAgendaByDay(items: AgendaItem[]): ChartPoint[] {
+  const map: Record<string, number> = {
+    Lun: 0,
+    Mar: 0,
+    Mié: 0,
+    Jue: 0,
+    Vie: 0,
+    Sáb: 0,
+    Dom: 0,
+  };
+  items.forEach((i) => {
+    if (!i.fechaCita) return;
+    const d = new Date(i.fechaCita + "T00:00:00");
+    const label = DAY_NAMES[d.getDay()];
+    if (label) map[label] = (map[label] || 0) + 1;
+  });
+  return ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((d) => ({
+    name: d,
+    value: map[d] || 0,
+  }));
+}
+
+function groupAgendaByWeek(items: AgendaItem[]): ChartPoint[] {
   const map: Record<string, number> = {
     "Sem 1": 0,
     "Sem 2": 0,
@@ -224,19 +277,19 @@ function groupSalesByWeek(items: SaleView[]): ChartPoint[] {
     "Sem 5": 0,
   };
   items.forEach((i) => {
-    if (!i.date) return;
-    const day = new Date(i.date + "T00:00:00").getDate();
+    if (!i.fechaCita) return;
+    const day = new Date(i.fechaCita + "T00:00:00").getDate();
     const label = `Sem ${Math.ceil(day / 7)}`;
-    if (map[label] !== undefined) map[label] += i.total;
+    if (map[label] !== undefined) map[label] += 1;
   });
   return Object.entries(map)
     .filter(([, v]) => v > 0)
     .map(([name, value]) => ({ name, value }));
 }
 
-// ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// ─────────────────────────────────────────────────────────────────────────────
 // Stat Card
-// ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// ─────────────────────────────────────────────────────────────────────────────
 
 interface StatCardProps {
   title: string;
@@ -266,9 +319,9 @@ function StatCard({ title, value, icon, color, loading }: StatCardProps) {
   );
 }
 
-// ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// ─────────────────────────────────────────────────────────────────────────────
 // Main Component
-// ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// ─────────────────────────────────────────────────────────────────────────────
 
 export function DashboardOverview({
   currentUser,
@@ -283,6 +336,7 @@ export function DashboardOverview({
   const [allAgenda, setAllAgenda] = useState<AgendaItem[]>([]);
   const [allSales, setAllSales] = useState<SaleView[]>([]);
   const [totalClients, setTotalClients] = useState(0);
+  const [lowStockCount, setLowStockCount] = useState(0);
   const [servicesMap, setServicesMap] = useState<Map<string, Service>>(
     new Map(),
   );
@@ -292,12 +346,14 @@ export function DashboardOverview({
     setIsLoading(true);
     setError(null);
     try {
-      const [agenda, clients, services, sales] = await Promise.allSettled([
-        agendaService.getAll(),
-        personService.getPersons("client"),
-        serviceService.getServices(),
-        salesService.getAll(),
-      ]);
+      const [agenda, sales, clients, supplies, services] =
+        await Promise.allSettled([
+          agendaService.getAll(),
+          salesService.getAll(),
+          personService.getPersons("client"),
+          supplyService.getSupplies(),
+          serviceService.getServices(),
+        ]);
 
       if (agenda.status === "fulfilled") setAllAgenda(agenda.value);
       if (sales.status === "fulfilled") setAllSales(sales.value);
@@ -305,6 +361,11 @@ export function DashboardOverview({
         setTotalClients(
           clients.value.filter((c) => c.status === "active").length,
         );
+      if (supplies.status === "fulfilled") {
+        setLowStockCount(
+          supplies.value.filter((s) => s.estado && s.stock <= 5).length,
+        );
+      }
       if (services.status === "fulfilled") {
         const map = new Map<string, Service>();
         services.value.forEach((s) => map.set(s.nombre, s));
@@ -328,8 +389,8 @@ export function DashboardOverview({
   const periodAgenda = allAgenda.filter((a) =>
     isInPeriod(a.fechaCita, selectedPeriod),
   );
-  const periodSales = allSales.filter(
-    (s) => isInPeriod(s.date, selectedPeriod) && s.status === "completed",
+  const periodSales = allSales.filter((s) =>
+    isInPeriod(s.date, selectedPeriod),
   );
 
   // ── Compute Stats ──
@@ -364,6 +425,16 @@ export function DashboardOverview({
   };
 
   // ── Charts ──
+
+  // Revenue chart
+  const revenueChartData: ChartPoint[] =
+    selectedPeriod === "today"
+      ? groupSalesByHour(periodSales)
+      : selectedPeriod === "week"
+        ? groupSalesByDay(periodSales)
+        : groupSalesByWeek(periodSales);
+
+  // Appointments chart
   const appointmentsChartData: ChartPoint[] =
     selectedPeriod === "today"
       ? groupAgendaByHour(periodAgenda)
@@ -371,6 +442,7 @@ export function DashboardOverview({
         ? groupAgendaByDay(periodAgenda)
         : groupAgendaByWeek(periodAgenda);
 
+  // Clients pie chart
   const clientsChartData = [
     { name: "Nuevos", value: currentStats.new_clients, color: "#ec4899" },
     {
@@ -380,12 +452,20 @@ export function DashboardOverview({
     },
   ].filter((d) => d.value > 0);
 
-  const incomeChartData: ChartPoint[] =
-    selectedPeriod === "today"
-      ? groupSalesByHour(periodSales)
-      : selectedPeriod === "week"
-        ? groupSalesByDay(periodSales)
-        : groupSalesByWeek(periodSales);
+  // Top products bar chart
+  const productFreq: Record<string, number> = {};
+  periodSales.forEach((sale) => {
+    sale.items.forEach((item) => {
+      if (item.name) {
+        productFreq[item.name] =
+          (productFreq[item.name] || 0) + (item.quantity || 1);
+      }
+    });
+  });
+  const productsChartData: ChartPoint[] = Object.entries(productFreq)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([name, value]) => ({ name, value }));
 
   const todayAgenda = allAgenda.filter((a) => isInPeriod(a.fechaCita, "today"));
   const upcomingAppointments = todayAgenda
@@ -444,11 +524,13 @@ export function DashboardOverview({
         </div>
 
         <div className="flex items-center space-x-3">
+          {/* Live indicator */}
           <div className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium flex items-center space-x-1">
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
             <span>En Vivo</span>
           </div>
 
+          {/* Refresh */}
           <button
             onClick={loadData}
             disabled={isLoading}
@@ -460,6 +542,7 @@ export function DashboardOverview({
             />
           </button>
 
+          {/* Period selector */}
           <select
             value={selectedPeriod}
             onChange={(e) => setSelectedPeriod(e.target.value as Period)}
@@ -513,9 +596,11 @@ export function DashboardOverview({
         />
       </div>
 
-      {/* Row 1: Income Chart (Full Width) */}
-      <div className="bg-white rounded-2xl shadow-lg p-6">
-        <h3 className="text-xl font-bold text-gray-800 mb-6">
+      {/* Charts */}
+      <div className="grid lg:grid-cols-2 gap-8 mb-8">
+        {/* Revenue Chart */}
+        <div className="bg-white rounded-2xl shadow-lg p-6">
+          <h3 className="text-xl font-bold text-gray-800 mb-6">
             Ingresos {periodLabel}
           </h3>
           {isLoading ? (
@@ -547,10 +632,8 @@ export function DashboardOverview({
               </LineChart>
             </ResponsiveContainer>
           )}
-      </div>
+        </div>
 
-      {/* Row 2: Appointments + Clients */}
-      <div className="grid lg:grid-cols-2 gap-8">
         {/* Appointments Chart */}
         <div className="bg-white rounded-2xl shadow-lg p-6">
             <h3 className="text-xl font-bold text-gray-800 mb-6">
@@ -582,42 +665,38 @@ export function DashboardOverview({
             )}
           </div>
 
-          {/* Clients Pie Chart */}
-          <div className="bg-white rounded-2xl shadow-lg p-6">
-            <h3 className="text-xl font-bold text-gray-800 mb-6">
-              Clientes {periodLabel}
-            </h3>
-            {isLoading ? (
-              <div className="h-[300px] bg-gray-100 animate-pulse rounded-xl" />
-            ) : clientsChartData.length === 0 ? (
-              <EmptyChart label="Sin clientes en este período" />
-            ) : (
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={clientsChartData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) =>
-                      `${name}: ${(percent * 100).toFixed(0)}%`
-                    }
-                    outerRadius={100}
-                    dataKey="value"
-                  >
-                    {clientsChartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value: number) => [value, "Clientes"]} />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
+        {/* Products Chart */}
+        <div className="bg-white rounded-2xl shadow-lg p-6">
+          <h3 className="text-xl font-bold text-gray-800 mb-6">
+            Productos Vendidos {periodLabel}
+          </h3>
+          {isLoading ? (
+            <div className="h-[300px] bg-gray-100 animate-pulse rounded-xl" />
+          ) : productsChartData.length === 0 ? (
+            <EmptyChart label="Sin productos vendidos en este período" />
+          ) : (
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={productsChartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                <YAxis allowDecimals={false} />
+                <Tooltip formatter={(value: number) => [value, "Cantidad"]} />
+                <Legend />
+                <Bar
+                  dataKey="value"
+                  name="Cantidad"
+                  fill="#ec4899"
+                  radius={[4, 4, 0, 0]}
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
       </div>
     </div>
 
-    {/* Row 3: Upcoming Appointments + Top Services */}
-    <div className="grid lg:grid-cols-2 gap-8">
+      {/* Two Column: Upcoming Appointments + Top Services */}
+      <div className="grid lg:grid-cols-2 gap-8">
         {/* Upcoming Appointments */}
         <div className="bg-white rounded-2xl shadow-lg p-6">
             <div className="flex items-center justify-between mb-6">
@@ -634,132 +713,144 @@ export function DashboardOverview({
               </div>
             </div>
 
-            {isLoading ? (
-              <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
+          {isLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="h-20 bg-gray-100 animate-pulse rounded-xl"
+                />
+              ))}
+            </div>
+          ) : upcomingAppointments.length === 0 ? (
+            <div className="text-center py-10 text-gray-400">
+              <Calendar className="w-12 h-12 mx-auto mb-3 opacity-30" />
+              <p>No hay citas pendientes/confirmadas para hoy</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {upcomingAppointments.map((apt) => {
+                const statusKey = apt.estado.toLowerCase();
+                const isConfirmed = statusKey === "confirmado";
+                const isPending = statusKey === "pendiente";
+                return (
                   <div
-                    key={i}
-                    className="h-20 bg-gray-100 animate-pulse rounded-xl"
-                  />
-                ))}
-              </div>
-            ) : upcomingAppointments.length === 0 ? (
-              <div className="text-center py-10 text-gray-400">
-                <Calendar className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                <p>No hay citas pendientes/confirmadas para hoy</p>
-              </div>
-            ) : (
+                    key={apt.agendaId}
+                    className="flex items-center space-x-4 p-4 bg-gradient-to-r from-pink-50 to-purple-50 rounded-xl"
+                  >
+                    <div className="w-12 h-12 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full flex items-center justify-center flex-shrink-0">
+                      <UserCheck className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-bold text-gray-800 truncate">
+                        {apt.cliente || apt.documentoCliente}
+                      </h4>
+                      <p className="text-gray-600 text-sm truncate">
+                        {apt.servicios.join(", ") || "Sin servicio"}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {apt.horaInicio} •{" "}
+                        {apt.empleado || apt.documentoEmpleado}
+                      </p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                          isConfirmed
+                            ? "bg-green-100 text-green-800"
+                            : isPending
+                              ? "bg-yellow-100 text-yellow-800"
+                              : "bg-gray-100 text-gray-700"
+                        }`}
+                      >
+                        {apt.estado}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Top Services */}
+        <div className="bg-white rounded-2xl shadow-lg p-6">
+          <h3 className="text-xl font-bold text-gray-800 mb-6">
+            Servicios Más Populares
+          </h3>
+
+          {isLoading ? (
+            <div className="space-y-4">
+              {[1, 2, 3, 4].map((i) => (
+                <div
+                  key={i}
+                  className="h-12 bg-gray-100 animate-pulse rounded-xl"
+                />
+              ))}
+            </div>
+          ) : topServices.length === 0 ? (
+            <div className="text-center py-10 text-gray-400">
+              <Star className="w-12 h-12 mx-auto mb-3 opacity-30" />
+              <p>Sin datos de servicios para este período</p>
+            </div>
+          ) : (
+            <>
               <div className="space-y-4">
-                {upcomingAppointments.map((apt) => {
-                  const statusKey = apt.estado.toLowerCase();
-                  const isConfirmed = statusKey === "confirmado";
-                  const isPending = statusKey === "pendiente";
-                  return (
-                    <div
-                      key={apt.agendaId}
-                      className="flex items-center space-x-4 p-4 bg-gradient-to-r from-pink-50 to-purple-50 rounded-xl"
-                    >
-                      <div className="w-12 h-12 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full flex items-center justify-center flex-shrink-0">
-                        <UserCheck className="w-6 h-6 text-white" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-bold text-gray-800 truncate">
-                          {apt.cliente || apt.documentoCliente}
+                {topServices.map((service, index) => (
+                  <div key={index} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-semibold text-gray-800">
+                          {service.name}
                         </h4>
-                        <p className="text-gray-600 text-sm truncate">
-                          {apt.servicios.join(", ") || "Sin servicio"}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {apt.horaInicio} • {apt.empleado || apt.documentoEmpleado}
+                        <p className="text-sm text-gray-600">
+                          {service.count}{" "}
+                          {service.count === 1 ? "vez" : "veces"}
+                          {service.revenue > 0 &&
+                            ` • $${service.revenue.toLocaleString()}`}
                         </p>
                       </div>
-                      <div className="text-right flex-shrink-0">
-                        <span
-                          className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                            isConfirmed
-                              ? "bg-green-100 text-green-800"
-                              : isPending
-                                ? "bg-yellow-100 text-yellow-800"
-                                : "bg-gray-100 text-gray-700"
-                          }`}
-                        >
-                          {apt.estado}
+                      <div className="text-right">
+                        <span className="text-2xl font-bold text-pink-600">
+                          {service.percentage}%
                         </span>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Top Services */}
-          <div className="bg-white rounded-2xl shadow-lg p-6">
-            <h3 className="text-xl font-bold text-gray-800 mb-6">
-              Servicios Más Populares
-            </h3>
-
-            {isLoading ? (
-              <div className="space-y-4">
-                {[1, 2, 3, 4].map((i) => (
-                  <div
-                    key={i}
-                    className="h-12 bg-gray-100 animate-pulse rounded-xl"
-                  />
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div
+                        className="bg-gradient-to-r from-pink-400 to-purple-500 h-2 rounded-full transition-all duration-500"
+                        style={{ width: `${service.percentage}%` }}
+                      />
+                    </div>
+                  </div>
                 ))}
               </div>
-            ) : topServices.length === 0 ? (
-              <div className="text-center py-10 text-gray-400">
-                <Star className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                <p>Sin datos de servicios para este período</p>
-              </div>
-            ) : (
-              <>
-                <div className="space-y-4">
-                  {topServices.map((service, index) => (
-                    <div key={index} className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h4 className="font-semibold text-gray-800">
-                            {service.name}
-                          </h4>
-                          <p className="text-sm text-gray-600">
-                            {service.count}{" "}
-                            {service.count === 1 ? "vez" : "veces"}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-2xl font-bold text-pink-600">
-                            {service.percentage}%
-                          </span>
-                        </div>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-gradient-to-r from-pink-400 to-purple-500 h-2 rounded-full transition-all duration-500"
-                          style={{ width: `${service.percentage}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
 
-                {starService && (
-                  <div className="mt-6 p-4 bg-gradient-to-r from-pink-50 to-purple-50 rounded-xl">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <Star className="w-5 h-5 text-yellow-500" />
-                      <span className="font-semibold text-gray-800">
-                        Servicio Estrella
-                      </span>
-                    </div>
-                    <p className="text-gray-700">
-                      <strong>{starService.name}</strong> es el más solicitado en
-                      este período
-                    </p>
+              {starService && (
+                <div className="mt-6 p-4 bg-gradient-to-r from-pink-50 to-purple-50 rounded-xl">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <Star className="w-5 h-5 text-yellow-500" />
+                    <span className="font-semibold text-gray-800">
+                      Servicio Estrella
+                    </span>
                   </div>
-                )}
-              </>
-            )}
+                  <p className="text-gray-700">
+                    <strong>{starService.name}</strong> es el más solicitado en
+                    este período
+                  </p>
+                  {starService.revenue > 0 && starService.count > 0 && (
+                    <p className="text-sm text-gray-600 mt-1">
+                      Promedio: $
+                      {(
+                        starService.revenue / starService.count
+                      ).toLocaleString()}{" "}
+                      por servicio
+                    </p>
+                  )}
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>

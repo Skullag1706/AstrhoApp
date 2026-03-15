@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Calendar, Clock, Users, Plus,
   CheckCircle, AlertCircle, XCircle, Edit, Eye, Trash2,
-  Save, X, User, Phone, DollarSign, Search, Loader2, RefreshCw, Shield
+  Save, X, User, Phone, DollarSign, Search, Loader2, RefreshCw
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { SimplePagination } from '../ui/simple-pagination';
@@ -314,7 +314,38 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
   };
 
   // ── Loading state ──
-  // Removed early return to allow background loading with overlay
+  if (loading) {
+    return (
+      <div className="p-8 flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-purple-500 animate-spin mx-auto mb-4" />
+          <p className="text-gray-600 text-lg">Cargando agendamiento...</p>
+        </div>
+
+      {/* Success Alert */}
+      {showSuccessAlert && (
+        <div className="fixed top-4 right-4 z-[9999] animate-in slide-in-from-top-5 duration-300">
+          <div className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center space-x-4 min-w-[320px]">
+            <div className="flex-shrink-0">
+              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                <CheckCircle className="w-6 h-6 text-white" />
+              </div>
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold">{alertMessage}</p>
+            </div>
+            <button
+              onClick={() => setShowSuccessAlert(false)}
+              className="flex-shrink-0 w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+      </div>
+    );
+  }
 
   return (
     <div className="p-8">
@@ -606,46 +637,6 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
                 Confirmar
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Loading Overlay */}
-      {loading && (
-        <div className="fixed inset-0 bg-white/10 backdrop-blur-[2px] z-[100] flex items-center justify-center">
-          <div className="bg-white/80 p-8 rounded-3xl shadow-2xl flex flex-col items-center space-y-4 border border-white/50 animate-in zoom-in-95 duration-200">
-            <div className="relative">
-              <Loader2 className="w-14 h-14 text-pink-500 animate-spin" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <Shield className="w-6 h-6 text-purple-600 animate-pulse" />
-              </div>
-            </div>
-            <div className="flex flex-col items-center">
-              <p className="text-gray-800 font-bold text-lg">Procesando</p>
-              <p className="text-pink-600 text-sm animate-pulse font-medium">Sincronizando con la API...</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Success Alert */}
-      {showSuccessAlert && (
-        <div className="fixed top-4 right-4 z-[9999] animate-in slide-in-from-top-5 duration-300">
-          <div className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center space-x-4 min-w-[320px]">
-            <div className="flex-shrink-0">
-              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                <CheckCircle className="w-6 h-6 text-white" />
-              </div>
-            </div>
-            <div className="flex-1">
-              <p className="font-semibold">{alertMessage}</p>
-            </div>
-            <button
-              onClick={() => setShowSuccessAlert(false)}
-              className="flex-shrink-0 w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
           </div>
         </div>
       )}

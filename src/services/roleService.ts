@@ -65,14 +65,13 @@ export const roleService = {
             { id: 6, key: 'module_sales', name: 'Ventas', module: 'sales' },
             { id: 7, key: 'module_purchases', name: 'Compras', module: 'purchases' },
             { id: 8, key: 'module_suppliers', name: 'Proveedores', module: 'suppliers' },
-            { id: 9, key: 'module_insumos', name: 'Insumos', module: 'insumos' },
+            { id: 9, key: 'module_products', name: 'Productos', module: 'products' },
             { id: 10, key: 'module_clients', name: 'Clientes', module: 'clients' },
             { id: 11, key: 'module_categories', name: 'Categorías', module: 'categories' },
             { id: 12, key: 'module_schedules', name: 'Horarios', module: 'schedules' },
             { id: 13, key: 'module_supplies', name: 'Insumos', module: 'supplies' },
             { id: 14, key: 'module_deliveries', name: 'Entregas', module: 'deliveries' },
-            { id: 15, key: 'module_reports', name: 'Reportes', module: 'reports' },
-            { id: 16, key: 'module_roles', name: 'Roles', module: 'roles' }
+            { id: 15, key: 'module_reports', name: 'Reportes', module: 'reports' }
         ];
     }
 };

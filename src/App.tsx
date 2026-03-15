@@ -18,14 +18,6 @@ function App() {
   const [showUserProfile, setShowUserProfile] = useState(false);
   const [isClientView, setIsClientView] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const [adminTab, setAdminTab] = useState("dashboard");
-
-  const handleNavigate = (view, tab = null) => {
-    setCurrentView(view);
-    if (tab) {
-      setAdminTab(tab);
-    }
-  };
 
   // Redirect admin users to admin panel automatically
   useEffect(() => {
@@ -81,7 +73,7 @@ function App() {
         "module_sales",
         "module_purchases",
         "module_suppliers",
-        "module_insumos",
+        "module_products",
         "module_clients",
         "module_categories",
         "module_schedules",
@@ -98,7 +90,7 @@ function App() {
         "manage_sales",
         "manage_purchases",
         "manage_suppliers",
-        "manage_insumos",
+        "manage_products",
         "manage_clients",
         "manage_categories",
         "manage_schedules",
@@ -126,11 +118,11 @@ function App() {
       customer: [
         "module_appointments",
         "module_services",
-        "module_insumos",
+        "module_products",
         // Legacy
         "book_appointments",
         "view_services",
-        "view_insumos",
+        "view_products",
         "view_own_appointments"
       ],
     };
@@ -247,8 +239,6 @@ function App() {
           <AdminPanel
             currentUser={currentUser}
             hasPermission={hasPermission}
-            activeTab={adminTab}
-            onTabChange={setAdminTab}
           />
         ) : (
           <div className="text-center py-8">
@@ -270,8 +260,6 @@ function App() {
             <AdminPanel
               currentUser={currentUser}
               hasPermission={hasPermission}
-              activeTab={adminTab}
-              onTabChange={setAdminTab}
             />
           );
         }
@@ -291,7 +279,7 @@ function App() {
       <Navigation
         currentUser={currentUser}
         currentView={currentView}
-        setCurrentView={handleNavigate}
+        setCurrentView={setCurrentView}
         setShowAuthModal={setShowAuthModal}
         setShowUserProfile={setShowUserProfile}
         hasPermission={hasPermission}

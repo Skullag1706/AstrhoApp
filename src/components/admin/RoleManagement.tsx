@@ -4,7 +4,7 @@ import {
   CheckCircle, UserCheck, UserX, Settings, Eye, Trash2, Search,
   LayoutDashboard, Calendar, Scissors, Package, ShoppingCart,
   ShoppingBag, Truck, Box, UsersRound, Tag, Clock, Boxes,
-  PackageCheck, FileText, Loader2, Lock
+  PackageCheck, FileText, Loader2
 } from 'lucide-react';
 import { mockRoles, mockPermissions } from '../../data/management';
 import { roleService, RolListDto, RolResponseDto } from '../../services/roleService';
@@ -66,8 +66,7 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
     'module_schedules': 12,
     'module_supplies': 13,
     'module_deliveries': 14,
-    'module_reports': 15,
-    'module_roles': 16
+    'module_reports': 15
   };
 
   const REVERSE_PERMISSION_MAP = Object.fromEntries(
@@ -148,8 +147,7 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
     supplies: 'Insumos',
     deliveries: 'Entrega de Insumos',
     orders: 'Pedidos',
-    reports: 'Reportes',
-    roles: 'Roles'
+    reports: 'Reportes'
   };
 
   // Iconos para cada módulo
@@ -169,8 +167,7 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
     supplies: Boxes,
     deliveries: PackageCheck,
     orders: ShoppingBag,
-    reports: FileText,
-    roles: Lock
+    reports: FileText
   };
 
   const getModuleIcon = (module: string) => {
@@ -343,8 +340,9 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
     const role = roles.find(r => r.id === roleId);
     if (!role) return;
 
-    if (role.id === 'super_admin' || role.id === '1') {
-      return; // El super admin no se puede desactivar
+    if ((role.name.toLowerCase() === 'super admin' || role.name === 'Administrador') && role.status === 'active') {
+      setShowInactiveWarningModal(true);
+      return;
     }
 
     try {
@@ -371,7 +369,7 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
   };
 
   const handleDeleteRole = (role) => {
-    if (role.id === 'super_admin' || role.id === '1') {
+    if (role.name.toLowerCase() === 'super admin' || role.name === 'Administrador') {
       setShowDeleteWarningModal(true);
       return;
     }
@@ -486,13 +484,13 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-3">
                         {role.id === 'super_admin' || role.isSuperUser ? (
-                          // Super admin siempre activo, con switch deshabilitado y gris
-                          <div className="flex items-center space-x-2 opacity-50 cursor-not-allowed" title="El estado del super admin no se puede modificar">
-                            <div className="w-11 h-6 bg-gray-300 rounded-full relative">
+                          // Super admin siempre activo, sin switch
+                          <div className="flex items-center space-x-2">
+                            <div className="w-11 h-6 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full relative">
                               <div className="absolute top-[2px] right-[2px] bg-white border-white border rounded-full h-5 w-5"></div>
                             </div>
-                            <span className="ml-1 text-sm font-medium text-gray-500">
-                              Bloqueado
+                            <span className="ml-1 text-sm font-medium text-green-600">
+                              Activo
                             </span>
                           </div>
                         ) : (
@@ -505,7 +503,8 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
                               className="sr-only peer"
                             />
                             <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-pink-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-pink-400 peer-checked:to-purple-500"></div>
-                            <span className={`ml-3 text-sm font-medium ${role.status === 'active' ? 'text-green-600' : 'text-red-600'}`}>
+                            <span className={`ml - 3 text - sm font - medium ${role.status === 'active' ? 'text-green-600' : 'text-red-600'
+                              } `}>
                               {role.status === 'active' ? 'Activo' : 'Inactivo'}
                             </span>
                           </label>
@@ -525,41 +524,21 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
 
                         {hasPermission('manage_roles') && (
                           <>
-                            {role.id === 'super_admin' || role.isSuperUser ? (
-                              <>
-                                <button
-                                  disabled
-                                  className="p-2 bg-gray-100 text-gray-400 rounded-lg cursor-not-allowed opacity-60"
-                                  title="El super admin no se puede editar"
-                                >
-                                  <Edit className="w-4 h-4" />
-                                </button>
-                                <button
-                                  disabled
-                                  className="p-2 bg-gray-100 text-gray-400 rounded-lg cursor-not-allowed opacity-60"
-                                  title="El super admin no se puede eliminar"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                <button
-                                  onClick={() => handleEditRole(role)}
-                                  className="p-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
-                                  title="Editar rol"
-                                >
-                                  <Edit className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteRole(role)}
-                                  className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
-                                  title="Eliminar rol"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </>
-                            )}
+                            <button
+                              onClick={() => handleEditRole(role)}
+                              className="p-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
+                              title="Editar rol"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+
+                            <button
+                              onClick={() => handleDeleteRole(role)}
+                              className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
+                              title="Eliminar rol"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </>
                         )}
                       </div>
@@ -627,8 +606,7 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
           'supplies',       // Insumos
           'categories',     // Categoría de Insumos
           'suppliers',      // Proveedores
-          'deliveries',      // Entrega de Insumos
-          'roles'           // Roles
+          'deliveries'      // Entrega de Insumos
         ];
 
         return (

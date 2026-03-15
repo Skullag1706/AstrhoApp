@@ -26,7 +26,7 @@ function getHeaders(extra?: Record<string, string>): Record<string, string> {
 }
 
 export const apiClient = {
-    async get<T = any>(endpoint: string): Promise<T> {
+    async get(endpoint: string) {
         try {
             const response = await fetch(`${BASE_URL}${endpoint}`, {
                 headers: getHeaders()
@@ -43,7 +43,7 @@ export const apiClient = {
         }
     },
 
-    async post<T = any>(endpoint: string, data: any): Promise<T> {
+    async post(endpoint: string, data: any) {
         try {
             const isFormData = data instanceof FormData;
             const extra: Record<string, string> = {};
@@ -64,16 +64,16 @@ export const apiClient = {
             }
             // Handle 204 No Content or empty body
             if (response.status === 204 || response.headers.get('content-length') === '0') {
-                return null as any;
+                return null;
             }
             const text = await response.text();
             if (!text || text.trim() === '') {
-                return null as any;
+                return null;
             }
             try {
                 return JSON.parse(text);
             } catch {
-                return null as any;
+                return null;
             }
         } catch (error) {
             console.error(`API POST error on ${endpoint}:`, error);
@@ -81,7 +81,7 @@ export const apiClient = {
         }
     },
 
-    async put<T = any>(endpoint: string, data: any): Promise<T> {
+    async put(endpoint: string, data: any) {
         try {
             const isFormData = data instanceof FormData;
             const extra: Record<string, string> = {};
@@ -102,20 +102,26 @@ export const apiClient = {
             }
             // Handle 204 No Content
             if (response.status === 204 || response.headers.get('content-length') === '0') {
-                return null as any;
+                return null;
             }
             const text = await response.text();
             if (!text || text.trim() === '') {
-                return null as any;
+                return null;
             }
-            return JSON.parse(text);
+            
+            // Try parsing as JSON, fall back to original text if fails
+            try {
+                return JSON.parse(text);
+            } catch {
+                return text;
+            }
         } catch (error) {
             console.error(`API PUT error on ${endpoint}:`, error);
             throw error;
         }
     },
 
-    async delete<T = any>(endpoint: string): Promise<T> {
+    async delete(endpoint: string) {
         try {
             const response = await fetch(`${BASE_URL}${endpoint}`, {
                 method: 'DELETE',
@@ -127,16 +133,16 @@ export const apiClient = {
             }
             // Handle 204 No Content or empty body
             if (response.status === 204 || response.headers.get('content-length') === '0') {
-                return null as any;
+                return null;
             }
             const text = await response.text();
             if (!text || text.trim() === '') {
-                return null as any;
+                return null;
             }
             try {
                 return JSON.parse(text);
             } catch {
-                return null as any;
+                return null;
             }
         } catch (error) {
             console.error(`API DELETE error on ${endpoint}:`, error);
