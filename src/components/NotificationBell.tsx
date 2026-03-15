@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Bell, AlertTriangle, CheckCircle, X, Calendar as CalendarIcon, LucideIcon } from 'lucide-react';
+import { Bell, AlertTriangle, CheckCircle, X, Calendar as CalendarIcon, LucideIcon, ShoppingBag } from 'lucide-react';
 import { supplyService } from '../services/supplyService';
 import { agendaService } from '../services/agendaService';
 
@@ -52,7 +52,7 @@ export function NotificationBell({ currentUser, setCurrentView }: NotificationBe
     }
   ]);
 
-  const dropdownRef = useRef(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -68,12 +68,41 @@ export function NotificationBell({ currentUser, setCurrentView }: NotificationBe
     };
   }, []);
 
+  const loadNotifications = useCallback(async () => {
+    try {
+      // In a real app, we would fetch from the API here
+      // For now, we'll keep the current alerts or refresh based on state
+      const supplies = await supplyService.getSupplies();
+      const lowStockCount = supplies.filter((s: any) => s.stock <= 5).length;
+      
+      if (lowStockCount > 0) {
+        const stockAlert: Alert = {
+          id: 'low-stock',
+          type: 'warning',
+          message: `${lowStockCount} insumos con stock bajo`,
+          action: 'Ver inventario',
+          time: 'Ahora',
+          icon: AlertTriangle,
+          color: 'text-yellow-600 bg-yellow-100',
+          view: 'inventario'
+        };
+        
+        setAlerts(prev => {
+          const filtered = prev.filter(a => a.id !== 'low-stock');
+          return [stockAlert, ...filtered].slice(0, 10);
+        });
+      }
+    } catch (err) {
+      console.error("Failed to fetch notifications:", err);
+    }
+  }, [currentUser]);
+
   // Simulate real-time updates
   useEffect(() => {
     const interval = setInterval(() => {
       // Simulate new notifications appearing randomly
-      if (Math.random() > 0.7 && alerts.length < 8) {
-        const newNotifications = [
+      if (Math.random() > 0.8 && alerts.length < 8) {
+        const newNotifications: Alert[] = [
           {
             id: Date.now(),
             type: 'info' as const,
@@ -84,24 +113,23 @@ export function NotificationBell({ currentUser, setCurrentView }: NotificationBe
             color: 'text-blue-600 bg-blue-100'
           },
           {
-            id: Date.now(),
+            id: Date.now() + 1,
             type: 'warning' as const,
             message: 'Insumo agotándose',
             action: 'Ver inventario',
             time: 'Ahora',
             icon: AlertTriangle,
-            color: 'text-yellow-600 bg-yellow-100'
+            color: 'text-yellow-600 bg-yellow-100',
+            view: 'inventario'
           }
         ];
         const randomNotification = newNotifications[Math.floor(Math.random() * newNotifications.length)];
         setAlerts(prev => [randomNotification, ...prev].slice(0, 10));
       }
+    }, 30000);
 
-      setAlerts(newAlerts);
-    } catch (err) {
-      console.error("Failed to fetch notifications:", err);
-    }
-  }, [currentUser]);
+    return () => clearInterval(interval);
+  }, [alerts.length]);
 
   // Initial load and auto-refresh every 60 seconds
   useEffect(() => {
