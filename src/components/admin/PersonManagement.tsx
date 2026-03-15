@@ -3,11 +3,15 @@ import {
     Users, Plus, Search, Filter, Eye, Edit, Calendar,
     Phone, Mail, MapPin, Heart, Scissors, ShoppingBag,
     X, Save, AlertCircle, Star, TrendingUp, Clock, Trash2, CheckCircle,
-    Briefcase
+    Briefcase, Shield
 } from 'lucide-react';
 import { SimplePagination } from '../ui/simple-pagination';
 import { personService, Person, CreatePersonData } from '../../services/personService';
 import { authService } from '../../services/authService';
+import { userService } from '../../services/userService';
+import { agendaService } from '../../services/agendaService';
+import { salesService } from '../../services/salesService';
+import { roleService, RolListDto } from '../../services/roleService';
 
 interface PersonManagementProps {
     hasPermission: (permission: string) => boolean;
@@ -16,6 +20,7 @@ interface PersonManagementProps {
 export function PersonManagement({ hasPermission }: PersonManagementProps) {
     const [personType, setPersonType] = useState<'client' | 'employee'>('client');
     const [persons, setPersons] = useState<Person[]>([]);
+    const [roles, setRoles] = useState<RolListDto[]>([]);
     const [loading, setLoading] = useState(true);
 
     const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
@@ -36,6 +41,7 @@ export function PersonManagement({ hasPermission }: PersonManagementProps) {
     // Fetch data when personType changes
     useEffect(() => {
         fetchPersons();
+        fetchRoles();
         setCurrentPage(1); // Reset page on tab change
     }, [personType]);
 
@@ -50,6 +56,15 @@ export function PersonManagement({ hasPermission }: PersonManagementProps) {
             setPersons([]);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchRoles = async () => {
+        try {
+            const data = await roleService.getRoles();
+            setRoles(data);
+        } catch (error) {
+            console.error('Error fetching roles:', error);
         }
     };
 
@@ -111,23 +126,95 @@ export function PersonManagement({ hasPermission }: PersonManagementProps) {
     const confirmDeletePerson = async () => {
         if (personToDelete) {
             try {
-                await personService.deletePerson(personToDelete.documentId, personType);
+                setLoading(true);
+
+                // 1. Check associations with appointments and sales
+                const [appointments, sales] = await Promise.all([
+                    agendaService.getAll(),
+                    salesService.getAll()
+                ]);
+
+                const hasAppointments = (appointments || []).some(apt =>
+                    personType === 'client'
+                        ? String(apt.documentoCliente) === String(personToDelete.documentId)
+                        : String(apt.documentoEmpleado) === String(personToDelete.documentId)
+                );
+
+                const hasSales = (sales || []).some(sale => {
+                    const saleCustId = String(sale.customerId || '');
+                    const saleEmpId = String(sale.employeeId || '');
+                    const personId = String(personToDelete.usuarioId || '');
+                    const personDocId = String(personToDelete.documentId || '');
+
+                    if (personType === 'client') {
+                        return (personId && saleCustId === personId) || (personDocId && saleCustId === personDocId);
+                    } else {
+                        return (personId && saleEmpId === personId) || (personDocId && saleEmpId === personDocId);
+                    }
+                });
+
+                if (hasAppointments || hasSales) {
+                    alert("Esta persona ya esta asociada a una Cita o Venta");
+                    setLoading(false);
+                    setShowDeleteModal(false);
+                    setPersonToDelete(null);
+                    return;
+                }
+
+                // 2. Identify and delete the user
+                let targetUserId = personToDelete.usuarioId;
+
+                // Fallback: If no direct usuarioId, try to find the user by email or name
+                if (!targetUserId) {
+                    try {
+                        const allUsers = await userService.getAll();
+                        const foundUser = allUsers.find(u => 
+                            (personToDelete.email && u.email?.toLowerCase() === personToDelete.email.toLowerCase()) ||
+                            (personToDelete.name && u.nombreUsuario?.toLowerCase() === personToDelete.name.toLowerCase()) ||
+                            (u.email?.toLowerCase().includes((personToDelete.email || '').toLowerCase()))
+                        );
+                        if (foundUser) {
+                            targetUserId = foundUser.usuarioId;
+                        }
+                    } catch (findError) {
+                        console.error('Error in user fallback search:', findError);
+                    }
+                }
+
+                // If we found a user, deleting the user should handle everything (cascade in DB)
+                // If not, we still try to delete the person record via personService
+                if (targetUserId) {
+                    console.log('Deleting associated user:', targetUserId);
+                    await userService.delete(targetUserId);
+                } else {
+                    console.log('No associated user found, deleting person record only');
+                    await personService.deletePerson(personToDelete.documentId, personType);
+                }
+
                 setPersons(persons.filter(p => p.documentId !== personToDelete.documentId));
                 setShowSuccessAlert(true);
                 setAlertMessage(`${personType === 'client' ? 'Cliente' : 'Empleado'} eliminado exitosamente`);
-            } catch (error) {
+            } catch (error: any) {
                 console.error('Error deleting person:', error);
-                alert('Error al eliminar');
+                // Handle 404 gracefully if it was already deleted by cascade
+                if (error?.response?.status === 404) {
+                    setPersons(persons.filter(p => p.documentId !== personToDelete.documentId));
+                    setShowSuccessAlert(true);
+                    setAlertMessage(`${personType === 'client' ? 'Cliente' : 'Empleado'} eliminado exitosamente`);
+                } else {
+                    alert('Error al eliminar. Verifique que no existan dependencias activas.');
+                }
             } finally {
+                setLoading(false);
                 setShowDeleteModal(false);
                 setPersonToDelete(null);
             }
         }
     };
 
-    const handleSavePerson = async (personData: CreatePersonData & { email?: string }) => {
+    const handleSavePerson = async (personData: CreatePersonData & { email?: string, roleId?: number }) => {
         try {
-            const { email, ...personOnlyData } = personData;
+            const { email, roleId, ...personOnlyData } = personData;
 
             if (!editingPerson && email) {
                 const { emailExists } = await authService.checkDuplicates(email);
@@ -135,9 +222,9 @@ export function PersonManagement({ hasPermission }: PersonManagementProps) {
                     alert('Error: El correo electrónico ya está registrado.');
                     return;
                 }
-                const rolId = personType === 'client' ? 2 : 3;
+                const selectedRoleId = roleId || (personType === 'client' ? 2 : 3);
                 const tempResp = await authService.createTempUser({
-                    rolId,
+                    rolId: selectedRoleId,
                     email
                 });
                 let usuarioId = (tempResp && (tempResp.usuarioId || tempResp.id)) || null;
@@ -486,6 +573,7 @@ export function PersonManagement({ hasPermission }: PersonManagementProps) {
                     onSave={handleSavePerson}
                     editingPerson={editingPerson}
                     personType={personType}
+                    roles={roles}
                 />
             )}
 
@@ -597,7 +685,7 @@ function PersonProfileModal({ person, onClose, personType }: { person: Person, o
 }
 
 // New/Edit Person Modal Component
-function NewPersonModal({ onClose, onSave, editingPerson, personType }: { onClose: () => void, onSave: (data: any) => void, editingPerson: Person | null, personType: string }) {
+function NewPersonModal({ onClose, onSave, editingPerson, personType, roles }: { onClose: () => void, onSave: (data: any) => void, editingPerson: Person | null, personType: string, roles: RolListDto[] }) {
     const [formData, setFormData] = useState({
         documentType: editingPerson?.documentType || 'CC',
         documentId: editingPerson?.documentId || '',
@@ -606,10 +694,13 @@ function NewPersonModal({ onClose, onSave, editingPerson, personType }: { onClos
         address: editingPerson?.address || '',
         email: '',
         type: personType as 'client' | 'employee',
+        roleId: (personType === 'employee' ? (roles.find(r => r.nombre.toLowerCase() === 'asistente')?.rolId || 3) : 2),
         authData: undefined
     });
 
     const [errors, setErrors] = useState<Record<string, string>>({});
+
+    const filteredRoles = roles.filter(r => r.nombre.toLowerCase() !== 'cliente');
 
     const validateForm = () => {
         const newErrors: Record<string, string> = {};
@@ -731,6 +822,26 @@ function NewPersonModal({ onClose, onSave, editingPerson, personType }: { onClos
                             </div>
                         )}
                     </div>
+
+                    {/* Rol (Solo para empleados nuevos) */}
+                    {personType === 'employee' && !editingPerson && (
+                        <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                Rol del Empleado <span className="text-red-500">*</span>
+                            </label>
+                            <select
+                                value={formData.roleId}
+                                onChange={(e) => handleChange('roleId', Number(e.target.value))}
+                                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-300 focus:border-transparent bg-white"
+                            >
+                                {filteredRoles.map((role) => (
+                                    <option key={role.rolId} value={role.rolId}>
+                                        {role.nombre}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
 
                     {/* Teléfono */}
                     <div className="grid md:grid-cols-2 gap-5">

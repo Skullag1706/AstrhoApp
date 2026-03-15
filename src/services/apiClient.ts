@@ -108,7 +108,13 @@ export const apiClient = {
             if (!text || text.trim() === '') {
                 return null;
             }
-            return JSON.parse(text);
+            
+            // Try parsing as JSON, fall back to original text if fails
+            try {
+                return JSON.parse(text);
+            } catch {
+                return text;
+            }
         } catch (error) {
             console.error(`API PUT error on ${endpoint}:`, error);
             throw error;

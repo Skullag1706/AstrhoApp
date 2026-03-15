@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Scissors, Plus, Edit, Trash2, Eye, Search, Filter, Clock, DollarSign,
   Package, X, Save, AlertCircle, TrendingUp, Calendar, Tag, Star, Users,
-  Image as ImageIcon, CheckCircle
+  Image as ImageIcon, CheckCircle, FileText
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { serviceService, Service as APIService } from '../../services/serviceService';
@@ -204,9 +204,7 @@ export function ServiceManagement({ hasPermission }: ServiceManagementProps) {
       duration: service.duracion || service.Duracion || 0,
       status: (service.estado !== undefined ? service.estado : (service.Estado !== undefined ? service.Estado : (service.activo !== undefined ? service.activo : service.Activo))) ? 'active' : 'inactive',
       updatedAt: (service.fechaActualizacion || service.FechaActualizacion || service.fechaCreacion || service.FechaCreacion || '').split('T')[0] || new Date().toISOString().split('T')[0],
-      image: imageUrl || DEFAULT_SERVICE_IMAGE,
-      popularity: 0,
-      appointments: 0
+      image: imageUrl || DEFAULT_SERVICE_IMAGE
     };
   };
 
@@ -683,86 +681,113 @@ function ErrorModal({ message, onClose }: { message: string, onClose: () => void
 // Service Detail Modal Component
 function ServiceDetailModal({ service, onClose }) {
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[1000] flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-        {/* Modal Header */}
-        <div className="relative h-64 bg-gradient-to-r from-pink-400 to-purple-500 rounded-t-3xl">
-          <img
-            src={service.image}
-            alt={service.name}
-            className="w-full h-full object-cover opacity-80 rounded-t-3xl"
-            onError={handleImageError}
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-pink-400/60 to-purple-500/60 rounded-t-3xl"></div>
-          <div className="absolute inset-0 flex items-center justify-between p-6 text-white">
-            <div>
-              <h3 className="text-3xl font-bold">{service.name}</h3>
-              <div className="mt-2">
-                <span className={`px-3 py-1 rounded-full text-sm font-semibold ${service.status === 'active'
-                  ? 'bg-green-400 text-white'
-                  : 'bg-gray-400 text-white'
-                  }`}>
-                  {service.status === 'active' ? 'Activo' : 'Inactivo'}
-                </span>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+        {/* Header - Fixed at top */}
+        <div className="bg-gradient-to-r from-pink-500 to-purple-600 p-5 text-white shrink-0 shadow-md z-20">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                <Scissors className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold leading-tight">Detalle del Servicio</h3>
+                <p className="text-pink-50 text-[10px] font-black uppercase tracking-widest mt-0.5">ID: {service.id}</p>
               </div>
             </div>
             <button
               onClick={onClose}
-              className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
+              className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        <div className="p-6">
-          {/* Service Information */}
-          <div className="grid md:grid-cols-2 gap-8 mb-8">
-            <div>
-              <h4 className="font-bold text-gray-800 mb-4">Información del Servicio</h4>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Nombre:</span>
-                  <span className="font-semibold text-gray-800">{service.name}</span>
+        {/* Scrollable Body */}
+        <div className="flex-1 overflow-y-auto p-6 lg:p-8 bg-gray-50/30 no-scrollbar">
+          <style>{`
+            .no-scrollbar::-webkit-scrollbar { display: none; }
+            .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+          `}</style>
+          
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* Centered Large Image */}
+            <div className="flex justify-center">
+              <div className="bg-white rounded-3xl p-2 border border-gray-100 shadow-lg overflow-hidden w-full max-w-2xl h-64 md:h-80 transition-transform hover:scale-[1.02] duration-300">
+                <img 
+                  src={service.image} 
+                  alt={service.name} 
+                  className="w-full h-full object-cover rounded-2xl"
+                  onError={handleImageError}
+                />
+              </div>
+            </div>
+
+            {/* Info & Description Grid - 3 Columns for horizontal efficiency */}
+            <div className="grid md:grid-cols-3 gap-4 pb-4">
+              {/* Column 1: General Info */}
+              <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col h-full">
+                <div className="flex items-center space-x-2 text-purple-500 mb-3">
+                  <Tag className="w-4 h-4" />
+                  <h4 className="font-bold uppercase text-[10px] tracking-widest">General</h4>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Duración:</span>
-                  <span className="text-gray-800">{service.duration} minutos</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Precio:</span>
-                  <span className="font-bold text-green-600">${service.price.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Estado:</span>
-                  <span className={`font-semibold ${service.status === 'active' ? 'text-green-600' : 'text-gray-600'
-                    }`}>
-                    {service.status === 'active' ? 'Activo' : 'Inactivo'}
+                <p className="font-bold text-gray-800 text-lg mb-2 truncate">
+                  {service.name}
+                </p>
+                <div className="mt-auto">
+                  <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                    service.status === 'active' 
+                      ? 'bg-green-100 text-green-700' 
+                      : 'bg-red-100 text-red-700'
+                  }`}>
+                    {service.status === 'active' ? 'Servicio Activo' : 'Servicio Inactivo'}
                   </span>
                 </div>
               </div>
-            </div>
 
-            <div>
-              <h4 className="font-bold text-gray-800 mb-4">Estadísticas</h4>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Popularidad:</span>
-                  <span className="font-semibold text-gray-800">{service.popularity}%</span>
+              {/* Column 2: Pricing & Time Card */}
+              <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col h-full">
+                <div className="flex items-center space-x-2 text-pink-500 mb-3">
+                  <Clock className="w-4 h-4" />
+                  <h4 className="font-bold uppercase text-[10px] tracking-widest">Detalles</h4>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Total Citas:</span>
-                  <span className="text-gray-800">{service.appointments}</span>
+                <div className="space-y-4 mt-2">
+                  <div className="flex justify-between items-center pb-2 border-b border-gray-50">
+                    <span className="text-gray-400 text-[10px] font-bold uppercase tracking-tight">Duración:</span>
+                    <span className="font-bold text-gray-700">{service.duration} min</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-400 text-[10px] font-bold uppercase tracking-tight">Precio:</span>
+                    <span className="font-bold text-green-600 text-lg">${service.price.toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Column 3: Description Section */}
+              <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col h-full">
+                <div className="flex items-center space-x-2 text-blue-500 mb-3">
+                  <FileText className="w-4 h-4" />
+                  <h4 className="font-bold uppercase text-[10px] tracking-widest">Descripción</h4>
+                </div>
+                <div className="flex-1 overflow-y-auto no-scrollbar max-h-[120px]">
+                  <p className="text-gray-600 text-xs leading-relaxed">
+                    {service.description || 'Sin descripción adicional.'}
+                  </p>
                 </div>
               </div>
             </div>
           </div>
+        </div>
 
-          {/* Description */}
-          <div className="mb-8">
-            <h4 className="font-bold text-gray-800 mb-4">Descripción</h4>
-            <p className="text-gray-700 bg-gray-50 rounded-xl p-4">{service.description}</p>
-          </div>
+        {/* Footer */}
+        <div className="p-5 bg-white border-t border-gray-100 flex justify-end shrink-0 z-20">
+          <button
+            onClick={onClose}
+            className="px-8 py-2.5 rounded-xl font-black text-gray-500 hover:bg-gray-200 hover:text-gray-800 active:scale-95 transition-all text-sm uppercase tracking-widest shadow-sm"
+          >
+            Cerrar
+          </button>
         </div>
       </div>
     </div>

@@ -22,6 +22,8 @@ export interface SaleView {
   id: string;
   customerId?: string | number;
   customerName?: string;
+  customerEmail?: string;
+  customerPhone?: string;
   employeeId?: string | number;
   employeeName?: string;
   date: string;
@@ -75,10 +77,12 @@ function extractDateTime(dateStr: any): { date: string; time: string } {
 }
 
 function mapApiSaleToView(apiSale: any): SaleView {
+  // El ID de la venta: preferimos el campo 'id' o 'sale_number' que suele traer el prefijo VEN- o VNT-
+  // ya que según el usuario, la API parece esperar este formato o al menos es el que se muestra.
   const id =
+    apiSale?.id ||
     apiSale?.sale_number ||
     apiSale?.ventaId ||
-    apiSale?.id ||
     `VNT-${String(apiSale?.ventaId || Math.floor(Math.random() * 100000)).padStart(3, '0')}`;
 
   const dt = extractDateTime(apiSale?.sale_date || apiSale?.fechaVenta || apiSale?.fecha || apiSale?.createdAt);
@@ -92,7 +96,7 @@ function mapApiSaleToView(apiSale: any): SaleView {
           unitPrice: safeNumber(it?.unit_price ?? it?.precioUnitario),
           discount: safeNumber(it?.discount ?? it?.descuento),
           totalPrice: safeNumber(it?.total ?? it?.totalPrice ?? it?.subtotal),
-          name: it?.product_name ?? it?.nombreProducto,
+          name: it?.product_name ?? it?.nombreProducto ?? it?.nombre,
         }))
     : [];
 
@@ -105,7 +109,7 @@ function mapApiSaleToView(apiSale: any): SaleView {
           price: safeNumber(it?.unit_price ?? it?.precio),
           discount: safeNumber(it?.discount ?? it?.descuento),
           totalPrice: safeNumber(it?.total ?? it?.totalPrice ?? it?.subtotal),
-          name: it?.service_name ?? it?.nombreServicio,
+          name: it?.service_name ?? it?.nombreServicio ?? it?.nombre,
         }))
     : Array.isArray(apiSale?.servicios)
     ? apiSale.servicios.map((s: any) => ({
@@ -128,10 +132,12 @@ function mapApiSaleToView(apiSale: any): SaleView {
 
   return {
     id: String(id),
-    customerId: apiSale?.customer_id ?? apiSale?.clienteId ?? apiSale?.cliente?.id,
-    customerName: apiSale?.customer_name ?? apiSale?.clienteNombre ?? apiSale?.cliente?.nombre,
-    employeeId: apiSale?.user_id ?? apiSale?.empleadoId ?? apiSale?.empleado?.id,
-    employeeName: apiSale?.user_name ?? apiSale?.empleadoNombre ?? apiSale?.empleado?.nombre,
+    customerId: apiSale?.documentoCliente ?? apiSale?.customer_id ?? apiSale?.clienteId ?? apiSale?.cliente?.id,
+    customerName: apiSale?.clienteNombre ?? apiSale?.customer_name ?? apiSale?.cliente?.nombre,
+    customerEmail: apiSale?.customer_email ?? apiSale?.clienteEmail ?? apiSale?.cliente?.email ?? apiSale?.cliente?.nombreUsuario,
+    customerPhone: apiSale?.customer_phone ?? apiSale?.clienteTelefono ?? apiSale?.cliente?.telefono,
+    employeeId: apiSale?.empleadoDocumento ?? apiSale?.user_id ?? apiSale?.empleadoId ?? apiSale?.empleado?.id,
+    employeeName: apiSale?.empleadoNombre ?? apiSale?.user_name ?? apiSale?.empleado?.nombre,
     date: dt.date,
     time: dt.time,
     items,
@@ -142,7 +148,7 @@ function mapApiSaleToView(apiSale: any): SaleView {
     total,
     paymentMethod: toPaymentMethod(apiSale?.payment_method ?? apiSale?.metodoPago),
     status: toStatus(apiSale?.payment_status ?? apiSale?.estado),
-    notes: apiSale?.notes ?? apiSale?.observaciones,
+    notes: apiSale?.notes ?? apiSale?.observaciones ?? apiSale?.observacion ?? apiSale?.observación ?? apiSale?.Observaciones ?? apiSale?.Observación,
     createdAt: apiSale?.created_at ?? apiSale?.createdAt,
     updatedAt: apiSale?.updated_at ?? apiSale?.updatedAt,
   };
@@ -182,4 +188,32 @@ export const salesService = {
     if (!res) return null;
     return mapApiSaleToView(res);
   },
+
+  async cancel(id: string | number, observacion: string): Promise<SaleView | null> {
+    // Usamos el ID tal cual viene de la SaleView (puede incluir el prefijo VEN- o VNT- si así lo devolvió la API)
+    // El error 404 sugiere que no debemos remover el prefijo si es parte del ID reconocido por el backend.
+    const cleanId = String(id);
+
+    // Formato exacto verificado por el usuario en pruebas manuales.
+    const payload: any = {
+      estado: false,
+      observacion: observacion
+    };
+
+    try {
+      const res = await apiClient.put(`/Ventas/${cleanId}`, payload);
+      
+      if (!res || typeof res !== 'object') return null;
+      return mapApiSaleToView(res);
+    } catch (error) {
+      console.error('Error in salesService.cancel:', error);
+      throw error;
+    }
+  },
+
+  async create(data: any): Promise<SaleView | null> {
+    const res = await apiClient.post('/Ventas', data);
+    if (!res) return null;
+    return mapApiSaleToView(res);
+  }
 };

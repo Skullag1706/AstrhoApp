@@ -7,6 +7,8 @@ import {
 import { SimplePagination } from '../ui/simple-pagination';
 import { userService, UsuarioListItem, UsuarioDetail } from '../../services/userService';
 import { authService } from '../../services/authService';
+import { agendaService } from '../../services/agendaService';
+import { salesService } from '../../services/salesService';
 import { roleService, RolListDto } from '../../services/roleService';
 import { apiClient } from '../../services/apiClient';
 
@@ -147,6 +149,47 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
   const confirmDeleteUser = async () => {
     if (userToDelete) {
       try {
+        setLoading(true);
+
+        // 1. Get associated person to check for appointments/sales
+        const personInfo = await userService.getPersonForUser(userToDelete.usuarioId);
+
+        // 2. Check associations with appointments and sales
+        const [appointments, sales] = await Promise.all([
+          agendaService.getAll(),
+          salesService.getAll()
+        ]);
+
+        const hasAppointments = (appointments || []).some(apt => {
+          const personIdStr = String(userToDelete.usuarioId);
+          const personDocStr = String(personInfo?.documentId || '');
+
+          return String(apt.documentoCliente) === personDocStr || 
+                 String(apt.documentoEmpleado) === personDocStr ||
+                 (apt as any).customer_id === userToDelete.usuarioId ||
+                 (apt as any).assigned_to === userToDelete.usuarioId;
+        });
+
+        const hasSales = (sales || []).some(sale => {
+          const saleCustId = String(sale.customerId || '');
+          const saleEmpId = String(sale.employeeId || '');
+          const personIdStr = String(userToDelete.usuarioId);
+          const personDocStr = String(personInfo?.documentId || '');
+
+          return (saleCustId === personIdStr) || 
+                 (saleEmpId === personIdStr) ||
+                 (personDocStr && saleCustId === personDocStr) ||
+                 (personDocStr && saleEmpId === personDocStr);
+        });
+
+        if (hasAppointments || hasSales) {
+          alert("Esta persona ya esta asociada a una Cita o Venta");
+          setLoading(false);
+          setShowDeleteModal(false);
+          setUserToDelete(null);
+          return;
+        }
+
         await userService.delete(userToDelete.usuarioId);
         setShowDeleteModal(false);
         setUserToDelete(null);
@@ -155,8 +198,9 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
         await fetchUsers();
       } catch (error) {
         console.error('Error deleting user:', error);
-        setAlertMessage('Error al eliminar el usuario');
-        setShowSuccessAlert(true);
+        alert('Error al eliminar el usuario. Verifique que no existan dependencias activas.');
+      } finally {
+        setLoading(false);
       }
     }
   };

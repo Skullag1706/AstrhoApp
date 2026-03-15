@@ -8,6 +8,8 @@ export interface Person {
     phone: string;         // Maps to telefono
     address: string;
     status: 'active' | 'inactive'; // Maps to estado (boolean)
+    usuarioId?: number;
+    email?: string;
 }
 
 export interface CreatePersonData {
@@ -18,6 +20,7 @@ export interface CreatePersonData {
     phone: string;
     address: string;
     usuarioId?: number;
+    email?: string;
 }
 
 // Map Backend DTO to Frontend Model
@@ -35,7 +38,9 @@ const mapBackendToPerson = (data: any, type: 'client' | 'employee'): Person => (
             return data.direccionEmpleado || data.direccion_empleado || data['direcciónEmpleado'] || common;
         }
     })(),
-    status: data.estado !== false ? 'active' : 'inactive' // default true if missing
+    status: data.estado !== false ? 'active' : 'inactive', // default true if missing
+    usuarioId: data.usuarioId,
+    email: data.email || data.nombreUsuario
 });
 
 // Map Frontend Model to Backend DTO for Create/Update
