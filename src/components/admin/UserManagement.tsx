@@ -458,8 +458,8 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
                       <div className="flex items-center space-x-3">
                         {(user.rolNombre || '').toLowerCase() === 'super admin' ? (
                           // Super admin siempre activo, sin switch
-                          <div className="flex items-center space-x-2">
-                            <div className="w-11 h-6 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full relative">
+                          <div className="flex items-center space-x-2 cursor-not-allowed" title="El Super Administrador no puede ser desactivado">
+                            <div className="w-11 h-6 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full relative opacity-80">
                               <div className="absolute top-[2px] right-[2px] bg-white border-white border rounded-full h-5 w-5"></div>
                             </div>
                             <span className="ml-1 text-sm font-medium text-green-600">
@@ -692,11 +692,9 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
 
 // User Modal Component
 function UserModal({ user, onClose, onSave, roles }: { user: any; onClose: () => void; onSave: (data: any) => void; roles: RolListDto[] }) {
-  // Filter out Super Admin from the roles available for selection
-  const availableRoles = roles.filter(r => 
-    r.nombre.toLowerCase() !== 'super admin' && 
-    r.nombre.toLowerCase() !== 'super administrador'
-  );
+  // If editing a user and they are super admin, we must include the super admin role in the list so it displays correctly, otherwise hide it.
+  const isEditingSuperAdmin = user && (user.rol?.nombre || user.rolNombre || '').toLowerCase() === 'super admin';
+  const availableRoles = isEditingSuperAdmin ? roles : roles.filter(r => r.nombre.toLowerCase() !== 'super admin');
 
   const [formData, setFormData] = useState({
     rolId: user?.rol?.rolId || (availableRoles.find(r => r.nombre.toLowerCase() === 'administrador')?.rolId || (availableRoles.length > 0 ? availableRoles[0].rolId : 0)),
@@ -711,6 +709,55 @@ function UserModal({ user, onClose, onSave, roles }: { user: any; onClose: () =>
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [validatingFields, setValidatingFields] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (user && user.usuarioId) {
+      const fetchPersonData = async () => {
+        try {
+          const [clientes, empleados] = await Promise.all([
+            apiClient.get<any[]>('/Clientes'),
+            apiClient.get<any[]>('/Empleados')
+          ]);
+          
+          const mapDocTypeBack = (t: string) => {
+            if (t === 'CC') return 'cedula';
+            if (t === 'CE') return 'cedula_extranjeria';
+            if (t === 'PAS') return 'pasaporte';
+            return 'cedula';
+          };
+          
+          const client = (clientes || []).find((c: any) => c.usuarioId === user.usuarioId);
+          if (client) {
+            setFormData(prev => ({
+              ...prev,
+              documentType: mapDocTypeBack(client.tipoDocumento),
+              documentId: client.documentoCliente,
+              nombre: client.nombre,
+              phone: client.telefono,
+              direccion: client.dirección || client.direccion || '',
+            }));
+            return;
+          }
+
+          const employee = (empleados || []).find((e: any) => e.usuarioId === user.usuarioId);
+          if (employee) {
+            setFormData(prev => ({
+              ...prev,
+              documentType: mapDocTypeBack(employee.tipoDocumento),
+              documentId: employee.documentoEmpleado,
+              nombre: employee.nombre,
+              phone: employee.telefono,
+              direccion: employee.dirección || employee.direccion || '',
+            }));
+          }
+        } catch (e) {
+          console.error("Error fetching person data for user", e);
+        }
+      };
+      
+      fetchPersonData();
+    }
+  }, [user]);
 
   // ── Centralized synchronous validation per field ──
   const validateField = (name: string, value: string, docType?: string): string => {
@@ -895,9 +942,9 @@ function UserModal({ user, onClose, onSave, roles }: { user: any; onClose: () =>
                   name="rolId"
                   value={formData.rolId}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
+                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${isEditingSuperAdmin ? 'bg-gray-100/50 text-gray-500 cursor-not-allowed border-gray-200' : 'border-gray-300'}`}
                   required
-                  disabled={!!user}
+                  disabled={isEditingSuperAdmin}
                 >
                   <option value="">Seleccionar rol</option>
                   {availableRoles.map(role => (
@@ -915,7 +962,7 @@ function UserModal({ user, onClose, onSave, roles }: { user: any; onClose: () =>
                   name="documentType"
                   value={formData.documentType}
                   onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
+                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${!!user ? 'bg-gray-100/50 text-gray-500 cursor-not-allowed border-gray-200' : 'border-gray-300'}`}
                   disabled={!!user}
                 >
                   <option value="cedula">Cédula de Ciudadanía</option>
@@ -938,7 +985,7 @@ function UserModal({ user, onClose, onSave, roles }: { user: any; onClose: () =>
                   value={formData.documentId}
                   onChange={handleInputChange}
                   onBlur={handleBlur}
-                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${fieldErrors.documentId ? 'border-red-500' : 'border-gray-300'}`}
+                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${!!user ? 'bg-gray-100/50 text-gray-500 cursor-not-allowed border-gray-200' : fieldErrors.documentId ? 'border-red-500' : 'border-gray-300'}`}
                   required={!user}
                   disabled={!!user}
                 />
@@ -961,7 +1008,7 @@ function UserModal({ user, onClose, onSave, roles }: { user: any; onClose: () =>
                   value={formData.nombre}
                   onChange={handleInputChange}
                   onBlur={handleBlur}
-                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${fieldErrors.nombre ? 'border-red-500' : 'border-gray-300'}`}
+                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${!!user ? 'bg-gray-100/50 text-gray-500 cursor-not-allowed border-gray-200' : fieldErrors.nombre ? 'border-red-500' : 'border-gray-300'}`}
                   required={!user}
                   disabled={!!user}
                 />
@@ -1005,7 +1052,7 @@ function UserModal({ user, onClose, onSave, roles }: { user: any; onClose: () =>
                   onBlur={handleBlur}
                   placeholder="10 dígitos"
                   maxLength={10}
-                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${fieldErrors.phone ? 'border-red-500' : 'border-gray-300'}`}
+                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${!!user ? 'bg-gray-100/50 text-gray-500 cursor-not-allowed border-gray-200' : fieldErrors.phone ? 'border-red-500' : 'border-gray-300'}`}
                   required={!user}
                   disabled={!!user}
                 />
@@ -1026,7 +1073,7 @@ function UserModal({ user, onClose, onSave, roles }: { user: any; onClose: () =>
                   onChange={handleInputChange}
                   onBlur={handleBlur}
                   placeholder="Calle, carrera, número, barrio"
-                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${fieldErrors.direccion ? 'border-red-500' : 'border-gray-300'}`}
+                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${!!user ? 'bg-gray-100/50 text-gray-500 cursor-not-allowed border-gray-200' : fieldErrors.direccion ? 'border-red-500' : 'border-gray-300'}`}
                   required={!user}
                   disabled={!!user}
                 />
@@ -1062,80 +1109,111 @@ function UserModal({ user, onClose, onSave, roles }: { user: any; onClose: () =>
 // User Detail Modal Component
 function UserDetailModal({ user, onClose }: { user: any; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-        <div className="bg-gradient-to-r from-blue-400 to-purple-500 p-6 text-white rounded-t-3xl shrink-0">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+        {/* Header - Fixed at top */}
+        <div className="bg-gradient-to-r from-pink-500 to-purple-600 p-5 text-white shrink-0 shadow-md z-20">
           <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-2xl font-bold">Detalles del Usuario</h3>
-              <p className="text-blue-100">Información completa</p>
+            <div className="flex items-center space-x-4">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                <Users className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold leading-tight">Detalles del Usuario</h3>
+                <p className="text-pink-100 text-sm">{user.email}</p>
+              </div>
             </div>
             <button
               onClick={onClose}
-              className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
+              className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        <div className="p-6 space-y-6 overflow-y-auto">
-          <div className="text-center">
-            <div className="w-24 h-24 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-4 overflow-hidden">
-              <span className="text-white font-bold text-2xl">
-                {user.email.charAt(0).toUpperCase()}
-              </span>
-            </div>
-            <h4 className="text-xl font-bold text-gray-800">{user.email}</h4>
-          </div>
+        {/* Scrollable Body */}
+        <div className="flex-1 overflow-y-auto p-6 lg:p-8 bg-gray-50/30 no-scrollbar">
+          <style>{`
+            .no-scrollbar::-webkit-scrollbar { display: none; }
+            .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+          `}</style>
 
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="space-y-4">
-              <h5 className="font-semibold text-gray-800">Información del Usuario</h5>
-
-              <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-xl">
-                <Mail className="w-5 h-5 text-gray-400" />
-                <div>
-                  <div className="text-sm text-gray-600">Correo Electrónico</div>
-                  <div className="font-semibold text-gray-800">{user.email}</div>
-                </div>
+          <div className="max-w-4xl mx-auto space-y-6">
+            <div className="text-center mb-6">
+              <div className="w-24 h-24 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                <span className="text-white font-bold text-3xl">
+                  {user.email.charAt(0).toUpperCase()}
+                </span>
+              </div>
+              <h4 className="text-xl font-bold text-gray-800">{user.email}</h4>
+              <div className="mt-2">
+                <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${user.estado ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                  {user.estado ? 'Activo' : 'Inactivo'}
+                </span>
               </div>
             </div>
 
-            <div className="space-y-4">
-              <h5 className="font-semibold text-gray-800">Información del Sistema</h5>
-
-              <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-xl">
-                <UserCheck className="w-5 h-5 text-gray-400" />
-                <div>
-                  <div className="text-sm text-gray-600">Rol</div>
-                  <div className="font-semibold text-gray-800">
-                    {user.rol?.nombre || user.rolNombre || 'Sin rol'}
+            <div className="grid md:grid-cols-2 gap-4">
+              {/* User Information Card */}
+              <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+                <div className="flex items-center space-x-2 text-pink-500 mb-4">
+                  <UserCheck className="w-4 h-4" />
+                  <h4 className="font-bold uppercase text-[10px] tracking-widest">Información del Usuario</h4>
+                </div>
+                
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-3 p-3 bg-gray-50/50 rounded-xl hover:bg-gray-50 transition-colors">
+                    <Mail className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                    <div>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Correo Electrónico</span>
+                      <span className="font-semibold text-gray-800 break-all">{user.email}</span>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-xl">
-                <AlertCircle className="w-5 h-5 text-gray-400" />
-                <div>
-                  <div className="text-sm text-gray-600">Estado</div>
-                  <div className={`font-semibold ${user.estado ? 'text-green-600' : 'text-red-600'
-                    }`}>
-                    {user.estado ? 'Activo' : 'Inactivo'}
+              {/* System Info Card */}
+              <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+                <div className="flex items-center space-x-2 text-purple-500 mb-4">
+                  <Shield className="w-4 h-4" />
+                  <h4 className="font-bold uppercase text-[10px] tracking-widest">Información del Sistema</h4>
+                </div>
+                
+                <div className="space-y-4">
+                  <div className="flex items-center space-x-3 p-3 bg-gray-50/50 rounded-xl hover:bg-gray-50 transition-colors">
+                    <UserCog className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                    <div>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Rol Asignado</span>
+                      <span className="font-semibold text-gray-800">
+                        {user.rol?.nombre || user.rolNombre || 'Sin rol'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-3 p-3 bg-gray-50/50 rounded-xl hover:bg-gray-50 transition-colors">
+                    <AlertCircle className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                    <div>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Estado de Cuenta</span>
+                      <span className={`font-semibold ${user.estado ? 'text-green-600' : 'text-red-600'}`}>
+                        {user.estado ? 'Activo' : 'Inactivo'}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
+        </div>
 
-          <div className="flex justify-end">
-            <button
-              onClick={onClose}
-              className="px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
-            >
-              Cerrar
-            </button>
-          </div>
+        {/* Footer - Fixed at bottom */}
+        <div className="p-5 bg-white border-t border-gray-100 flex flex-wrap gap-3 justify-end shrink-0 z-20">
+          <button
+            onClick={onClose}
+            className="px-8 py-2.5 rounded-xl font-black text-gray-500 hover:bg-gray-200 hover:text-gray-800 active:scale-95 transition-all text-sm uppercase tracking-widest shadow-sm"
+          >
+            Cerrar
+          </button>
         </div>
       </div>
     </div>
