@@ -42,7 +42,6 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [statusDropdownOpen, setStatusDropdownOpen] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -62,15 +61,14 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
 
       // Extract the array from any wrapper format
       let items: any[] = [];
-      const rawAny = raw as any;
       if (Array.isArray(raw)) {
         items = raw;
-      } else if (rawAny && Array.isArray(rawAny.$values)) {
-        items = rawAny.$values;
-      } else if (rawAny && Array.isArray(rawAny.data)) {
-        items = rawAny.data;
-      } else if (rawAny && Array.isArray(rawAny.result)) {
-        items = rawAny.result;
+      } else if (raw && Array.isArray(raw.$values)) {
+        items = raw.$values;
+      } else if (raw && Array.isArray(raw.data)) {
+        items = raw.data;
+      } else if (raw && Array.isArray(raw.result)) {
+        items = raw.result;
       }
 
       // Unwrap nested $values (e.g. detalles.$values)
@@ -89,15 +87,14 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
     try {
       const raw = await supplierService.getAll();
       let items: any[] = [];
-      const rawAny2 = raw as any;
       if (Array.isArray(raw)) {
         items = raw;
-      } else if (rawAny2 && Array.isArray(rawAny2.$values)) {
-        items = rawAny2.$values;
-      } else if (rawAny2 && Array.isArray(rawAny2.data)) {
-        items = rawAny2.data;
-      } else if (rawAny2 && Array.isArray(rawAny2.result)) {
-        items = rawAny2.result;
+      } else if (raw && Array.isArray(raw.$values)) {
+        items = raw.$values;
+      } else if (raw && Array.isArray(raw.data)) {
+        items = raw.data;
+      } else if (raw && Array.isArray(raw.result)) {
+        items = raw.result;
       }
       setSuppliers(items);
     } catch (err) {
@@ -108,34 +105,21 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
   const fetchSupplies = async () => {
     try {
       const raw = await supplyService.getSupplies();
-      const items = unwrapValues(raw);
-      setSupplies(Array.isArray(items) ? items : []);
+      let items: any[] = [];
+      if (Array.isArray(raw)) {
+        items = raw;
+      } else if (raw && Array.isArray(raw.$values)) {
+        items = raw.$values;
+      } else if (raw && Array.isArray(raw.data)) {
+        items = raw.data;
+      } else if (raw && Array.isArray(raw.result)) {
+        items = raw.result;
+      }
+      setSupplies(items);
     } catch (err) {
       console.error('Error loading supplies:', err);
     }
   };
-
-  // Robust helper to get ID from a raw supply object
-  const getSupplyId = (s: any): number => {
-    if (!s) return 0;
-    return Number(s.insumoId || s.InsumoId || s.id || s.Id || 0);
-  };
-
-  // Robust helper to get Stock from a raw supply object
-  const getSupplyStock = (s: any): number => {
-    if (!s) return 0;
-    return Number(
-      s.cantidad ?? s.Cantidad ??
-      s.stock ?? s.Stock ??
-      s.existencia ?? s.Existencia ??
-      s.quantity ?? s.Quantity ??
-      s.stockActual ?? s.StockActual ??
-      s.existencias ?? s.Existencias ??
-      s.disponible ?? s.Disponible ??
-      s.stock_disponible ?? s.Stock_Disponible ?? 0
-    );
-  };
-
 
   useEffect(() => {
     fetchPurchases();
@@ -249,6 +233,33 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
     }
   };
 
+  const handleCancelPurchase = (purchase: PurchaseAPI) => {
+    setSelectedPurchase(purchase);
+    setShowCancelModal(true);
+  };
+
+  const confirmCancelPurchase = async (observation: string) => {
+    if (!selectedPurchase) return;
+
+    try {
+      await purchaseService.update(selectedPurchase.compraId, {
+        proveedorId: selectedPurchase.proveedorId,
+        iva: selectedPurchase.iva,
+        estado: false
+      });
+
+      await fetchPurchases();
+
+      setShowCancelModal(false);
+      setSelectedPurchase(null);
+      setShowSuccessAlert(true);
+      setAlertMessage('Compra anulada exitosamente');
+    } catch (err) {
+      console.error('Error cancelling purchase:', err);
+      setShowSuccessAlert(true);
+      setAlertMessage('Error al anular la compra');
+    }
+  };
 
   const formatDate = (dateStr: string) => {
     try {
@@ -262,7 +273,7 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
     const receiptContent = `
       <div style="font-family: Arial, sans-serif; max-width: 400px; margin: 0 auto; padding: 20px;">
         <div style="text-align: center; border-bottom: 2px solid #e91e63; padding-bottom: 15px; margin-bottom: 15px;">
-          <h1 style="color: #e91e63; margin: 0;">AsthroApp</h1>
+          <h1 style="color: #e91e63; margin: 0;">AstroApp</h1>
           <p style="margin: 5px 0; color: #666;">Salón de Belleza</p>
           <p style="margin: 5px 0; color: #666;">Cll 55 #42-16 Medellín</p>
         </div>
@@ -323,78 +334,23 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
     `;
 
     const newWindow = window.open('', '_blank');
-    if (newWindow) {
-      newWindow.document.write(`
-        <html>
-          <head>
-            <title>Factura de Compra - #${purchase.compraId}</title>
-          </head>
-          <body>
-            ${receiptContent}
-            <script>
-              window.onload = function() {
-                setTimeout(function() {
-                  window.print();
-                }, 500);
-              };
-            </script>
-          </body>
-        </html>
-      `);
-      newWindow.document.close();
-    }
-  };
-
-  const handleCancelPurchase = (purchase: PurchaseAPI) => {
-    setSelectedPurchase(purchase);
-    setShowCancelModal(true);
-  };
-
-  const confirmCancelPurchase = async (observation: string) => {
-    if (!selectedPurchase) return;
-
-    try {
-      await purchaseService.update(selectedPurchase.compraId, {
-        proveedorId: selectedPurchase.proveedorId,
-        iva: selectedPurchase.iva,
-        estado: false
-      });
-
-      // Si queremos revertir el stock al anular (opcional, depende de la lógica de negocio)
-      // Por ahora solo anulamos la orden
-
-      await fetchPurchases();
-      setShowCancelModal(false);
-      setSelectedPurchase(null);
-      setShowSuccessAlert(true);
-      setAlertMessage('Compra anulada exitosamente');
-    } catch (err) {
-      console.error('Error canceling purchase:', err);
-      setShowSuccessAlert(true);
-      setAlertMessage('Error al anular la compra');
-    }
-  };
-
-  const handleDeletePurchase = (purchase: PurchaseAPI) => {
-    setSelectedPurchase(purchase);
-    setShowDeleteModal(true);
-  };
-
-  const confirmDeletePurchase = async () => {
-    if (!selectedPurchase) return;
-
-    try {
-      await purchaseService.delete(selectedPurchase.compraId);
-      await fetchPurchases();
-      setShowDeleteModal(false);
-      setSelectedPurchase(null);
-      setShowSuccessAlert(true);
-      setAlertMessage('Registro de compra eliminado');
-    } catch (err) {
-      console.error('Error deleting purchase:', err);
-      setShowSuccessAlert(true);
-      setAlertMessage('Error al eliminar la compra');
-    }
+    newWindow.document.write(`
+      <html>
+        <head>
+          <title>Factura de Compra - #${purchase.compraId}</title>
+        </head>
+        <body>
+          ${receiptContent}
+          <script>
+            window.onload = function() {
+              window.print();
+              window.close();
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    newWindow.document.close();
   };
 
   const handleSavePurchase = async (purchaseData: { proveedorId: number; iva: number; items: { insumoId: number; cantidad: number; precioUnitario: number }[] }) => {
@@ -405,43 +361,12 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
         items: purchaseData.items
       });
 
-      // Vinculación de Stock: Actualizar cada insumo con la nueva cantidad comprada
-      for (const item of purchaseData.items) {
-        const supplyIdNum = Number(item.insumoId);
-        const supply = supplies.find(s => getSupplyId(s) === supplyIdNum);
-        if (supply) {
-          const currentStock = getSupplyStock(supply);
-          const newStock = currentStock + item.cantidad;
-
-          await supplyService.updateSupply(getSupplyId(supply), {
-            ...supply,
-            cantidad: newStock,
-            Cantidad: newStock,
-            stock: newStock,
-            Stock: newStock,
-            quantity: newStock,
-            Quantity: newStock,
-            existencia: newStock,
-            Existencia: newStock,
-            stock_quantity: newStock,
-            Stock_Quantity: newStock,
-            stockActual: newStock,
-            StockActual: newStock,
-            existencias: newStock,
-            Existencias: newStock,
-            disponible: newStock,
-            Disponible: newStock
-          } as any);
-        }
-      }
-
       await fetchPurchases();
-      await fetchSupplies();
 
       setShowCreateModal(false);
       setSelectedPurchase(null);
       setShowSuccessAlert(true);
-      setAlertMessage('Compra registrada y stock actualizado');
+      setAlertMessage('Compra registrada exitosamente');
     } catch (err) {
       console.error('Error creating purchase:', err);
       setShowSuccessAlert(true);
@@ -580,23 +505,13 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
                           <File className="w-4 h-4" />
                         </button>
 
-                        {hasPermission('manage_purchases') && (
-                        <button
-                          onClick={() => handleCancelPurchase(purchase)}
-                          className="p-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors"
-                          title="Anular Compra"
-                        >
-                          <Ban className="w-4 h-4" />
-                        </button>
-                        )}
-
-                        {hasPermission('manage_purchases') && (
+                        {hasPermission('manage_purchases') && purchase.estado && (
                           <button
-                            onClick={() => handleDeletePurchase(purchase)}
+                            onClick={() => handleCancelPurchase(purchase)}
                             className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
-                            title="Eliminar Registro"
+                            title="Anular Compra"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Ban className="w-4 h-4" />
                           </button>
                         )}
                       </div>
@@ -654,18 +569,6 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
             setSelectedPurchase(null);
           }}
           onConfirm={confirmCancelPurchase}
-        />
-      )}
-
-      {/* Delete Confirmation Modal */}
-      {showDeleteModal && selectedPurchase && (
-        <DeletePurchaseModal
-          purchase={selectedPurchase}
-          onClose={() => {
-            setShowDeleteModal(false);
-            setSelectedPurchase(null);
-          }}
-          onConfirm={confirmDeletePurchase}
         />
       )}
 
@@ -737,7 +640,7 @@ function PurchaseDetailModal({ purchase, suppliers, onClose }: { purchase: Purch
 
         <div className="p-6 overflow-y-auto flex-1">
           {/* Purchase Info + Supplier Info */}
-          <div className="grid md:grid-cols-2 gap-8 mb-8">
+          <div className="grid md:grid-cols-2 gap-4 mb-4">
             {/* Purchase Info */}
             <div>
               <h4 className="font-bold text-gray-800 mb-4">Información de la Compra</h4>
@@ -784,7 +687,7 @@ function PurchaseDetailModal({ purchase, suppliers, onClose }: { purchase: Purch
           </div>
 
           {/* Products Table */}
-          <div className="mb-8">
+          <div className="mb-4">
             <h4 className="font-bold text-gray-800 mb-4">Insumos Ordenados</h4>
             <div className="overflow-x-auto">
               <table className="w-full border border-gray-200 rounded-lg">
@@ -811,27 +714,25 @@ function PurchaseDetailModal({ purchase, suppliers, onClose }: { purchase: Purch
           </div>
 
           {/* Financial Summary */}
-          <div className="grid md:grid-cols-2 gap-8">
-            <div></div>
-            <div>
-              <h4 className="font-bold text-gray-800 mb-4">Resumen Financiero</h4>
-              <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Subtotal:</span>
-                    <span className="text-gray-800">${purchase.subtotal.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">IVA ({purchase.iva}%):</span>
-                    <span className="text-gray-800">${((purchase.subtotal * purchase.iva) / 100).toLocaleString()}</span>
-                  </div>
-                  <div className="border-t border-gray-300 pt-2">
-                    <div className="flex justify-between">
-                      <span className="font-bold text-gray-800">Total:</span>
-                      <span className="font-bold text-green-600 text-lg">${purchase.total.toLocaleString()}</span>
-                    </div>
-                  </div>
-                </div>
+          <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-4 rounded-lg border border-purple-200">
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-700">Subtotal:</span>
+                <span className="font-semibold text-gray-800">
+                  ${purchase.subtotal.toLocaleString()}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-700">IVA ({purchase.iva}%):</span>
+                <span className="font-semibold text-gray-800">
+                  ${((purchase.subtotal * purchase.iva) / 100).toLocaleString()}
+                </span>
+              </div>
+              <div className="flex justify-between border-t border-purple-300 pt-2">
+                <span className="font-bold text-gray-800">Total:</span>
+                <span className="font-bold text-purple-700 text-lg">
+                  ${purchase.total.toLocaleString()}
+                </span>
               </div>
             </div>
           </div>
@@ -879,13 +780,13 @@ function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
   const addProduct = () => {
     setFormData({
       ...formData,
-      items: [...formData.items, {
+      items: [{
         insumoId: '',
         insumoNombre: '',
         cantidad: 1,
         precioUnitario: '' as any,
         subtotal: 0
-      }]
+      }, ...formData.items]
     });
   };
 
@@ -902,9 +803,9 @@ function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
     const item = { ...newItems[index] };
 
     if (field === 'insumoId') {
-      const supply = supplies.find(s => (s.insumoId || (s as any).id) === parseInt(value));
+      const supply = supplies.find(s => s.insumoId === parseInt(value));
       item.insumoId = value;
-      item.insumoNombre = supply ? (supply.nombre || (supply as any).name) : '';
+      item.insumoNombre = supply ? supply.nombre : '';
     } else if (field === 'cantidad') {
       item.cantidad = parseInt(value) || 1;
     } else if (field === 'precioUnitario') {
@@ -977,19 +878,11 @@ function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
   const ivaAmount = subtotal * (ivaPercent / 100);
   const total = subtotal + ivaAmount;
 
-  // Filter only active suppliers
-  const activeSuppliers = suppliers.filter(s =>
-    s.estado === true ||
-    s.status === 'active' ||
-    s.estado?.toString() === 'true'
-  );
+  // Filter only active suppliers (estado === true)
+  const activeSuppliers = suppliers.filter(s => s.estado === true);
 
-  // Filter only active supplies
-  const activeSupplies = supplies.filter(s =>
-    s.estado === true ||
-    s.status === 'active' ||
-    s.estado?.toString() === 'true'
-  );
+  // Filter only active supplies (estado === true)
+  const activeSupplies = supplies.filter(s => s.estado === true);
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -1118,8 +1011,8 @@ function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
                         >
                           <option value="">Seleccionar insumo...</option>
                           {activeSupplies.map(supply => (
-                            <option key={getSupplyId(supply)} value={getSupplyId(supply)}>
-                              {supply.nombre || supply.Nombre}
+                            <option key={supply.insumoId} value={supply.insumoId}>
+                              {supply.nombre}
                             </option>
                           ))}
                         </select>
@@ -1230,120 +1123,93 @@ function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
   );
 }
 
-// Cancel Confirmation Modal Component - Premium Design
-function CancelConfirmationModal({ purchase, onClose, onConfirm }: { purchase: PurchaseAPI; onClose: () => void; onConfirm: (obs: string) => void }) {
+// Cancel Confirmation Modal Component
+function CancelConfirmationModal({ purchase, onClose, onConfirm }: {
+  purchase: PurchaseAPI;
+  onClose: () => void;
+  onConfirm: (observation: string) => void;
+}) {
   const [observation, setObservation] = useState('');
 
   const handleConfirm = () => {
-    if (observation.trim()) {
-      onConfirm(observation);
+    onConfirm(observation);
+  };
+
+  const formatDate = (dateStr: string) => {
+    try {
+      return new Date(dateStr).toLocaleDateString('es-CO');
+    } catch {
+      return dateStr;
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[2000] flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-300">
-        <div className="bg-gradient-to-r from-orange-400 to-red-500 p-6 text-white">
-          <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center shrink-0">
-              <Ban className="w-6 h-6" />
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md">
+        <div className="p-6">
+          <div className="flex items-center space-x-4 mb-6">
+            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+              <AlertTriangle className="w-6 h-6 text-red-600" />
             </div>
             <div>
-              <h3 className="text-xl font-bold uppercase tracking-wider">Anular Compra</h3>
-              <p className="text-orange-100/80 text-xs">Esta acción inactivará la orden</p>
+              <h3 className="text-xl font-bold text-gray-800">Confirmar Anulación</h3>
+              <p className="text-gray-600">Esta acción no se puede deshacer</p>
             </div>
           </div>
-        </div>
 
-        <div className="p-8">
-          <div className="bg-orange-50 rounded-2xl p-4 border border-orange-100 mb-6">
-            <div className="flex items-start space-x-3">
-              <AlertTriangle className="w-5 h-5 text-orange-500 mt-0.5" />
-              <div>
-                <p className="text-sm font-bold text-orange-800">¿Anular Compra #{purchase.compraId}?</p>
-                <div className="text-sm text-orange-600 mt-1">
-                  El estado cambiará a "Anulado". Asegúrate de registrar el motivo.
+          <div className="mb-6">
+            <p className="text-gray-700 mb-4">
+              ¿Estás segura de que quieres anular la compra <strong>#{purchase.compraId}</strong>?
+            </p>
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+              <div className="space-y-2">
+                <div className="font-semibold text-gray-800">
+                  Orden de Compra #{purchase.compraId}
+                </div>
+                <div className="text-sm text-gray-600">
+                  Fecha: {formatDate(purchase.fechaRegistro)}
+                </div>
+                <div className="text-sm text-gray-600">
+                  Total: ${purchase.total.toLocaleString()}
+                </div>
+                <div className="text-sm text-red-600 font-medium">
+                  El estado cambiará a "Anulado" y no se podrá revertir
                 </div>
               </div>
             </div>
           </div>
 
+          {/* Campo de Observación */}
           <div className="mb-6">
-            <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 ml-1">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
               Motivo de Anulación *
             </label>
             <textarea
               value={observation}
               onChange={(e) => setObservation(e.target.value)}
               rows={3}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-400 outline-none transition-all resize-none"
-              placeholder="Escribe por qué se anula esta compra..."
+              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-300 focus:border-transparent resize-none"
+              placeholder="Escribe el motivo por el cual se anula esta compra..."
               required
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="flex space-x-3">
             <button
               onClick={onClose}
-              className="py-3 text-sm font-bold text-gray-500 hover:bg-gray-50 border border-gray-200 rounded-xl transition-all uppercase tracking-widest"
+              className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
             >
               Cancelar
             </button>
             <button
               onClick={handleConfirm}
               disabled={!observation.trim()}
-              className="py-3 bg-gradient-to-r from-orange-400 to-red-500 text-white rounded-xl font-bold shadow-lg hover:shadow-orange-200 transition-all uppercase tracking-widest text-sm disabled:opacity-50"
+              className={`flex-1 px-6 py-3 rounded-xl font-semibold transition-all ${!observation.trim()
+                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                : 'bg-gradient-to-r from-red-400 to-red-500 text-white hover:shadow-lg'
+                }`}
             >
-              Anular
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Delete Confirmation Modal Component - Premium Design
-function DeletePurchaseModal({ purchase, onClose, onConfirm }: { purchase: PurchaseAPI; onClose: () => void; onConfirm: () => void }) {
-  return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[2000] flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in slide-in-from-bottom-5 duration-300">
-        <div className="bg-gradient-to-r from-red-500 to-pink-500 p-6 text-white">
-          <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center shrink-0">
-              <Trash2 className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="text-xl font-bold uppercase tracking-wider">Eliminar Registro</h3>
-              <p className="text-red-100/80 text-xs">Acción irreversible</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="p-8 text-center">
-          <p className="text-gray-600 mb-6 leading-relaxed">
-            ¿Estás completamente seguro de que quieres eliminar permanentemente el registro de la compra <span className="font-bold text-gray-800 underline decoration-red-300">"#{purchase.compraId}"</span>?
-          </p>
-
-          <div className="bg-red-50 p-4 rounded-xl border border-red-100 mb-8 flex items-start space-x-3 text-left">
-            <AlertCircle className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
-            <p className="text-xs text-red-600">
-              Esta acción borrará la compra de la base de datos. No se recomienda si ya ha afectado el stock.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <button
-              onClick={onClose}
-              className="py-3 text-sm font-bold text-gray-500 hover:bg-gray-50 border border-gray-200 rounded-xl transition-all uppercase tracking-widest"
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={onConfirm}
-              className="py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl font-bold shadow-lg hover:shadow-red-200 transition-all uppercase tracking-widest text-sm"
-            >
-              Eliminar
+              Anular Compra
             </button>
           </div>
         </div>
