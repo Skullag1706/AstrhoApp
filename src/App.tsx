@@ -21,7 +21,7 @@ function App() {
 
   // Redirect admin users to admin panel automatically
   useEffect(() => {
-    if ((currentUser?.role === "admin" || currentUser?.role === "super_admin") && !isClientView) {
+    if ((currentUser?.role === "admin" || currentUser?.role === "super_admin" || currentUser?.role === "asistente") && !isClientView) {
       setCurrentView("admin");
     }
   }, [currentUser, isClientView]);
@@ -36,7 +36,7 @@ function App() {
     // Redirect clients to booking interface
     if (
       currentUser.role === "customer" ||
-      ((currentUser.role === "admin" || currentUser.role === "super_admin") && isClientView)
+      ((currentUser.role === "admin" || currentUser.role === "super_admin" || currentUser.role === "asistente") && isClientView)
     ) {
       setCurrentView("book-appointment");
     } else {
@@ -63,6 +63,87 @@ function App() {
     // Super admin has all permissions
     if (currentUser.role === "super_admin") return true;
 
+    // Map legacy/internal permission strings to backend module permissions if needed
+    const permissionMapping = {
+      'view_dashboard': 'module_dashboard',
+      'manage_users': 'module_users',
+      'manage_roles': 'module_roles',
+      'manage_appointments': 'module_appointments',
+      'manage_schedules': 'module_schedules',
+      'manage_sales': 'module_sales',
+      'manage_services': 'module_services',
+      'manage_clients': 'module_clients',
+      'manage_purchases': 'module_purchases',
+      'manage_products': 'module_products',
+      'manage_categories': 'module_categories',
+      'manage_suppliers': 'module_suppliers',
+      'manage_deliveries': 'module_deliveries',
+      'manage_supplies': 'module_supplies',
+      'book_appointments': 'module_appointments',
+      'view_services': 'module_services',
+      'view_products': 'module_products',
+      'view_own_appointments': 'module_appointments'
+    };
+
+    const backendPermission = permissionMapping[permission] || permission;
+
+    // Staff members (admin/assistant) should always have access to the dashboard to enter the panel
+    if (backendPermission === 'module_dashboard' && (currentUser.role === 'admin' || currentUser.role === 'asistente')) {
+      return true;
+    }
+
+    // If user has permissions from the backend, use them
+    if (currentUser.permissions && currentUser.permissions.length > 0) {
+      // The backend might return numeric IDs or strings. Let's handle both.
+      const PERMISSION_ID_MAP = {
+        1: 'module_dashboard',
+        2: 'module_users',
+        3: 'module_appointments',
+        4: 'module_services',
+        6: 'module_sales',
+        7: 'module_purchases',
+        8: 'module_suppliers',
+        9: 'module_products',
+        10: 'module_clients',
+        11: 'module_categories',
+        12: 'module_schedules',
+        13: 'module_supplies',
+        14: 'module_deliveries',
+        16: 'module_roles'
+      };
+
+      const userPermissions = currentUser.permissions
+        .filter((p: any) => p !== null && p !== undefined)
+        .map((p: any) => {
+          // Handle numeric IDs
+          if (typeof p === 'number' || !isNaN(Number(p))) {
+            return PERMISSION_ID_MAP[Number(p) as keyof typeof PERMISSION_ID_MAP] || p;
+          }
+          
+          // Handle names like "Dashboard" -> "module_dashboard"
+          if (typeof p === 'string') {
+            const lowerP = p.toLowerCase().trim();
+            if (lowerP === 'dashboard') return 'module_dashboard';
+            if (lowerP === 'usuarios') return 'module_users';
+            if (lowerP === 'citas' || lowerP === 'agendamiento') return 'module_appointments';
+            if (lowerP === 'servicios') return 'module_services';
+            if (lowerP === 'ventas') return 'module_sales';
+            if (lowerP === 'compras') return 'module_purchases';
+            if (lowerP === 'proveedores') return 'module_suppliers';
+            if (lowerP === 'productos' || lowerP === 'insumos') return 'module_products';
+            if (lowerP === 'clientes' || lowerP === 'personas') return 'module_clients';
+            if (lowerP === 'categoría de insumos' || lowerP === 'categorías') return 'module_categories';
+            if (lowerP === 'horarios') return 'module_schedules';
+            if (lowerP === 'entrega de insumos' || lowerP === 'entregas') return 'module_deliveries';
+            if (lowerP === 'roles') return 'module_roles';
+          }
+          return p;
+        });
+
+      return userPermissions.includes(backendPermission);
+    }
+
+    // Fallback hardcoded permissions (legacy/static)
     const permissions = {
       admin: [
         "module_dashboard",
@@ -79,21 +160,6 @@ function App() {
         "module_supplies",
         "module_deliveries",
         "module_roles",
-        // Legacy permissions for compatibility
-        "view_dashboard",
-        "manage_users",
-        "manage_roles",
-        "manage_appointments",
-        "manage_services",
-        "manage_sales",
-        "manage_purchases",
-        "manage_suppliers",
-        "manage_products",
-        "manage_clients",
-        "manage_categories",
-        "manage_schedules",
-        "manage_supplies",
-        "manage_deliveries"
       ],
       asistente: [
         "module_dashboard",
@@ -103,29 +169,16 @@ function App() {
         "module_clients",
         "module_supplies",
         "module_deliveries",
-        // Legacy
-        "view_dashboard",
-        "manage_appointments",
-        "manage_services",
-        "manage_sales",
-        "manage_clients",
-        "manage_supplies",
-        "manage_deliveries"
       ],
       customer: [
         "module_appointments",
         "module_services",
         "module_products",
-        // Legacy
-        "book_appointments",
-        "view_services",
-        "view_products",
-        "view_own_appointments"
       ],
     };
 
     return (
-      permissions[currentUser.role]?.includes(permission) ||
+      permissions[currentUser.role]?.includes(backendPermission) ||
       false
     );
   };
@@ -159,8 +212,8 @@ function App() {
   };
 
   const renderCurrentView = () => {
-    // If admin is in client view, show regular client interface
-    if ((currentUser?.role === "admin" || currentUser?.role === "super_admin") && isClientView) {
+    // If admin/asistente is in client view, show regular client interface
+    if ((currentUser?.role === "admin" || currentUser?.role === "super_admin" || currentUser?.role === "asistente") && isClientView) {
       switch (currentView) {
         case "services":
           return (
@@ -232,7 +285,7 @@ function App() {
           />
         );
       case "admin":
-        return hasPermission("module_dashboard") || hasPermission("view_dashboard") ? (
+        return hasPermission("module_dashboard") ? (
           <AdminPanel
             currentUser={currentUser}
             hasPermission={hasPermission}
@@ -251,8 +304,8 @@ function App() {
           </div>
         );
       default:
-        // For admin users, default to admin panel unless in client view
-        if ((currentUser?.role === "admin" || currentUser?.role === "super_admin") && !isClientView) {
+        // For admin and assistant users, default to admin panel unless in client view
+        if ((currentUser?.role === "admin" || currentUser?.role === "super_admin" || currentUser?.role === "asistente") && !isClientView) {
           return (
             <AdminPanel
               currentUser={currentUser}

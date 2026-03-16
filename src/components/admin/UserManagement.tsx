@@ -693,10 +693,13 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
 // User Modal Component
 function UserModal({ user, onClose, onSave, roles }: { user: any; onClose: () => void; onSave: (data: any) => void; roles: RolListDto[] }) {
   // Filter out Super Admin from the roles available for selection
-  const availableRoles = roles.filter(r => r.nombre.toLowerCase() !== 'super admin');
+  const availableRoles = roles.filter(r => 
+    r.nombre.toLowerCase() !== 'super admin' && 
+    r.nombre.toLowerCase() !== 'super administrador'
+  );
 
   const [formData, setFormData] = useState({
-    rolId: user?.rol?.rolId || (availableRoles.length > 0 ? availableRoles[0].rolId : 0),
+    rolId: user?.rol?.rolId || (availableRoles.find(r => r.nombre.toLowerCase() === 'administrador')?.rolId || (availableRoles.length > 0 ? availableRoles[0].rolId : 0)),
     documentType: 'cedula',
     documentId: '',
     nombre: '',

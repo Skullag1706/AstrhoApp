@@ -749,13 +749,17 @@ function NewPersonModal({ onClose, onSave, editingPerson, personType, roles }: {
         address: editingPerson?.address || '',
         email: '',
         type: personType as 'client' | 'employee',
-        roleId: (personType === 'employee' ? (roles.find(r => r.nombre.toLowerCase() === 'asistente')?.rolId || 3) : 2),
+        roleId: (personType === 'employee' ? (roles.find(r => r.nombre.toLowerCase() === 'administrador')?.rolId || roles.find(r => r.nombre.toLowerCase() === 'asistente')?.rolId || 3) : 2),
         authData: undefined
     });
 
     const [errors, setErrors] = useState<Record<string, string>>({});
 
-    const filteredRoles = roles.filter(r => r.nombre.toLowerCase() !== 'cliente');
+    const filteredRoles = roles.filter(r => 
+        r.nombre.toLowerCase() !== 'cliente' && 
+        r.nombre.toLowerCase() !== 'super admin' && 
+        r.nombre.toLowerCase() !== 'super administrador'
+    );
 
     const validateForm = () => {
         const newErrors: Record<string, string> = {};

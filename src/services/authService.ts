@@ -3,13 +3,16 @@ import { apiClient } from './apiClient';
 // ── Role mapping from API to internal app roles ──
 const ROLE_MAP: Record<string, string> = {
     'administrador': 'admin',
+    'administradora': 'admin',
     'super admin': 'super_admin',
     'asistente': 'asistente',
     'cliente': 'customer',
 };
 
-function mapRole(apiRole: string): string {
-    return ROLE_MAP[apiRole.toLowerCase()] || 'customer';
+function mapRole(apiRole: any): string {
+    if (typeof apiRole !== 'string') return 'customer';
+    const normalized = apiRole.toLowerCase().trim();
+    return ROLE_MAP[normalized] || 'customer';
 }
 
 // ── Interfaces ──
@@ -245,6 +248,7 @@ export const authService = {
             phone: '',
             role,
             token: data.token,
+            permissions: data.permisos || data.permisosIds || [],
             requiereCambioPassword: data.mustChangePassword === true
         };
     },

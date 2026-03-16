@@ -22,14 +22,14 @@ export const ADMIN_MENU_ITEMS: MenuItem[] = [
     id: 'dashboard',
     label: 'Dashboard',
     icon: BarChart3,
-    permission: 'view_dashboard'
+    permission: 'module_dashboard'
   },
   // CONFIGURACIÓN
   {
     id: 'users',
     label: 'Usuarios',
     icon: Users,
-    permission: 'manage_users',
+    permission: 'module_users',
     category: 'CONFIGURACIÓN'
   },
   {
@@ -44,14 +44,14 @@ export const ADMIN_MENU_ITEMS: MenuItem[] = [
     id: 'appointments',
     label: 'Agendamiento',
     icon: CalendarPlus,
-    permission: 'manage_appointments',
+    permission: 'module_appointments',
     category: 'AGENDA'
   },
   {
     id: 'schedules',
     label: 'Horarios',
     icon: Calendar,
-    permission: 'manage_schedules',
+    permission: 'module_schedules',
     category: 'AGENDA'
   },
   // VENTAS
@@ -59,21 +59,21 @@ export const ADMIN_MENU_ITEMS: MenuItem[] = [
     id: 'sales',
     label: 'Ventas',
     icon: DollarSign,
-    permission: 'manage_sales',
+    permission: 'module_sales',
     category: 'VENTAS'
   },
   {
     id: 'services',
     label: 'Servicios',
     icon: Scissors,
-    permission: 'manage_services',
+    permission: 'module_services',
     category: 'VENTAS'
   },
   {
     id: 'persons',
     label: 'Personas',
     icon: UserCheck,
-    permission: 'manage_clients',
+    permission: 'module_clients',
     category: 'VENTAS'
   },
   // COMPRAS
@@ -81,35 +81,35 @@ export const ADMIN_MENU_ITEMS: MenuItem[] = [
     id: 'purchases',
     label: 'Compras',
     icon: ShoppingCart,
-    permission: 'manage_purchases',
+    permission: 'module_purchases',
     category: 'COMPRAS'
   },
   {
     id: 'products',
     label: 'Insumos',
     icon: Package,
-    permission: 'manage_products',
+    permission: 'module_products',
     category: 'COMPRAS'
   },
   {
     id: 'categories',
     label: 'Categoría de Insumos',
     icon: Tag,
-    permission: 'manage_categories',
+    permission: 'module_categories',
     category: 'COMPRAS'
   },
   {
     id: 'suppliers',
     label: 'Proveedores',
     icon: Truck,
-    permission: 'manage_suppliers',
+    permission: 'module_suppliers',
     category: 'COMPRAS'
   },
   {
     id: 'deliveries',
     label: 'Entrega de insumos',
     icon: Send,
-    permission: 'manage_deliveries',
+    permission: 'module_deliveries',
     category: 'COMPRAS'
   }
 ];

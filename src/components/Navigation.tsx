@@ -50,12 +50,12 @@ export function Navigation({
 
   // Menu items for authenticated users
   const authenticatedMenuItems = [
-    { id: 'my-appointments', label: 'Mis Citas', icon: Calendar, permission: 'book_appointments' }
+    { id: 'my-appointments', label: 'Mis Citas', icon: Calendar, permission: 'module_appointments' }
   ];
 
   // Admin menu items (only show when not in client view)
   const adminMenuItems = [
-    { id: 'admin', label: 'Administrar', icon: Shield, permission: 'view_dashboard' }
+    { id: 'admin', label: 'Administrar', icon: Shield, permission: 'module_dashboard' }
   ];
 
   // Build menu items based on user permissions and view mode
@@ -77,7 +77,7 @@ export function Navigation({
       });
       
       // Show admin menu for non-admin users with permissions, or for admin users in client view
-      if (hasPermission('view_dashboard') && (currentUser.role !== 'admin' && currentUser.role !== 'super_admin' || isClientView)) {
+      if (hasPermission('module_dashboard') && (currentUser.role !== 'admin' && currentUser.role !== 'super_admin' || isClientView)) {
         adminMenuItems.forEach(item => {
           if (hasPermission(item.permission)) {
             menuItems.push(item);
