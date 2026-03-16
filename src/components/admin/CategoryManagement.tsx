@@ -648,61 +648,81 @@ function CategoryDetailModal({ category, onClose, getProductsByCategory }) {
   const products = getProductsByCategory(category.id);
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[1000] flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-        {/* Modal Header */}
-        <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-6 text-white rounded-t-3xl shrink-0">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+        {/* Header - Fixed at top */}
+        <div className="bg-gradient-to-r from-pink-500 to-purple-600 p-5 text-white shrink-0 shadow-md z-20">
           <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-2xl font-bold">
-                Detalles de la Categoría
-              </h3>
-              <p className="text-pink-100">
-                {category.name}
-              </p>
+            <div className="flex items-center space-x-4">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                <FolderTree className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold leading-tight">Detalles de la Categoría</h3>
+                <p className="text-pink-100 text-sm">{category.name}</p>
+              </div>
             </div>
             <button
               onClick={onClose}
-              className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
+              className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* Category Details */}
-        <div className="p-6 space-y-4 overflow-y-auto">
-          <div>
-            <h4 className="font-semibold text-gray-800 mb-2">Información de la Categoría</h4>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-gray-600">Nombre:</p>
-                <p className="text-lg font-bold">{category.name}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Estado:</p>
-                <p className={`text-lg font-bold ${category.status === 'active' ? 'text-green-600' : 'text-gray-600'
-                  }`}>
-                  {category.status === 'active' ? 'Activa' : 'Inactiva'}
-                </p>
-              </div>
-              <div className="col-span-2">
-                <p className="text-sm text-gray-600">Descripción:</p>
-                <p className="text-lg font-bold">{category.description}</p>
+        {/* Scrollable Body */}
+        <div className="flex-1 overflow-y-auto p-6 lg:p-8 bg-gray-50/30 no-scrollbar">
+          <style>{`
+            .no-scrollbar::-webkit-scrollbar { display: none; }
+            .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+          `}</style>
+          
+          <div className="max-w-2xl mx-auto space-y-6">
+            <div className="grid md:grid-cols-2 gap-4">
+              {/* Category Info Card */}
+              <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm md:col-span-2">
+                <div className="flex items-center space-x-2 text-purple-500 mb-4">
+                  <FolderTree className="w-4 h-4" />
+                  <h4 className="font-bold uppercase text-[10px] tracking-widest">Información General</h4>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Nombre:</span>
+                    <p className="font-bold text-gray-800 text-lg mb-1">{category.name}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Estado:</span>
+                    <div className="mt-1">
+                      {category.status === 'active' ? (
+                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+                          Activa
+                        </span>
+                      ) : (
+                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800">
+                          Inactiva
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Descripción:</span>
+                    <p className="text-gray-700 text-md mt-1">{category.description || 'Sin descripción'}</p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex space-x-4 p-6">
+        {/* Footer - Fixed at bottom */}
+        <div className="p-5 bg-white border-t border-gray-100 flex flex-wrap gap-3 justify-end shrink-0 z-20">
           <button
-            type="button"
             onClick={onClose}
-            className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors flex items-center justify-center space-x-2"
+            className="px-8 py-2.5 rounded-xl font-black text-gray-500 hover:bg-gray-200 hover:text-gray-800 active:scale-95 transition-all text-sm uppercase tracking-widest shadow-sm"
           >
-            <X className="w-5 h-5" />
-            <span>Cerrar</span>
+            Cerrar
           </button>
         </div>
       </div>

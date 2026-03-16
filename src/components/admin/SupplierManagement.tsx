@@ -499,79 +499,133 @@ export function SupplierManagement({ hasPermission }: SupplierManagementProps) {
 // Supplier Detail Modal Component
 function SupplierDetailModal({ supplier, onClose }) {
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-        {/* Modal Header */}
-        <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-6 text-white rounded-t-3xl">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+        {/* Header - Fixed at top */}
+        <div className="bg-gradient-to-r from-pink-500 to-purple-600 p-5 text-white shrink-0 shadow-md z-20">
           <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-3xl font-bold">{supplier.name}</h3>
-              <p className="text-pink-100 text-lg">{supplier.supplierType === 'juridica' ? supplier.contactPerson : supplier.taxId}</p>
-              <div className="mt-2">
-                <span className={`px-3 py-1 rounded-full text-sm font-semibold ${supplier.status === 'active'
-                  ? 'bg-green-400 text-white'
-                  : 'bg-gray-400 text-white'
-                  }`}>
-                  {supplier.status === 'active' ? 'Activo' : 'Inactivo'}
-                </span>
+            <div className="flex items-center space-x-4">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                <Truck className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold leading-tight">Detalle de Proveedor</h3>
+                <p className="text-pink-100 text-sm">{supplier.name}</p>
               </div>
             </div>
             <button
               onClick={onClose}
-              className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
+              className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        <div className="p-6">
-          {/* Contact Information */}
-          <div className="grid md:grid-cols-2 gap-8">
-            <div>
-              <h4 className="font-bold text-gray-800 mb-4">Información de Contacto</h4>
-              <div className="space-y-3">
-                <div className="flex items-center space-x-3">
-                  <Phone className="w-5 h-5 text-gray-400" />
-                  <span className="text-gray-700">{supplier.phone}</span>
+        {/* Scrollable Body */}
+        <div className="flex-1 overflow-y-auto p-6 lg:p-8 bg-gray-50/30 no-scrollbar">
+          <style>{`
+            .no-scrollbar::-webkit-scrollbar { display: none; }
+            .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+          `}</style>
+          
+          <div className="max-w-4xl mx-auto space-y-6">
+            <div className="grid md:grid-cols-2 gap-4">
+              
+              {/* Commercial Status Card */}
+              <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+                <div className="flex items-center space-x-2 text-purple-500 mb-4">
+                  <Package className="w-4 h-4" />
+                  <h4 className="font-bold uppercase text-[10px] tracking-widest">Información Comercial</h4>
                 </div>
-                <div className="flex items-center space-x-3">
-                  <Mail className="w-5 h-5 text-gray-400" />
-                  <span className="text-gray-700">{supplier.email}</span>
-                </div>
-                <div className="flex items-start space-x-3">
-                  <MapPin className="w-5 h-5 text-gray-400 mt-0.5" />
+                
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Tipo de Proveedor:</span>
+                      <div className="mt-1">
+                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${supplier.supplierType === 'juridica'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-green-100 text-green-800'
+                          }`}>
+                          {supplier.supplierType === 'juridica' ? 'Persona Jurídica' : 'Persona Natural'}
+                        </span>
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Estado:</span>
+                      <div className="mt-1">
+                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${supplier.status === 'active'
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-gray-100 text-gray-800'
+                          }`}>
+                          {supplier.status === 'active' ? 'Activo' : 'Inactivo'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  
                   <div>
-                    <div className="text-gray-700">{supplier.address}</div>
-                    <div className="text-gray-600">{supplier.city}</div>
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">
+                      {supplier.supplierType === 'juridica' ? 'NIT:' : 'Cédula:'}
+                    </span>
+                    <p className="font-mono text-gray-800 font-semibold">{supplier.taxId}</p>
+                  </div>
+                  
+                  <div>
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Persona de Contacto / Rep. Legal:</span>
+                    <p className="text-gray-800 font-semibold">{supplier.supplierType === 'juridica' ? supplier.contactPerson : supplier.name}</p>
                   </div>
                 </div>
               </div>
-            </div>
 
-            <div>
-              <h4 className="font-bold text-gray-800 mb-4">Información Comercial</h4>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Tipo de Proveedor:</span>
-                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${supplier.supplierType === 'juridica'
-                    ? 'bg-blue-100 text-blue-800'
-                    : 'bg-green-100 text-green-800'
-                    }`}>
-                    {supplier.supplierType === 'juridica' ? 'Persona Jurídica' : 'Persona Natural'}
-                  </span>
+              {/* Contact Information Card */}
+              <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+                <div className="flex items-center space-x-2 text-pink-500 mb-4">
+                  <Phone className="w-4 h-4" />
+                  <h4 className="font-bold uppercase text-[10px] tracking-widest">Información de Contacto</h4>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">{supplier.supplierType === 'juridica' ? 'NIT:' : 'Cédula:'}</span>
-                  <span className="text-gray-800">{supplier.taxId}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Departamento:</span>
-                  <span className="text-gray-800">{supplier.department || 'N/A'}</span>
+                
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded-lg transition-colors">
+                    <Phone className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                    <div>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Teléfono</span>
+                      <span className="text-gray-800 font-medium">{supplier.phone}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded-lg transition-colors">
+                    <Mail className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                    <div>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Correo Electrónico</span>
+                      <span className="text-gray-800 font-medium break-all">{supplier.email}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start space-x-3 p-2 hover:bg-gray-50 rounded-lg transition-colors">
+                    <MapPin className="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Ubicación</span>
+                      <div className="text-gray-800 font-medium">{supplier.address}</div>
+                      <div className="text-gray-500 text-sm mt-0.5">{supplier.city}, {supplier.department || 'N/A'}</div>
+                    </div>
+                  </div>
                 </div>
               </div>
+              
             </div>
           </div>
+        </div>
+
+        {/* Footer - Fixed at bottom */}
+        <div className="p-5 bg-white border-t border-gray-100 flex flex-wrap gap-3 justify-end shrink-0 z-20">
+          <button
+            onClick={onClose}
+            className="px-8 py-2.5 rounded-xl font-black text-gray-500 hover:bg-gray-200 hover:text-gray-800 active:scale-95 transition-all text-sm uppercase tracking-widest shadow-sm"
+          >
+            Cerrar
+          </button>
         </div>
       </div>
     </div>

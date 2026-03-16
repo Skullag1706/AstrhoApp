@@ -597,12 +597,11 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
   );
 }
 
-// Purchase Detail Modal Component
 function PurchaseDetailModal({ purchase, suppliers, onClose }: { purchase: PurchaseAPI; suppliers: SupplierAPI[]; onClose: () => void }) {
   const getStatusColor = (estado: boolean) => {
     return estado
-      ? 'bg-green-100 text-green-800 border-green-200'
-      : 'bg-red-100 text-red-800 border-red-200';
+      ? 'bg-green-100 text-green-800'
+      : 'bg-red-100 text-red-800';
   };
 
   const getStatusLabel = (estado: boolean) => {
@@ -620,122 +619,155 @@ function PurchaseDetailModal({ purchase, suppliers, onClose }: { purchase: Purch
   const supplier = suppliers.find(s => s.proveedorId === purchase.proveedorId);
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
-        {/* Modal Header - Fixed */}
-        <div className="bg-gradient-to-r from-purple-400 to-pink-500 p-6 text-white rounded-t-3xl flex-shrink-0">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+        {/* Header - Fixed at top */}
+        <div className="bg-gradient-to-r from-pink-500 to-purple-600 p-5 text-white shrink-0 shadow-md z-20">
           <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-2xl font-bold">Detalle de Compra #{purchase.compraId}</h3>
-              <p className="text-purple-100">Información completa de la orden de compra</p>
+            <div className="flex items-center space-x-4">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                <ShoppingCart className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold leading-tight">Detalle de Compra</h3>
+                <p className="text-pink-100 text-sm">#{purchase.compraId}</p>
+              </div>
             </div>
             <button
               onClick={onClose}
-              className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
+              className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        <div className="p-6 overflow-y-auto flex-1">
-          {/* Purchase Info + Supplier Info */}
-          <div className="grid md:grid-cols-2 gap-4 mb-4">
-            {/* Purchase Info */}
-            <div>
-              <h4 className="font-bold text-gray-800 mb-4">Información de la Compra</h4>
+        {/* Scrollable Body */}
+        <div className="flex-1 overflow-y-auto p-6 lg:p-8 bg-gray-50/30 no-scrollbar">
+          <style>{`
+            .no-scrollbar::-webkit-scrollbar { display: none; }
+            .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+          `}</style>
+          
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* Purchase Info + Supplier Info */}
+            <div className="grid md:grid-cols-2 gap-4">
+              {/* Purchase Info */}
+              <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+                <div className="flex items-center space-x-2 text-purple-500 mb-4">
+                  <FileText className="w-4 h-4" />
+                  <h4 className="font-bold uppercase text-[10px] tracking-widest">Información de la Compra</h4>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-500 font-medium">ID de Compra:</span>
+                    <span className="font-bold text-gray-800">#{purchase.compraId}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-500 font-medium">Fecha de Registro:</span>
+                    <span className="text-gray-800 font-medium">{formatDate(purchase.fechaRegistro)}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-500 font-medium">Estado:</span>
+                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getStatusColor(purchase.estado)}`}>
+                      {getStatusLabel(purchase.estado)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Supplier Info */}
+              <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+                <div className="flex items-center space-x-2 text-pink-500 mb-4">
+                  <Truck className="w-4 h-4" />
+                  <h4 className="font-bold uppercase text-[10px] tracking-widest">Información del Proveedor</h4>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-500 font-medium">Proveedor:</span>
+                    <span className="font-bold text-gray-800">{purchase.proveedorNombre}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-500 font-medium">Contacto:</span>
+                    <span className="font-medium text-gray-800">{supplier?.personaContacto || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-500 font-medium">Email:</span>
+                    <span className="font-medium text-gray-800">{supplier?.correo || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-gray-500 font-medium">Teléfono:</span>
+                    <span className="font-medium text-gray-800">{supplier?.telefono || 'N/A'}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Products Table */}
+            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+              <div className="flex items-center space-x-2 text-purple-500 mb-4">
+                <Package className="w-4 h-4" />
+                <h4 className="font-bold uppercase text-[10px] tracking-widest">Insumos Ordenados</h4>
+              </div>
+              <div className="overflow-x-auto rounded-2xl border border-gray-100">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wider">Insumo</th>
+                      <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wider">Cantidad</th>
+                      <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wider">Precio Unit.</th>
+                      <th className="px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wider">Subtotal</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 bg-white">
+                    {purchase.detalles?.map((item, index) => (
+                      <tr key={index} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-3 font-medium text-gray-800">{item.insumoNombre}</td>
+                        <td className="px-4 py-3 text-gray-600">{item.cantidad}</td>
+                        <td className="px-4 py-3 text-gray-600">${item.precioUnitario.toLocaleString()}</td>
+                        <td className="px-4 py-3 font-semibold text-gray-800">${item.subtotal.toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Financial Summary */}
+            <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-5 rounded-2xl border border-purple-200 shadow-sm">
               <div className="space-y-3">
-                <div className="flex gap-2">
-                  <span className="text-gray-600">ID de Compra:</span>
-                  <span className="font-semibold text-gray-800">#{purchase.compraId}</span>
+                <div className="flex justify-between text-base">
+                  <span className="text-gray-700">Subtotal:</span>
+                  <span className="font-semibold text-gray-800">
+                    ${purchase.subtotal.toLocaleString()}
+                  </span>
                 </div>
-                <div className="flex gap-2">
-                  <span className="text-gray-600">Fecha de Registro:</span>
-                  <span className="text-gray-800">{formatDate(purchase.fechaRegistro)}</span>
+                <div className="flex justify-between text-base">
+                  <span className="text-gray-700">IVA ({purchase.iva}%):</span>
+                  <span className="font-semibold text-gray-800">
+                    ${((purchase.subtotal * purchase.iva) / 100).toLocaleString()}
+                  </span>
                 </div>
-                <div className="flex gap-2 items-center">
-                  <span className="text-gray-600">Estado:</span>
-                  <span className={`px-3 py-1 rounded-full text-sm font-semibold border ${getStatusColor(purchase.estado)}`}>
-                    {getStatusLabel(purchase.estado)}
+                <div className="flex justify-between border-t border-purple-300 pt-3">
+                  <span className="font-bold text-gray-800">Total:</span>
+                  <span className="font-bold text-purple-700 text-xl">
+                    ${purchase.total.toLocaleString()}
                   </span>
                 </div>
               </div>
             </div>
-
-            {/* Supplier Info */}
-            <div>
-              <h4 className="font-bold text-gray-800 mb-4">Información del Proveedor</h4>
-              <div className="space-y-3">
-                <div className="flex gap-2">
-                  <span className="text-gray-600">Proveedor:</span>
-                  <span className="font-semibold text-gray-800">{purchase.proveedorNombre}</span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="text-gray-600">Contacto:</span>
-                  <span className="text-gray-800">{supplier?.personaContacto || 'N/A'}</span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="text-gray-600">Email:</span>
-                  <span className="text-gray-800">{supplier?.correo || 'N/A'}</span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="text-gray-600">Teléfono:</span>
-                  <span className="text-gray-800">{supplier?.telefono || 'N/A'}</span>
-                </div>
-              </div>
-            </div>
+            
           </div>
+        </div>
 
-          {/* Products Table */}
-          <div className="mb-4">
-            <h4 className="font-bold text-gray-800 mb-4">Insumos Ordenados</h4>
-            <div className="overflow-x-auto">
-              <table className="w-full border border-gray-200 rounded-lg">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-800">Insumo</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-800">Cantidad</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-800">Precio Unit.</th>
-                    <th className="px-4 py-3 text-left font-semibold text-gray-800">Subtotal</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {purchase.detalles?.map((item, index) => (
-                    <tr key={index}>
-                      <td className="px-4 py-3 font-medium text-gray-800">{item.insumoNombre}</td>
-                      <td className="px-4 py-3 text-gray-600">{item.cantidad}</td>
-                      <td className="px-4 py-3 text-gray-600">${item.precioUnitario.toLocaleString()}</td>
-                      <td className="px-4 py-3 font-semibold text-gray-800">${item.subtotal.toLocaleString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Financial Summary */}
-          <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-4 rounded-lg border border-purple-200">
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-700">Subtotal:</span>
-                <span className="font-semibold text-gray-800">
-                  ${purchase.subtotal.toLocaleString()}
-                </span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-700">IVA ({purchase.iva}%):</span>
-                <span className="font-semibold text-gray-800">
-                  ${((purchase.subtotal * purchase.iva) / 100).toLocaleString()}
-                </span>
-              </div>
-              <div className="flex justify-between border-t border-purple-300 pt-2">
-                <span className="font-bold text-gray-800">Total:</span>
-                <span className="font-bold text-purple-700 text-lg">
-                  ${purchase.total.toLocaleString()}
-                </span>
-              </div>
-            </div>
-          </div>
+        {/* Footer - Fixed at bottom */}
+        <div className="p-5 bg-white border-t border-gray-100 flex flex-wrap gap-3 justify-end shrink-0 z-20">
+          <button
+            onClick={onClose}
+            className="px-8 py-2.5 rounded-xl font-black text-gray-500 hover:bg-gray-200 hover:text-gray-800 active:scale-95 transition-all text-sm uppercase tracking-widest shadow-sm"
+          >
+            Cerrar
+          </button>
         </div>
       </div>
     </div>
