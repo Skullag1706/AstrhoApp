@@ -8,16 +8,11 @@ import {
   Users,
   Calendar,
   TrendingUp,
-  Package,
+  DollarSign,
 } from "lucide-react";
 import {
   LineChart,
   Line,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -235,57 +230,6 @@ function groupSalesByWeek(sales: SaleView[]): ChartPoint[] {
     .map(([name, value]) => ({ name, value }));
 }
 
-function groupAgendaByHour(items: AgendaItem[]): ChartPoint[] {
-  const map: Record<string, number> = {};
-  HOUR_LABELS.forEach((h) => (map[h] = 0));
-  items.forEach((i) => {
-    const h = (i.horaInicio || "").slice(0, 2);
-    const label = HOUR_MAP[h];
-    if (label) map[label] = (map[label] || 0) + 1;
-  });
-  return HOUR_LABELS.map((h) => ({ name: h, value: map[h] }));
-}
-
-function groupAgendaByDay(items: AgendaItem[]): ChartPoint[] {
-  const map: Record<string, number> = {
-    Lun: 0,
-    Mar: 0,
-    Mié: 0,
-    Jue: 0,
-    Vie: 0,
-    Sáb: 0,
-    Dom: 0,
-  };
-  items.forEach((i) => {
-    if (!i.fechaCita) return;
-    const d = new Date(i.fechaCita + "T00:00:00");
-    const label = DAY_NAMES[d.getDay()];
-    if (label) map[label] = (map[label] || 0) + 1;
-  });
-  return ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"].map((d) => ({
-    name: d,
-    value: map[d] || 0,
-  }));
-}
-
-function groupAgendaByWeek(items: AgendaItem[]): ChartPoint[] {
-  const map: Record<string, number> = {
-    "Sem 1": 0,
-    "Sem 2": 0,
-    "Sem 3": 0,
-    "Sem 4": 0,
-    "Sem 5": 0,
-  };
-  items.forEach((i) => {
-    if (!i.fechaCita) return;
-    const day = new Date(i.fechaCita + "T00:00:00").getDate();
-    const label = `Sem ${Math.ceil(day / 7)}`;
-    if (map[label] !== undefined) map[label] += 1;
-  });
-  return Object.entries(map)
-    .filter(([, v]) => v > 0)
-    .map(([name, value]) => ({ name, value }));
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Stat Card
@@ -427,7 +371,7 @@ export function DashboardOverview({
   // ── Charts ──
 
   // Revenue chart
-  const revenueChartData: ChartPoint[] =
+  const incomeChartData: ChartPoint[] =
     selectedPeriod === "today"
       ? groupSalesByHour(periodSales)
       : selectedPeriod === "week"
@@ -441,31 +385,6 @@ export function DashboardOverview({
       : selectedPeriod === "week"
         ? groupAgendaByDay(periodAgenda)
         : groupAgendaByWeek(periodAgenda);
-
-  // Clients pie chart
-  const clientsChartData = [
-    { name: "Nuevos", value: currentStats.new_clients, color: "#ec4899" },
-    {
-      name: "Recurrentes",
-      value: Math.max(0, currentStats.clients - currentStats.new_clients),
-      color: "#a855f7",
-    },
-  ].filter((d) => d.value > 0);
-
-  // Top products bar chart
-  const productFreq: Record<string, number> = {};
-  periodSales.forEach((sale) => {
-    sale.items.forEach((item) => {
-      if (item.name) {
-        productFreq[item.name] =
-          (productFreq[item.name] || 0) + (item.quantity || 1);
-      }
-    });
-  });
-  const productsChartData: ChartPoint[] = Object.entries(productFreq)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([name, value]) => ({ name, value }));
 
   const todayAgenda = allAgenda.filter((a) => isInPeriod(a.fechaCita, "today"));
   const upcomingAppointments = todayAgenda
@@ -506,7 +425,7 @@ export function DashboardOverview({
         : "Este Mes";
 
   return (
-    <div className="p-8 pb-32 flex flex-col gap-y-16 space-y-16 min-h-screen">
+    <div className="p-8 pb-32 flex flex-col gap-8 min-h-screen bg-gray-50/30">
       {/* Header Section */}
       <div className="flex items-center justify-between">
         <div>
@@ -596,15 +515,15 @@ export function DashboardOverview({
         />
       </div>
 
-      {/* Charts */}
-      <div className="grid lg:grid-cols-2 gap-8 mb-8">
+      {/* Charts Section */}
+      <div className="grid lg:grid-cols-2 gap-8">
         {/* Revenue Chart */}
         <div className="bg-white rounded-2xl shadow-lg p-6">
-          <h3 className="text-xl font-bold text-gray-800 mb-6">
+          <h3 className="text-xl font-bold text-gray-800 mb-8">
             Ingresos {periodLabel}
           </h3>
           {isLoading ? (
-            <div className="h-[300px] bg-gray-100 animate-pulse rounded-xl" />
+            <div className="h-[400px] bg-gray-100 animate-pulse rounded-xl" />
           ) : incomeChartData.every((d) => d.value === 0) ? (
             <EmptyChart label="Sin ingresos registrados en este período" />
           ) : (
@@ -636,15 +555,15 @@ export function DashboardOverview({
 
         {/* Appointments Chart */}
         <div className="bg-white rounded-2xl shadow-lg p-6">
-            <h3 className="text-xl font-bold text-gray-800 mb-6">
+            <h3 className="text-xl font-bold text-gray-800 mb-8">
               Citas {periodLabel}
             </h3>
             {isLoading ? (
-              <div className="h-[300px] bg-gray-100 animate-pulse rounded-xl" />
+              <div className="h-[400px] bg-gray-100 animate-pulse rounded-xl" />
             ) : appointmentsChartData.every((d) => d.value === 0) ? (
               <EmptyChart label="Sin citas registradas en este período" />
             ) : (
-              <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={400}>
                 <LineChart data={appointmentsChartData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name" />
@@ -664,36 +583,7 @@ export function DashboardOverview({
               </ResponsiveContainer>
             )}
           </div>
-
-        {/* Products Chart */}
-        <div className="bg-white rounded-2xl shadow-lg p-6">
-          <h3 className="text-xl font-bold text-gray-800 mb-6">
-            Productos Vendidos {periodLabel}
-          </h3>
-          {isLoading ? (
-            <div className="h-[300px] bg-gray-100 animate-pulse rounded-xl" />
-          ) : productsChartData.length === 0 ? (
-            <EmptyChart label="Sin productos vendidos en este período" />
-          ) : (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={productsChartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                <YAxis allowDecimals={false} />
-                <Tooltip formatter={(value: number) => [value, "Cantidad"]} />
-                <Legend />
-                <Bar
-                  dataKey="value"
-                  name="Cantidad"
-                  fill="#ec4899"
-                  radius={[4, 4, 0, 0]}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
         </div>
-      </div>
-    </div>
 
       {/* Two Column: Upcoming Appointments + Top Services */}
       <div className="grid lg:grid-cols-2 gap-8">
@@ -863,7 +753,7 @@ export function DashboardOverview({
 
 function EmptyChart({ label }: { label: string }) {
   return (
-    <div className="h-[300px] flex flex-col items-center justify-center text-gray-400">
+    <div className="h-[400px] flex flex-col items-center justify-center text-gray-400 bg-gray-50/50 rounded-xl border-2 border-dashed border-gray-100">
       <TrendingUp className="w-12 h-12 opacity-20 mb-3" />
       <p className="text-sm">{label}</p>
     </div>

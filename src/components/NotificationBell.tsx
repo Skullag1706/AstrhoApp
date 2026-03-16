@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Bell, AlertTriangle, ShoppingBag, CheckCircle, X } from 'lucide-react';
 
 interface Alert {
