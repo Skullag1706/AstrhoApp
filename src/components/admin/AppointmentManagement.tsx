@@ -74,6 +74,44 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
 
+  // ── Auto-Cancellation Logic ──
+  const autoCancelOverdue = useCallback(async (allAppointments: AgendaItem[], allServicios: ServicioAPI[], allMetodos: MetodoPago[]) => {
+    const now = new Date();
+    const overduePending = allAppointments.filter(a => {
+      if (a.estado.toLowerCase() !== 'pendiente') return false;
+      const aptDate = new Date(a.fechaCita + 'T' + a.horaInicio);
+      return aptDate < now;
+    });
+
+    if (overduePending.length === 0) return;
+
+    for (const apt of overduePending) {
+      try {
+        const serviciosIds = apt.servicios.map(name => {
+          const s = allServicios.find(sv => sv.nombre === name);
+          return s ? s.servicioId : 0;
+        }).filter(id => id > 0);
+
+        const metodo = allMetodos.find(m => m.nombre === apt.metodoPago);
+        const metodoPagoId = metodo ? metodo.metodopagoId : (allMetodos[0]?.metodopagoId || 1);
+
+        await agendaService.update(apt.agendaId, {
+          documentoCliente: apt.documentoCliente,
+          documentoEmpleado: apt.documentoEmpleado,
+          fechaCita: apt.fechaCita,
+          horaInicio: apt.horaInicio,
+          metodoPagoId,
+          observaciones: 'Cancelación automática por fecha vencida',
+          serviciosIds,
+          estadoId: 3 // Cancelado
+        });
+      } catch (err) {
+        console.error(`Error en cancelación automática de cita ${apt.agendaId}:`, err);
+      }
+    }
+    toast.info(`${overduePending.length} cita(s) vencida(s) cancelada(s) automáticamente.`);
+  }, []);
+
   // ── Load all data ──
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -130,6 +168,12 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
       // Load real estados from API (results[7]), fall back to defaults if failed
       const rawEstados = extract(results[7]).filter((e: any) => e.estadoId > 0 && e.nombre);
       if (rawEstados.length > 0) setEstadosAgenda(rawEstados);
+
+      // Trigger auto-cancellation for overdue appointments
+      const currentAppointments = extract(results[0]);
+      const currentServicios = extract(results[3]).filter((s: any) => s.estado);
+      const currentMetodos = extract(results[4]);
+      autoCancelOverdue(currentAppointments, currentServicios, currentMetodos);
 
       const anyFailed = results.some((r) => r.status === 'rejected');
       if (anyFailed) {
@@ -549,7 +593,8 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
                       </button>
                       <button
                         onClick={() => handleDeleteAppointment(apt)}
-                        className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
+                        disabled={estadoLower === 'completado' || estadoLower === 'completed'}
+                        className={`p-2 rounded-lg transition-colors ${(estadoLower === 'completado' || estadoLower === 'completed') ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}
                         title="Eliminar cita"
                       >
                         <Trash2 className="w-4 h-4" />

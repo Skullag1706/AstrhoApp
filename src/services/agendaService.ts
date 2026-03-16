@@ -13,6 +13,7 @@ export interface AgendaItem {
   estado: string;
   metodoPago: string;
   servicios: string[];
+  observaciones: string;
 }
 
 export interface CreateAgendaData {
@@ -192,6 +193,7 @@ function normalizeAgendaItem(raw: any): AgendaItem {
                           : Array.isArray(raw.servicios?.$values)
                           ? raw.servicios.$values
                           : [],
+    observaciones:      raw.observaciones      ?? raw.Observaciones     ?? '',
   };
 }
 
