@@ -1,14 +1,17 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Bell, AlertTriangle, ShoppingBag, CheckCircle, X } from 'lucide-react';
+import { Bell, AlertTriangle, ShoppingBag, CheckCircle, X, Calendar } from 'lucide-react';
+import { supplyService } from '../services/supplyService';
+import { agendaService } from '../services/agendaService';
 
 interface Alert {
-  id: number;
+  id: number | string;
   type: 'warning' | 'info' | 'success';
   message: string;
   action: string;
   time: string;
   icon: any;
   color: string;
+  view?: string;
 }
 
 interface NotificationBellProps {
@@ -21,29 +24,11 @@ export function NotificationBell({ currentUser }: NotificationBellProps) {
     {
       id: 1,
       type: 'warning',
-      message: '5 productos con stock bajo',
-      action: 'Ver inventario',
-      time: '5 min',
+      message: 'Sistema de alertas activo',
+      action: 'Configurar',
+      time: 'Ahora',
       icon: AlertTriangle,
       color: 'text-yellow-600 bg-yellow-100'
-    },
-    {
-      id: 2,
-      type: 'info',
-      message: '3 pedidos listos para entregar',
-      action: 'Gestionar pedidos',
-      time: '15 min',
-      icon: ShoppingBag,
-      color: 'text-blue-600 bg-blue-100'
-    },
-    {
-      id: 3,
-      type: 'success',
-      message: 'Cita completada: María González',
-      action: 'Ver detalles',
-      time: '30 min',
-      icon: CheckCircle,
-      color: 'text-green-600 bg-green-100'
     }
   ]);
 
@@ -51,8 +36,8 @@ export function NotificationBell({ currentUser }: NotificationBellProps) {
 
   // Close dropdown when clicking outside
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setShowNotifications(false);
       }
     };
@@ -64,27 +49,55 @@ export function NotificationBell({ currentUser }: NotificationBellProps) {
   }, []);
 
   const loadNotifications = useCallback(async () => {
+    if (!currentUser) return;
+    
     try {
-      // In a real app, we would fetch from the API here
-      // For now, we'll keep the current alerts or refresh based on state
+      const newAlerts: Alert[] = [];
+
+      // 1. Check Low Stock
       const supplies = await supplyService.getSupplies();
-      const lowStockCount = supplies.filter((s: any) => s.stock <= 5).length;
+      const lowStockItems = supplies.filter((s: any) => s.estado && s.stock <= 5);
       
-      if (lowStockCount > 0) {
-        const stockAlert: Alert = {
-          id: 'low-stock',
+      if (lowStockItems.length > 0) {
+        newAlerts.push({
+          id: 'low-stock-' + Date.now(),
           type: 'warning',
-          message: `${lowStockCount} insumos con stock bajo`,
+          message: `${lowStockItems.length} insumos con stock bajo`,
           action: 'Ver inventario',
           time: 'Ahora',
           icon: AlertTriangle,
           color: 'text-yellow-600 bg-yellow-100',
           view: 'inventario'
-        };
-        
-        setAlerts(prev => {
-          const filtered = prev.filter(a => a.id !== 'low-stock');
-          return [stockAlert, ...filtered].slice(0, 10);
+        });
+      }
+
+      // 2. Check Completed Appointments Today
+      const today = new Date().toISOString().split('T')[0];
+      const agenda = await agendaService.getAll();
+      const completedToday = agenda.filter(a => 
+        a.fechaCita === today && 
+        a.estado.toLowerCase() === 'completado'
+      );
+
+      if (completedToday.length > 0) {
+        newAlerts.push({
+          id: 'completed-apt-' + Date.now(),
+          type: 'success',
+          message: `${completedToday.length} citas completadas hoy`,
+          action: 'Ver agenda',
+          time: 'Hoy',
+          icon: CheckCircle,
+          color: 'text-green-600 bg-green-100',
+          view: 'agenda'
+        });
+      }
+      
+      if (newAlerts.length > 0) {
+        setAlerts((prev: Alert[]) => {
+          // Keep unique notifications based on message content to avoid spam
+          const existingMessages = new Set(prev.map(a => a.message));
+          const additions = newAlerts.filter(a => !existingMessages.has(a.message));
+          return [...additions, ...prev].slice(0, 10);
         });
       }
     } catch (err) {
@@ -92,43 +105,16 @@ export function NotificationBell({ currentUser }: NotificationBellProps) {
     }
   }, [currentUser]);
 
-  // Simulate real-time updates
+  // Load notifications on mount and periodically
   useEffect(() => {
-    const interval = setInterval(() => {
-      // Simulate new notifications appearing randomly
-      if (Math.random() > 0.8 && alerts.length < 8) {
-        const newNotifications: Alert[] = [
-          {
-            id: Date.now(),
-            type: 'info' as const,
-            message: 'Nueva cita programada',
-            action: 'Ver cita',
-            time: 'Ahora',
-            icon: CheckCircle,
-            color: 'text-blue-600 bg-blue-100'
-          },
-          {
-            id: Date.now() + 1,
-            type: 'warning' as const,
-            message: 'Producto agotándose',
-            action: 'Ver inventario',
-            time: 'Ahora',
-            icon: AlertTriangle,
-            color: 'text-yellow-600 bg-yellow-100',
-            view: 'inventario'
-          }
-        ];
-        const randomNotification = newNotifications[Math.floor(Math.random() * newNotifications.length)];
-        setAlerts(prev => [randomNotification, ...prev].slice(0, 10));
-      }
-    }, 45000); // Check every 45 seconds
-
+    loadNotifications();
+    const interval = setInterval(loadNotifications, 60000); // Every minute
     return () => clearInterval(interval);
-  }, [alerts]);
+  }, [loadNotifications]);
 
-  const handleDismiss = (id: number, e: React.MouseEvent) => {
+  const handleDismiss = (id: number | string, e: React.MouseEvent) => {
     e.stopPropagation();
-    setAlerts(alerts.filter(alert => alert.id !== id));
+    setAlerts((prev: Alert[]) => prev.filter((alert: Alert) => alert.id !== id));
   };
 
   const unreadCount = alerts.length;
@@ -188,9 +174,6 @@ export function NotificationBell({ currentUser }: NotificationBellProps) {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-800">{alert.message}</p>
                         <p className="text-xs text-gray-500 mt-0.5">Hace {alert.time}</p>
-                        <button className="text-xs bg-gradient-to-r from-pink-400 to-purple-500 text-white px-3 py-1 rounded-lg mt-2 hover:shadow-md transition-all">
-                          {alert.action}
-                        </button>
                       </div>
                       <button
                         onClick={(e) => handleDismiss(alert.id, e)}

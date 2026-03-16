@@ -370,6 +370,26 @@ export function ScheduleManagement({ hasPermission }: ScheduleManagementProps) {
   };
 
   // ── Helpers ──
+  
+  const checkOverlap = (
+    doc: string, 
+    dia: string, 
+    inicio: string, 
+    fin: string, 
+    excludeScheduleId?: number
+  ) => {
+    // Find any assignment for this employee on the same day that overlaps
+    return horarioEmpleados.some(he => {
+      // Must be same employee and same day
+      if (he.documentoEmpleado !== doc || he.diaSemana !== dia) return false;
+      
+      // If we're editing/re-assigning, exclude the current assignment
+      if (excludeScheduleId && he.horarioId === excludeScheduleId) return false;
+
+      // Overlap condition: (StartA < EndB) and (EndA > StartB)
+      return inicio < he.horaFin && fin > he.horaInicio;
+    });
+  };
 
   const getHorariosForGroup = (group: ScheduleGroup) => {
     return horarios.filter(h => group.horarioIds.includes(h.horarioId));
@@ -639,6 +659,7 @@ export function ScheduleManagement({ hasPermission }: ScheduleManagementProps) {
           onClose={() => setShowScheduleModal(false)}
           onSave={handleSaveSchedule}
           saving={saving}
+          checkOverlap={checkOverlap}
         />
       )}
 
@@ -670,6 +691,7 @@ export function ScheduleManagement({ hasPermission }: ScheduleManagementProps) {
           onClose={() => setShowAssignModal(false)}
           onSave={handleSaveAssignment}
           saving={saving}
+          checkOverlap={checkOverlap}
         />
       )}
     </div>
@@ -688,9 +710,10 @@ interface ScheduleModalProps {
   onClose: () => void;
   onSave: (nombre: string, days: DaySchedule[], assignmentsToCreate: CreateHorarioEmpleadoData[], assignmentsToDelete: number[], groupId?: string) => void;
   saving: boolean;
+  checkOverlap: (doc: string, dia: string, inicio: string, fin: string, excludeScheduleId?: number) => boolean;
 }
 
-function ScheduleModal({ group, horarios, empleados, existingAssignments, onClose, onSave, saving }: ScheduleModalProps) {
+function ScheduleModal({ group, horarios, empleados, existingAssignments, onClose, onSave, saving, checkOverlap }: ScheduleModalProps) {
   const [nombre, setNombre] = useState(group?.nombre || '');
 
   // Build initial days state
@@ -737,7 +760,16 @@ function ScheduleModal({ group, horarios, empleados, existingAssignments, onClos
   };
 
   const handleLocalAssign = (data: CreateHorarioEmpleadoData) => {
+    const day = days.find(d => d.enabled && horarios.find(h => h.horarioId === data.horarioId)?.diaSemana === d.dia);
+    const h = horarios.find(h => h.horarioId === data.horarioId);
+    
+    if (h && checkOverlap(data.documentoEmpleado, h.diaSemana, h.horaInicio, h.horaFin)) {
+      setValidationError(`El empleado ya tiene un horario asignado que se cruza con el de este día (${h.diaSemana} ${h.horaInicio}-${h.horaFin})`);
+      return;
+    }
+    
     setPendingCreates(prev => [...prev, data]);
+    setValidationError(null);
   };
 
   const handleLocalRemove = (assignmentId: number) => {
@@ -1013,31 +1045,51 @@ function ScheduleModal({ group, horarios, empleados, existingAssignments, onClos
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-2">Empleados disponibles:</label>
                   <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {availableEmpleados.map(emp => (
-                      <div
-                        key={emp.documentoEmpleado}
-                        className="flex items-center justify-between p-3 border border-gray-200 rounded-xl hover:bg-purple-50 transition-colors"
-                      >
-                        <div className="flex items-center space-x-3">
-                          <div className="w-8 h-8 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full flex items-center justify-center">
-                            <Users className="w-4 h-4 text-white" />
-                          </div>
-                          <div>
-                            <div className="text-sm font-semibold text-gray-800">{emp.nombre}</div>
-                            <div className="text-xs text-gray-500">Doc: {emp.documentoEmpleado}</div>
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleLocalAssign({ horarioId: selectedDayForAssign, documentoEmpleado: emp.documentoEmpleado })}
-                          disabled={!selectedDayForAssign}
-                          className="px-3 py-1.5 bg-gradient-to-r from-purple-400 to-indigo-500 text-white rounded-lg text-xs font-semibold hover:shadow-md transition-all flex items-center space-x-1 disabled:opacity-60"
+                    {availableEmpleados.map(emp => {
+                      const h = horarios.find(hor => hor.horarioId === selectedDayForAssign);
+                      const isOverlapping = h ? checkOverlap(emp.documentoEmpleado, h.diaSemana, h.horaInicio, h.horaFin) : false;
+                      
+                      return (
+                        <div
+                          key={emp.documentoEmpleado}
+                          className={`flex items-center justify-between p-3 border rounded-xl transition-colors ${
+                            isOverlapping ? 'bg-red-50 border-red-100 opacity-60' : 'border-gray-200 hover:bg-purple-50'
+                          }`}
                         >
-                          <UserPlus className="w-3.5 h-3.5" />
-                          <span>Asignar</span>
-                        </button>
-                      </div>
-                    ))}
+                          <div className="flex items-center space-x-3">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                              isOverlapping ? 'bg-red-200' : 'bg-gradient-to-r from-pink-400 to-purple-500'
+                            }`}>
+                              <Users className="w-4 h-4 text-white" />
+                            </div>
+                            <div>
+                              <div className="text-sm font-semibold text-gray-800">{emp.nombre}</div>
+                              <div className="text-xs text-gray-500">
+                                {isOverlapping ? (
+                                  <span className="text-red-600 flex items-center">
+                                    <AlertCircle className="w-3 h-3 mr-1" />
+                                    Tiene solapamiento en este horario
+                                  </span>
+                                ) : (
+                                  `Doc: ${emp.documentoEmpleado}`
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          {!isOverlapping && (
+                            <button
+                              type="button"
+                              onClick={() => handleLocalAssign({ horarioId: selectedDayForAssign, documentoEmpleado: emp.documentoEmpleado })}
+                              disabled={!selectedDayForAssign}
+                              className="px-3 py-1.5 bg-gradient-to-r from-purple-400 to-indigo-500 text-white rounded-lg text-xs font-semibold hover:shadow-md transition-all flex items-center space-x-1 disabled:opacity-60"
+                            >
+                              <UserPlus className="w-3.5 h-3.5" />
+                              <span>Asignar</span>
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               ) : (
@@ -1304,9 +1356,10 @@ interface AssignEmployeeModalProps {
   onClose: () => void;
   onSave: (data: CreateHorarioEmpleadoData) => void;
   saving: boolean;
+  checkOverlap: (doc: string, dia: string, inicio: string, fin: string, excludeScheduleId?: number) => boolean;
 }
 
-function AssignEmployeeModal({ group, horarios, empleados, existingAssignments, onClose, onSave, saving }: AssignEmployeeModalProps) {
+function AssignEmployeeModal({ group, horarios, empleados, existingAssignments, onClose, onSave, saving, checkOverlap }: AssignEmployeeModalProps) {
   const [selectedEmpleado, setSelectedEmpleado] = useState<string>('');
   const [selectedHorarioId, setSelectedHorarioId] = useState<number>(horarios[0]?.horarioId || 0);
 
@@ -1321,6 +1374,12 @@ function AssignEmployeeModal({ group, horarios, empleados, existingAssignments, 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedEmpleado || !selectedHorarioId) return;
+
+    const h = horarios.find(hor => hor.horarioId === selectedHorarioId);
+    if (h && checkOverlap(selectedEmpleado, h.diaSemana, h.horaInicio, h.horaFin)) {
+      // Although UI should filter, prevent submit just in case
+      return;
+    }
 
     onSave({
       horarioId: selectedHorarioId,
@@ -1378,31 +1437,51 @@ function AssignEmployeeModal({ group, horarios, empleados, existingAssignments, 
               <label className="block text-sm font-semibold text-gray-700 mb-2">
                 Seleccionar Empleado *
               </label>
-              {availableEmpleados.map(emp => (
-                <label
-                  key={emp.documentoEmpleado}
-                  className={`flex items-center space-x-3 p-4 border rounded-xl cursor-pointer transition-all ${selectedEmpleado === emp.documentoEmpleado
-                    ? 'border-purple-400 bg-purple-50 ring-2 ring-purple-200'
-                    : 'border-gray-200 hover:bg-gray-50'
+              {availableEmpleados.map(emp => {
+                const h = horarios.find(hor => hor.horarioId === selectedHorarioId);
+                const isOverlapping = h ? checkOverlap(emp.documentoEmpleado, h.diaSemana, h.horaInicio, h.horaFin) : false;
+
+                return (
+                  <label
+                    key={emp.documentoEmpleado}
+                    className={`flex items-center space-x-3 p-4 border rounded-xl transition-all ${
+                      isOverlapping 
+                        ? 'opacity-50 cursor-not-allowed bg-red-50 border-red-100' 
+                        : selectedEmpleado === emp.documentoEmpleado
+                          ? 'border-purple-400 bg-purple-50 ring-2 ring-purple-200 cursor-pointer'
+                          : 'border-gray-200 hover:bg-gray-50 cursor-pointer'
                     }`}
-                >
-                  <input
-                    type="radio"
-                    name="empleado"
-                    value={emp.documentoEmpleado}
-                    checked={selectedEmpleado === emp.documentoEmpleado}
-                    onChange={(e) => setSelectedEmpleado(e.target.value)}
-                    className="w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500"
-                  />
-                  <div className="w-10 h-10 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full flex items-center justify-center">
-                    <Users className="w-5 h-5 text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="font-semibold text-gray-800">{emp.nombre}</div>
-                    <div className="text-sm text-gray-600">Doc: {emp.documentoEmpleado}</div>
-                  </div>
-                </label>
-              ))}
+                  >
+                    <input
+                      type="radio"
+                      name="empleado"
+                      value={emp.documentoEmpleado}
+                      checked={selectedEmpleado === emp.documentoEmpleado}
+                      onChange={(e) => !isOverlapping && setSelectedEmpleado(e.target.value)}
+                      disabled={isOverlapping}
+                      className="w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500 disabled:opacity-30"
+                    />
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                      isOverlapping ? 'bg-red-200' : 'bg-gradient-to-r from-pink-400 to-purple-500'
+                    }`}>
+                      <Users className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-semibold text-gray-800">{emp.nombre}</div>
+                      <div className="text-sm text-gray-600">
+                        {isOverlapping ? (
+                          <span className="text-red-600 flex items-center font-medium">
+                            <AlertCircle className="w-3.5 h-3.5 mr-1" />
+                            Ocupado en otro horario a esta hora
+                          </span>
+                        ) : (
+                          `Doc: ${emp.documentoEmpleado}`
+                        )}
+                      </div>
+                    </div>
+                  </label>
+                );
+              })}
             </div>
           ) : (
             <div className="text-center py-8 text-gray-500">

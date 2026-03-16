@@ -65,7 +65,10 @@ const TODAY = new Date();
 TODAY.setHours(0, 0, 0, 0);
 
 function toLocalDateStr(d: Date): string {
-  return d.toISOString().split("T")[0];
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function getWeekStart(): Date {
@@ -289,6 +292,8 @@ export function DashboardOverview({
   const loadData = useCallback(async () => {
     setIsLoading(true);
     setError(null);
+    setAllAgenda([]);
+    setAllSales([]);
     try {
       const [agenda, sales, clients, supplies, services] =
         await Promise.allSettled([
@@ -334,7 +339,7 @@ export function DashboardOverview({
     isInPeriod(a.fechaCita, selectedPeriod),
   );
   const periodSales = allSales.filter((s) =>
-    isInPeriod(s.date, selectedPeriod),
+    isInPeriod(s.date, selectedPeriod) && s.status === "completed",
   );
 
   // ── Compute Stats ──
