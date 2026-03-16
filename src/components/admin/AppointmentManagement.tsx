@@ -1,11 +1,20 @@
-import React, { useState, useEffect, useCallback } from 'react';
 import {
   Calendar, Clock, Users, Plus,
   CheckCircle, AlertCircle, XCircle, Edit, Eye, Trash2,
-  Save, X, User, Phone, DollarSign, Search, Loader2, RefreshCw, Scissors, TrendingUp
+  Save, X, User, Phone, DollarSign, Search, Loader2, RefreshCw, Scissors, TrendingUp,
+  Check, ChevronsUpDown
 } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { SimplePagination } from '../ui/simple-pagination';
+import { Button } from '../ui/button';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '../ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../ui/command';
+import { cn } from '../ui/utils';
 import {
   agendaService, metodoPagoService, empleadoAgendaService,
   clienteService, servicioAgendaService, estadoAgendaService, isEmployeeOccupied,
@@ -733,6 +742,8 @@ function AppointmentModal({
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  const [openClientSelect, setOpenClientSelect] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const isCompleted = appointment?.estado.toLowerCase() === 'completado';
@@ -756,6 +767,11 @@ function AppointmentModal({
   };
 
   const updateServiceSlot = (index: number, servicioId: number) => {
+    // Check if this ID is already selected in ANOTHER slot
+    if (servicioId > 0 && formData.serviciosIds.some((id, i) => id === servicioId && i !== index)) {
+      toast.error('Este servicio ya ha sido seleccionado');
+      return;
+    }
     const newIds = [...formData.serviciosIds];
     newIds[index] = servicioId;
     setFormData({ ...formData, serviciosIds: newIds });
@@ -817,8 +833,6 @@ function AppointmentModal({
     });
   };
 
-  // ── Slot generation logic ──
-  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
 
   const generateAvailableSlots = useCallback(() => {
     if (!formData.fechaCita || !formData.documentoEmpleado || totalDuration <= 0) {
@@ -1003,56 +1017,92 @@ function AppointmentModal({
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
-          {/* Cliente y Fecha */}
-          <div className="grid md:grid-cols-2 gap-4">
-            <div>
-              <label className="block font-semibold text-gray-700 mb-2">Cliente *</label>
-              <select
-                value={formData.documentoCliente}
-                onChange={(e) => setFormData({ ...formData, documentoCliente: e.target.value })}
-                disabled={isCompleted}
-                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${errors.documentoCliente ? 'border-red-300' : 'border-gray-300'
-                  } ${isCompleted ? 'bg-gray-100 cursor-not-allowed' : ''}`}
-              >
-                <option value="">Seleccionar cliente...</option>
-                {clientes.map((cli) => (
-                  <option key={cli.documentoCliente} value={cli.documentoCliente}>
-                    {cli.nombre} - {cli.documentoCliente}
-                  </option>
-                ))}
-              </select>
-              {errors.documentoCliente && (
-                <p className="text-red-500 text-sm mt-1">{errors.documentoCliente}</p>
-              )}
-            </div>
+          {/* Cliente con Búsqueda Integrada (Custom Style) */}
+          <div className="bg-pink-50/30 p-4 rounded-2xl border border-pink-100">
+            <label className="block font-semibold text-gray-700 mb-2">Cliente *</label>
+            <ClientSearchSelect
+              clients={clientes}
+              selectedDocument={formData.documentoCliente}
+              onSelect={(cli: ClienteAPI) => setFormData({ ...formData, documentoCliente: cli.documentoCliente })}
+              error={errors.documentoCliente}
+              disabled={isCompleted}
+            />
+            {errors.documentoCliente && (
+              <p className="text-red-500 text-sm mt-1">{errors.documentoCliente}</p>
+            )}
+          </div>
 
+          {/* Fecha y Método de Pago */}
+          <div className="grid md:grid-cols-2 gap-4">
             <div>
               <label className="block font-semibold text-gray-700 mb-2">Fecha *</label>
               <input
                 type="date"
                 value={formData.fechaCita}
-                onChange={(e) => setFormData({ ...formData, fechaCita: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFormData({ ...formData, fechaCita: e.target.value })}
                 min={new Date().toISOString().split('T')[0]}
                 disabled={isCompleted}
-                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${errors.fechaCita ? 'border-red-300' : 'border-gray-300'
-                  } ${isCompleted ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${
+                  errors.fechaCita ? 'border-red-300' : 'border-gray-300'
+                } ${isCompleted ? 'bg-gray-100 cursor-not-allowed' : ''}`}
               />
               {errors.fechaCita && (
                 <p className="text-red-500 text-sm mt-1">{errors.fechaCita}</p>
               )}
             </div>
+
+            <div>
+              <label className="block font-semibold text-gray-700 mb-2">Método de Pago *</label>
+              <select
+                value={formData.metodoPagoId}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                  setFormData({ ...formData, metodoPagoId: parseInt(e.target.value) })
+                }
+                disabled={isCompleted}
+                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${
+                  errors.metodoPagoId ? 'border-red-300' : 'border-gray-300'
+                } ${isCompleted ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+              >
+                <option value={0}>Seleccionar método...</option>
+                {metodosPago.map((mp) => (
+                  <option key={mp.metodopagoId} value={mp.metodopagoId}>
+                    {mp.nombre}
+                  </option>
+                ))}
+              </select>
+              {errors.metodoPagoId && (
+                <p className="text-red-500 text-sm mt-1">{errors.metodoPagoId}</p>
+              )}
+            </div>
           </div>
 
-          {/* Hora y Método de Pago */}
+          {/* Profesional y Hora Inicio */}
           <div className="grid md:grid-cols-2 gap-4">
+             <div className="relative">
+              <label className="block font-semibold text-gray-700 mb-2">Profesional *</label>
+              <ProfessionalSearchSelect
+                empleados={empleados}
+                selectedDocument={formData.documentoEmpleado}
+                onSelect={(emp) => setFormData({ ...formData, documentoEmpleado: emp.documentoEmpleado })}
+                checkEmployeeOccupied={checkEmployeeOccupied}
+                checkEmployeeHasSchedule={checkEmployeeHasSchedule}
+                disabled={isCompleted}
+                error={!!errors.documentoEmpleado}
+              />
+              {errors.documentoEmpleado && (
+                <p className="text-red-500 text-sm mt-1">{errors.documentoEmpleado}</p>
+              )}
+            </div>
+
             <div>
               <label className="block font-semibold text-gray-700 mb-2">Hora de Inicio *</label>
               <select
                 value={formData.horaInicio}
-                onChange={(e) => setFormData({ ...formData, horaInicio: e.target.value })}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFormData({ ...formData, horaInicio: e.target.value })}
                 disabled={isCompleted || availableSlots.length === 0}
-                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${errors.horaInicio ? 'border-red-300' : 'border-gray-300'
-                  } ${isCompleted || availableSlots.length === 0 ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${
+                  errors.horaInicio ? 'border-red-300' : 'border-gray-300'
+                } ${isCompleted || availableSlots.length === 0 ? 'bg-gray-100 cursor-not-allowed' : ''}`}
               >
                 {availableSlots.length === 0 ? (
                   <option value="">No hay horas disponibles</option>
@@ -1061,7 +1111,7 @@ function AppointmentModal({
                     {!availableSlots.includes(formData.horaInicio) && (
                       <option value="">Selecciona una hora...</option>
                     )}
-                    {availableSlots.map((slot) => (
+                    {availableSlots.map((slot: string) => (
                       <option key={slot} value={slot}>
                         {slot}
                       </option>
@@ -1079,31 +1129,8 @@ function AppointmentModal({
               )}
               {availableSlots.length === 0 && formData.documentoEmpleado && formData.fechaCita && (
                 <p className="text-xs text-red-500 mt-1">
-                  No hay disponibilidad para estos servicios en la fecha seleccionada.
+                  Primero debe seleccionar un servicio.
                 </p>
-              )}
-            </div>
-
-            <div>
-              <label className="block font-semibold text-gray-700 mb-2">Método de Pago *</label>
-              <select
-                value={formData.metodoPagoId}
-                onChange={(e) =>
-                  setFormData({ ...formData, metodoPagoId: parseInt(e.target.value) })
-                }
-                disabled={isCompleted}
-                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${errors.metodoPagoId ? 'border-red-300' : 'border-gray-300'
-                  } ${isCompleted ? 'bg-gray-100 cursor-not-allowed' : ''}`}
-              >
-                <option value={0}>Seleccionar método...</option>
-                {metodosPago.map((mp) => (
-                  <option key={mp.metodopagoId} value={mp.metodopagoId}>
-                    {mp.nombre}
-                  </option>
-                ))}
-              </select>
-              {errors.metodoPagoId && (
-                <p className="text-red-500 text-sm mt-1">{errors.metodoPagoId}</p>
               )}
             </div>
           </div>
@@ -1118,9 +1145,9 @@ function AppointmentModal({
               <button
                 type="button"
                 onClick={addServiceSlot}
-                disabled={isCompleted}
-                className={`bg-gradient-to-r from-pink-500 to-purple-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center space-x-2 ${isCompleted ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
+                disabled={isCompleted || formData.serviciosIds.length >= serviciosAPI.length}
+                className={`bg-gradient-to-r from-pink-500 to-purple-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center space-x-2 ${isCompleted || formData.serviciosIds.length >= serviciosAPI.length ? 'opacity-50 cursor-not-allowed' : ''
+                   }`}
               >
                 <Plus className="w-4 h-4" />
                 <span>Agregar Servicio</span>
@@ -1153,11 +1180,18 @@ function AppointmentModal({
                               className={`w-full bg-transparent font-bold text-gray-800 border-none p-0 focus:ring-0 text-sm ${isCompleted ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                             >
                               <option value={0}>Selecciona un servicio...</option>
-                              {serviciosAPI.map((s) => (
-                                <option key={s.servicioId} value={s.servicioId}>
-                                  {s.nombre}
-                                </option>
-                              ))}
+                              {serviciosAPI.map((s) => {
+                                const isSelectedElsewhere = formData.serviciosIds.some(id => id === s.servicioId && id !== svcId);
+                                return (
+                                  <option 
+                                    key={s.servicioId} 
+                                    value={s.servicioId}
+                                    disabled={isSelectedElsewhere}
+                                  >
+                                    {s.nombre} {isSelectedElsewhere ? '(Ya seleccionado)' : ''}
+                                  </option>
+                                );
+                              })}
                             </select>
                           </div>
 
@@ -1195,31 +1229,31 @@ function AppointmentModal({
                 </div>
 
                 {/* Totals Section */}
-                <div className="mt-8 relative overflow-hidden bg-gradient-to-br from-gray-900 to-gray-800 p-6 rounded-3xl text-white shadow-xl">
-                  {/* Decorative blobs */}
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-pink-500/20 blur-3xl rounded-full -translate-y-1/2 translate-x-1/2" />
-                  <div className="absolute bottom-0 left-0 w-24 h-24 bg-purple-500/20 blur-2xl rounded-full translate-y-1/2 -translate-x-1/2" />
+                <div className="mt-8 relative overflow-hidden bg-pink-50/50 p-6 rounded-3xl text-gray-900 border border-pink-100 shadow-sm">
+                  {/* Decorative blobs - softened for light background */}
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-pink-200/20 blur-3xl rounded-full -translate-y-1/2 translate-x-1/2" />
+                  <div className="absolute bottom-0 left-0 w-24 h-24 bg-purple-200/20 blur-2xl rounded-full translate-y-1/2 -translate-x-1/2" />
                   
                   <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
                     <div className="flex items-center gap-6">
                       <div className="flex flex-col">
-                        <span className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1">Duración Total</span>
+                        <span className="text-black text-xs font-bold uppercase tracking-wider mb-1">Duración Total</span>
                         <div className="flex items-baseline gap-1">
-                          <span className="text-3xl font-black">{totalDuration}</span>
-                          <span className="text-gray-400 font-medium">minutos</span>
+                          <span className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-purple-600">{totalDuration}</span>
+                          <span className="text-black font-medium">minutos</span>
                         </div>
                       </div>
-                      <div className="w-px h-10 bg-white/10 hidden md:block" />
+                      <div className="w-px h-10 bg-pink-200/50 hidden md:block" />
                       <div className="flex flex-col">
-                        <span className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1">Items</span>
-                        <span className="text-3xl font-black">{formData.serviciosIds.length}</span>
+                        <span className="text-black text-xs font-bold uppercase tracking-wider mb-1">Items</span>
+                        <span className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-purple-600">{formData.serviciosIds.length}</span>
                       </div>
                     </div>
 
                     <div className="flex flex-col md:items-end">
-                      <span className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1">Monto Total a Pagar</span>
+                      <span className="text-gray-500 text-xs font-bold uppercase tracking-wider mb-1">Monto Total a Pagar</span>
                       <div className="flex items-center gap-2">
-                        <span className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-purple-400">
+                        <span className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-purple-600">
                           ${totalCost.toLocaleString()}
                         </span>
                       </div>
@@ -1228,64 +1262,44 @@ function AppointmentModal({
                 </div>
               </div>
             ) : (
-              <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-3xl bg-white/50">
-                <div className="w-16 h-16 bg-pink-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Plus className="w-8 h-8 text-pink-300" />
+              <div className={cn(
+                "text-center py-10 border-2 border-dashed rounded-3xl transition-all duration-300",
+                errors.services 
+                  ? "border-red-300 bg-red-50/30" 
+                  : "border-gray-200 bg-white/50"
+              )}>
+                <div className={cn(
+                  "w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 transition-colors",
+                  errors.services ? "bg-red-100" : "bg-pink-50"
+                )}>
+                  <Plus className={cn(
+                    "w-8 h-8",
+                    errors.services ? "text-red-400" : "text-pink-300"
+                  )} />
                 </div>
-                <h4 className="text-gray-600 font-bold mb-1">No hay servicios agregados</h4>
-                <p className="text-sm text-gray-400">Haz clic en el botón superior para comenzar</p>
+                <h4 className={cn(
+                  "font-bold mb-1",
+                  errors.services ? "text-red-600" : "text-gray-600"
+                )}>
+                  {errors.services ? "Se debe agregar al menos un servicio" : "No hay servicios agregados"}
+                </h4>
+                <p className={cn(
+                  "text-sm mb-4",
+                  errors.services ? "text-red-400" : "text-gray-400"
+                )}>
+                  Haz clic en el botón superior para comenzar
+                </p>
+                {errors.services && (
+                  <div className="inline-flex items-center px-3 py-1 bg-red-100 text-red-600 rounded-full text-xs font-bold animate-bounce">
+                    <AlertCircle className="w-3 h-3 mr-1" />
+                    Campo requerido
+                  </div>
+                )}
               </div>
             )}
-            {errors.services && <p className="text-red-500 text-sm mt-1">{errors.services}</p>}
+            {errors.services && <p className="text-red-500 text-sm mt-2 text-center font-medium">{errors.services}</p>}
           </div>
 
-          {/* Profesional */}
-          <div>
-            <label className="block font-semibold text-gray-700 mb-2">Profesional *</label>
-            {formData.fechaCita && horariosEmpleado.length === 0 && (
-              <div className="mb-2 px-3 py-2 bg-yellow-50 border border-yellow-200 rounded-lg text-xs text-yellow-700">
-                ⚠️ No se pudieron cargar los horarios de empleados. Todos aparecen como disponibles.
-              </div>
-            )}
-            {formData.fechaCita && horariosEmpleado.length > 0 && (
-              <p className="text-sm text-gray-500 mb-2">
-                Profesionales sin horario ese d\u00eda o que est\u00e9n ocupados aparecer\u00e1n en gris y no podr\u00e1n seleccionarse.
-              </p>
-            )}
-            <select
-              value={formData.documentoEmpleado}
-              onChange={(e) => setFormData({ ...formData, documentoEmpleado: e.target.value })}
-              disabled={isCompleted}
-              className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${errors.documentoEmpleado ? 'border-red-300' : 'border-gray-300'
-                } ${isCompleted ? 'bg-gray-100 cursor-not-allowed' : ''}`}
-            >
-              <option value="">Seleccionar profesional...</option>
-              {empleados.map((emp) => {
-                const occupied = checkEmployeeOccupied(emp.documentoEmpleado);
-                const isWithinSchedule = checkEmployeeHasSchedule(emp.documentoEmpleado);
-
-                const isDisabled = occupied || !isWithinSchedule;
-                const suffix = occupied
-                  ? ' — Ocupado'
-                  : !isWithinSchedule
-                  ? ' — Fuera de horario'
-                  : '';
-                return (
-                  <option
-                    key={emp.documentoEmpleado}
-                    value={emp.documentoEmpleado}
-                    disabled={isDisabled}
-                    style={isDisabled ? { color: '#9ca3af', backgroundColor: '#f3f4f6' } : {}}
-                  >
-                    {emp.nombre}{suffix}
-                  </option>
-                );
-              })}
-            </select>
-            {errors.documentoEmpleado && (
-              <p className="text-red-500 text-sm mt-1">{errors.documentoEmpleado}</p>
-            )}
-          </div>
 
           {/* Observaciones */}
           <div>
@@ -1611,6 +1625,257 @@ function DeleteAppointmentModal({ appointment, serviciosMap, onClose, onConfirm 
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Custom Client Search and Select Component (matches ProductSearchSelect style)
+function ClientSearchSelect({ clients, onSelect, selectedDocument, error, disabled }: any) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const selectedClient = clients.find((c: any) => c.documentoCliente === selectedDocument);
+
+  const filteredClients = clients.filter((c: any) => {
+    if (!c) return false;
+    const nombre = (c.nombre || '').toLowerCase();
+    const doc = (c.documentoCliente || '').toLowerCase();
+    const search = searchTerm.toLowerCase();
+    return nombre.includes(search) || doc.includes(search);
+  });
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div className={`relative ${isOpen ? 'z-50' : ''}`} ref={dropdownRef}>
+      <div
+        className={cn(
+          "w-full px-4 py-3 min-h-[48px] border rounded-xl flex items-center justify-between cursor-pointer bg-white transition-all",
+          error ? 'border-red-300' : 'border-gray-300',
+          disabled && 'bg-gray-100 cursor-not-allowed opacity-100'
+        )}
+        onClick={() => !disabled && setIsOpen(true)}
+      >
+        {!isOpen && !selectedClient ? (
+          <div className="flex items-center gap-2">
+            <User className="w-4 h-4 text-pink-400" />
+            <span className="text-gray-500">Seleccionar cliente...</span>
+          </div>
+        ) : !isOpen && selectedClient ? (
+          <div className="flex items-center gap-2">
+            <User className="w-4 h-4 text-pink-400" />
+            <span className="text-gray-800 font-medium">{selectedClient.nombre}</span>
+          </div>
+        ) : (
+          <div className="flex-1 flex items-center">
+            <Search className="text-gray-400 w-4 h-4 mr-2" />
+            <input
+              type="text"
+              className="w-full bg-transparent text-sm focus:outline-none"
+              placeholder="Buscar por nombre o documento..."
+              value={searchTerm}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+              autoFocus
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            />
+          </div>
+        )}
+        <ChevronsUpDown className={cn(
+          "w-4 h-4 text-gray-500 transition-transform",
+          isOpen && 'rotate-180'
+        )} />
+      </div>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200">
+          <div className="max-h-60 overflow-y-auto py-1">
+            {filteredClients.length === 0 ? (
+              <div className="p-4 text-sm text-gray-500 text-center">No se encontraron clientes</div>
+            ) : (
+              filteredClients.map((client: any) => (
+                <div
+                  key={client.documentoCliente}
+                  className={cn(
+                    "px-4 py-3 hover:bg-pink-50 cursor-pointer text-sm flex justify-between items-center transition-colors",
+                    client.documentoCliente === selectedDocument ? 'bg-pink-100 text-pink-700 font-semibold' : 'text-gray-800'
+                  )}
+                  onClick={(e: React.MouseEvent) => {
+                    e.stopPropagation();
+                    onSelect(client);
+                    setIsOpen(false);
+                    setSearchTerm('');
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <Check
+                      className={cn(
+                        "h-4 w-4 text-pink-500",
+                        client.documentoCliente === selectedDocument ? "opacity-100" : "opacity-0"
+                      )}
+                    />
+                    <div className="flex flex-col">
+                      <span className="font-medium">{client.nombre}</span>
+                      <span className="text-xs text-gray-500">{client.documentoCliente}</span>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface ProfessionalSearchSelectProps {
+  empleados: any[];
+  selectedDocument: string;
+  onSelect: (emp: any) => void;
+  checkEmployeeOccupied: (doc: string) => boolean;
+  checkEmployeeHasSchedule: (doc: string) => boolean;
+  disabled?: boolean;
+  error?: boolean;
+}
+
+function ProfessionalSearchSelect({
+  empleados,
+  selectedDocument,
+  onSelect,
+  checkEmployeeOccupied,
+  checkEmployeeHasSchedule,
+  disabled,
+  error
+}: ProfessionalSearchSelectProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const selectedEmployee = empleados.find((e) => e.documentoEmpleado === selectedDocument);
+
+  const filteredEmployees = empleados.filter((emp) =>
+    emp.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    emp.documentoEmpleado.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+        setSearchTerm('');
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  return (
+    <div className="relative w-full" ref={containerRef}>
+      <div
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        className={cn(
+          "flex items-center justify-between w-full px-4 py-3 border rounded-xl transition-all cursor-pointer bg-white",
+          error ? "border-red-300 ring-red-100" : "border-gray-300 ring-pink-100",
+          !disabled && "hover:border-pink-300 focus-within:ring-2",
+          disabled && "bg-gray-100 cursor-not-allowed opacity-75"
+        )}
+      >
+        {!isOpen && !selectedEmployee ? (
+          <div className="flex items-center gap-2">
+            <User className="w-4 h-4 text-pink-400" />
+            <span className="text-gray-500">Seleccionar profesional...</span>
+          </div>
+        ) : !isOpen && selectedEmployee ? (
+          <div className="flex items-center gap-2">
+            <User className="w-4 h-4 text-pink-400" />
+            <span className="text-gray-800 font-medium">{selectedEmployee.nombre}</span>
+          </div>
+        ) : (
+          <div className="flex-1 flex items-center">
+            <Search className="text-gray-400 w-4 h-4 mr-2" />
+            <input
+              type="text"
+              className="w-full bg-transparent text-sm focus:outline-none"
+              placeholder="Buscar profesional..."
+              value={searchTerm}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+              autoFocus
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            />
+          </div>
+        )}
+        <ChevronsUpDown className={cn(
+          "w-4 h-4 text-gray-500 transition-transform",
+          isOpen && 'rotate-180'
+        )} />
+      </div>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200">
+          <div className="max-h-[280px] overflow-y-auto py-1">
+            {filteredEmployees.length === 0 ? (
+              <div className="p-4 text-sm text-gray-500 text-center">No se encontraron profesionales</div>
+            ) : (
+              filteredEmployees.map((emp: any) => {
+                const occupied = checkEmployeeOccupied(emp.documentoEmpleado);
+                const isWithinSchedule = checkEmployeeHasSchedule(emp.documentoEmpleado);
+                const isDisabled = occupied || !isWithinSchedule;
+                const statusText = occupied
+                  ? 'Ocupado'
+                  : !isWithinSchedule
+                  ? 'Fuera de horario'
+                  : '';
+
+                return (
+                  <div
+                    key={emp.documentoEmpleado}
+                    className={cn(
+                      "px-4 py-3 text-sm flex justify-between items-center transition-colors",
+                      emp.documentoEmpleado === selectedDocument ? 'bg-pink-100 text-pink-700 font-semibold' : 'text-gray-800',
+                      isDisabled ? "opacity-50 cursor-not-allowed bg-gray-50" : "hover:bg-pink-50 cursor-pointer"
+                    )}
+                    onClick={(e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      if (isDisabled) return;
+                      onSelect(emp);
+                      setIsOpen(false);
+                      setSearchTerm('');
+                    }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Check
+                        className={cn(
+                          "h-4 w-4 text-pink-500",
+                          emp.documentoEmpleado === selectedDocument ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      <div className="flex flex-col">
+                        <span className="font-medium">{emp.nombre}</span>
+                        {statusText && (
+                          <span className="text-[10px] uppercase tracking-wider font-bold text-gray-400">
+                            {statusText}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
