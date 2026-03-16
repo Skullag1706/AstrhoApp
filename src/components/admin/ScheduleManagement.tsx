@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { CheckCircle,
   Calendar, Clock, Users, Plus,
   AlertCircle, Edit, Eye, Trash2,
-  Save, X, Loader2, RefreshCw, Copy, UserPlus, UserMinus
+  Save, X, Loader2, RefreshCw, Copy, UserPlus, UserMinus, FileText
 } from 'lucide-react';
 import { SimplePagination } from '../ui/simple-pagination';
 import {
@@ -55,7 +55,7 @@ export function ScheduleManagement({ hasPermission }: ScheduleManagementProps) {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<ScheduleGroup | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
+  const [itemsPerPage] = useState(5);
 
   // Alert state
   const [alert, setAlert] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
@@ -833,306 +833,315 @@ function ScheduleModal({ group, horarios, empleados, existingAssignments, onClos
   const pendingAssignmentsForDay = pendingCreates.filter(p => p.horarioId === selectedDayForAssign);
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-        <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-6 text-white rounded-t-3xl shrink-0">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-pink-500 to-purple-600 p-5 text-white shrink-0 shadow-md z-20">
           <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-2xl font-bold">
-                {group ? 'Editar Horario' : 'Nuevo Horario'}
-              </h3>
-              <p className="text-pink-100">
-                {group ? 'Actualiza el horario, días y empleados' : 'Configura nombre, días, horas y empleados'}
-              </p>
+            <div className="flex items-center space-x-4">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm shadow-inner">
+                <Calendar className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold leading-tight">
+                  {group ? 'Editar Horario' : 'Registrar Nuevo Horario'}
+                </h3>
+                <p className="text-pink-100 text-xs font-medium">Configura los días, horas y personal del salón</p>
+              </div>
             </div>
-            <button
-              onClick={onClose}
-              className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <div className="flex items-center space-x-2">
+              <button
+                type="submit"
+                form="schedule-form"
+                disabled={saving}
+                className="bg-white text-purple-600 px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-pink-50 active:scale-95 transition-all shadow-sm flex items-center space-x-2 disabled:opacity-50"
+              >
+                {saving ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Save className="w-3.5 h-3.5" />
+                )}
+                <span>{group ? 'Guardar Cambios' : 'Registrar'}</span>
+              </button>
+              <button
+                onClick={onClose}
+                className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
+              >
+                <X className="w-5 h-5 text-white" />
+              </button>
+            </div>
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto">
-          {/* Validation error */}
-          {validationError && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center space-x-2">
-              <AlertCircle className="w-5 h-5 flex-shrink-0" />
-              <span className="text-sm font-medium">{validationError}</span>
-            </div>
-          )}
+        {/* Scrollable Body */}
+        <div className="flex-1 overflow-y-auto p-6 lg:p-8 bg-gray-50/30 no-scrollbar">
+          <style>{`
+            .no-scrollbar::-webkit-scrollbar { display: none; }
+            .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+          `}</style>
 
-          {/* Nombre del Horario */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Nombre del Horario *
-            </label>
-            <input
-              type="text"
-              value={nombre}
-              onChange={(e) => setNombre(e.target.value)}
-              placeholder="Ej: Horario Matutino, Turno Completo..."
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent text-gray-800"
-              required
-            />
-          </div>
-
-          {/* Selector de Días */}
-          <div>
-            <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-700 flex items-start space-x-2">
-              <span className="text-base mt-0.5">🔁</span>
-              <span>Este horario aplica <strong>todo el año</strong>. Los días seleccionados se repiten cada semana de forma recurrente — no son fechas específicas.</span>
-            </div>
-            <div className="flex items-center justify-between mb-3">
-              <label className="block text-sm font-semibold text-gray-700">
-                Días de la Semana * <span className="text-gray-400 font-normal">({enabledCount} seleccionado{enabledCount !== 1 ? 's' : ''})</span>
-              </label>
-              {enabledCount > 1 && (
-                <button
-                  type="button"
-                  onClick={applyToAllEnabled}
-                  className="text-xs text-purple-600 hover:text-purple-800 flex items-center space-x-1 font-medium"
-                  title="Aplicar las horas del primer día a todos los días seleccionados"
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                  <span>Copiar horas a todos</span>
-                </button>
-              )}
-            </div>
-
-            {/* Day chips */}
-            <div className="flex flex-wrap gap-2 mb-4">
-              {days.map(day => (
-                <button
-                  key={day.dia}
-                  type="button"
-                  onClick={() => toggleDay(day.dia)}
-                  className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${day.enabled
-                    ? 'bg-gradient-to-r from-pink-400 to-purple-500 text-white shadow-md'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                >
-                  {day.dia}
-                </button>
-              ))}
-            </div>
-
-            {/* Hours per enabled day */}
-            <div className="space-y-3">
-              {days.filter(d => d.enabled).map(day => (
-                <div key={day.dia} className="bg-purple-50 rounded-xl p-4 border border-purple-100">
-                  <div className="flex items-center space-x-2 mb-3">
-                    <Calendar className="w-4 h-4 text-purple-500" />
-                    <span className="text-sm font-bold text-purple-800">{day.dia}</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Hora Inicio</label>
-                      <input
-                        type="time"
-                        value={day.horaInicio}
-                        onChange={(e) => updateDayTime(day.dia, 'horaInicio', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-300 focus:border-transparent text-sm"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Hora Fin</label>
-                      <input
-                        type="time"
-                        value={day.horaFin}
-                        onChange={(e) => updateDayTime(day.dia, 'horaFin', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-300 focus:border-transparent text-sm"
-                        required
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-
-              {enabledCount === 0 && (
-                <div className="text-center py-6 text-gray-400 text-sm">
-                  <Calendar className="w-8 h-8 mx-auto mb-2 text-gray-300" />
-                  Selecciona los días de la semana para configurar las horas
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* ── Sección de Empleados (solo en modo edición, cuando ya existen horarios) ── */}
-          {group && horarios.length > 0 && (
-            <div className="border-t border-gray-200 pt-6">
-              <div className="flex items-center space-x-2 mb-4">
-                <Users className="w-5 h-5 text-purple-600" />
-                <h4 className="text-sm font-semibold text-gray-700">Empleados Asignados</h4>
+          <form id="schedule-form" onSubmit={handleSubmit} className="max-w-4xl mx-auto space-y-6">
+            {/* Validation error */}
+            {validationError && (
+              <div className="bg-red-50 border border-red-100 text-red-600 px-4 py-3 rounded-2xl flex items-center space-x-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                <p className="text-xs font-bold uppercase tracking-wide">{validationError}</p>
               </div>
+            )}
 
-              {/* Day selector for assignment */}
-              {horarios.length > 1 && (
-                <div className="mb-4">
-                  <label className="block text-xs font-medium text-gray-600 mb-2">Seleccionar día:</label>
-                  <div className="flex flex-wrap gap-2">
-                    {horarios.map(h => (
+            <div className="grid lg:grid-cols-2 gap-6">
+              {/* Left Column: Schedule Identity & Days */}
+              <div className="space-y-6">
+                {/* Name Card */}
+                <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+                  <div className="flex items-center space-x-2 text-purple-500 mb-4">
+                    <FileText className="w-4 h-4" />
+                    <h4 className="font-bold uppercase text-[10px] tracking-widest">Identidad del Horario</h4>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Nombre del Horario *</label>
+                    <input
+                      type="text"
+                      value={nombre}
+                      onChange={(e) => setNombre(e.target.value)}
+                      placeholder="Ej: Turno Matutino"
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-sm font-medium"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Days Config Card */}
+                <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center space-x-2 text-pink-500">
+                      <Calendar className="w-4 h-4" />
+                      <h4 className="font-bold uppercase text-[10px] tracking-widest">Configuración de Días</h4>
+                    </div>
+                    {enabledCount > 1 && (
                       <button
-                        key={h.horarioId}
                         type="button"
-                        onClick={() => setSelectedDayForAssign(h.horarioId)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${selectedDayForAssign === h.horarioId
-                          ? 'bg-gradient-to-r from-purple-400 to-indigo-500 text-white shadow-md'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                          }`}
+                        onClick={applyToAllEnabled}
+                        className="text-[9px] font-black uppercase tracking-widest text-purple-600 hover:text-purple-700 transition-colors flex items-center space-x-1"
                       >
-                        {h.diaSemana} ({h.horaInicio} - {h.horaFin})
+                        <Copy className="w-3 h-3" />
+                        <span>Copiar a todos</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="mb-4 p-3 bg-blue-50/50 rounded-xl border border-blue-100">
+                    <p className="text-[10px] text-blue-700 leading-relaxed">
+                      Este horario es <span className="font-bold">recurrente</span>. Los días seleccionados se repiten semanalmente durante todo el año.
+                    </p>
+                  </div>
+
+                  {/* Day selection grid */}
+                  <div className="grid grid-cols-4 gap-2 mb-6">
+                    {days.map(day => (
+                      <button
+                        key={day.dia}
+                        type="button"
+                        onClick={() => toggleDay(day.dia)}
+                        className={`py-2 px-1 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all border ${
+                          day.enabled
+                            ? 'bg-purple-600 border-purple-600 text-white shadow-sm'
+                            : 'bg-white border-gray-100 text-gray-400 hover:border-purple-200'
+                        }`}
+                      >
+                        {day.dia.substring(0, 3)}
                       </button>
                     ))}
                   </div>
-                </div>
-              )}
 
-              {/* Currently assigned employees */}
-              {(existingAssignmentsForDay.length > 0 || pendingAssignmentsForDay.length > 0) && (
-                <div className="mb-4">
-                  <label className="block text-xs font-medium text-gray-600 mb-2">Asignados a este día:</label>
-                  <div className="flex flex-wrap gap-2">
-                    {/* Existing, not deleted */}
-                    {existingAssignmentsForDay.map(a => (
-                      <span
-                        key={a.horarioEmpleadoId}
-                        className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-blue-50 text-blue-800 rounded-lg text-xs border border-blue-200"
-                      >
-                        <Users className="w-3.5 h-3.5" />
-                        <span className="font-medium">{a.empleadoNombre || a.documentoEmpleado}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleLocalRemove(a.horarioEmpleadoId)}
-                          className="ml-1 text-blue-600 hover:text-red-600 transition-colors"
-                          title="Quitar asignación"
-                        >
-                          <UserMinus className="w-3.5 h-3.5" />
-                        </button>
-                      </span>
+                  {/* Hours inputs */}
+                  <div className="space-y-3">
+                    {days.filter(d => d.enabled).map(day => (
+                      <div key={day.dia} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-xl border border-gray-100 group transition-colors hover:bg-white hover:border-purple-100">
+                        <div className="w-8 font-black text-[10px] text-gray-400 uppercase">{day.dia.substring(0, 3)}</div>
+                        <div className="flex-1 grid grid-cols-2 gap-2">
+                          <input
+                            type="time"
+                            value={day.horaInicio}
+                            onChange={(e) => updateDayTime(day.dia, 'horaInicio', e.target.value)}
+                            className="px-2 py-1.5 bg-white border border-gray-100 rounded-lg text-xs font-bold focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none"
+                          />
+                          <input
+                            type="time"
+                            value={day.horaFin}
+                            onChange={(e) => updateDayTime(day.dia, 'horaFin', e.target.value)}
+                            className="px-2 py-1.5 bg-white border border-gray-100 rounded-lg text-xs font-bold focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none"
+                          />
+                        </div>
+                      </div>
                     ))}
 
-                    {/* Pending adds */}
-                    {pendingAssignmentsForDay.map(p => {
-                      const empName = empleados.find(e => e.documentoEmpleado === p.documentoEmpleado)?.nombre || p.documentoEmpleado;
-                      return (
-                        <span
-                          key={`pending-${p.documentoEmpleado}`}
-                          className="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-green-50 text-green-800 rounded-lg text-xs border border-green-200"
-                        >
-                          <Users className="w-3.5 h-3.5" />
-                          <span className="font-medium">{empName}</span>
-                          <span className="text-xs text-green-600 font-bold ml-1">(nuevo)</span>
-                          <button
-                            type="button"
-                            onClick={() => handleLocalRemovePendingCreate(p.documentoEmpleado, p.horarioId)}
-                            className="ml-1 text-green-600 hover:text-red-600 transition-colors"
-                            title="Deshacer asignación"
-                          >
-                            <UserMinus className="w-3.5 h-3.5" />
-                          </button>
-                        </span>
-                      );
-                    })}
+                    {enabledCount === 0 && (
+                      <div className="text-center py-8 border-2 border-dashed border-gray-100 rounded-2xl">
+                        <Calendar className="w-8 h-8 text-gray-200 mx-auto mb-2" />
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Selecciona días para configurar</p>
+                      </div>
+                    )}
                   </div>
                 </div>
-              )}
+              </div>
 
-              {/* Available employees to assign */}
-              {availableEmpleados.length > 0 ? (
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-2">Empleados disponibles:</label>
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {availableEmpleados.map(emp => {
-                      const h = horarios.find(hor => hor.horarioId === selectedDayForAssign);
-                      const isOverlapping = h ? checkOverlap(emp.documentoEmpleado, h.diaSemana, h.horaInicio, h.horaFin) : false;
-                      
-                      return (
-                        <div
-                          key={emp.documentoEmpleado}
-                          className={`flex items-center justify-between p-3 border rounded-xl transition-colors ${
-                            isOverlapping ? 'bg-red-50 border-red-100 opacity-60' : 'border-gray-200 hover:bg-purple-50'
-                          }`}
-                        >
-                          <div className="flex items-center space-x-3">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                              isOverlapping ? 'bg-red-200' : 'bg-gradient-to-r from-pink-400 to-purple-500'
-                            }`}>
-                              <Users className="w-4 h-4 text-white" />
-                            </div>
-                            <div>
-                              <div className="text-sm font-semibold text-gray-800">{emp.nombre}</div>
-                              <div className="text-xs text-gray-500">
-                                {isOverlapping ? (
-                                  <span className="text-red-600 flex items-center">
-                                    <AlertCircle className="w-3 h-3 mr-1" />
-                                    Tiene solapamiento en este horario
-                                  </span>
-                                ) : (
-                                  `Doc: ${emp.documentoEmpleado}`
-                                )}
-                              </div>
-                            </div>
+              {/* Right Column: Personnel Assignment */}
+              <div className="space-y-6">
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col h-full overflow-hidden">
+                  <div className="p-5 border-b border-gray-100 bg-gray-50/50">
+                    <div className="flex items-center space-x-2 text-blue-500 mb-4">
+                      <Users className="w-4 h-4" />
+                      <h4 className="font-bold uppercase text-[10px] tracking-widest">Asignación de Personal</h4>
+                    </div>
+
+                    {!group ? (
+                      <div className="bg-amber-50 border border-amber-100 p-4 rounded-xl">
+                        <p className="text-[10px] text-amber-700 font-bold uppercase tracking-wider leading-relaxed">
+                          La asignación de personal estará disponible una vez registrado el horario.
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Day selector for assignment */}
+                        <div className="mb-4">
+                          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Ver personal por día:</label>
+                          <div className="flex flex-wrap gap-1.5">
+                            {horarios.map(h => (
+                              <button
+                                key={h.horarioId}
+                                type="button"
+                                onClick={() => setSelectedDayForAssign(h.horarioId)}
+                                className={`px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all border ${
+                                  selectedDayForAssign === h.horarioId
+                                    ? 'bg-blue-500 border-blue-500 text-white shadow-sm'
+                                    : 'bg-white border-gray-100 text-gray-400 hover:border-blue-200'
+                                }`}
+                              >
+                                {h.diaSemana.substring(0, 3)}
+                              </button>
+                            ))}
                           </div>
-                          {!isOverlapping && (
-                            <button
-                              type="button"
-                              onClick={() => handleLocalAssign({ horarioId: selectedDayForAssign, documentoEmpleado: emp.documentoEmpleado })}
-                              disabled={!selectedDayForAssign}
-                              className="px-3 py-1.5 bg-gradient-to-r from-purple-400 to-indigo-500 text-white rounded-lg text-xs font-semibold hover:shadow-md transition-all flex items-center space-x-1 disabled:opacity-60"
-                            >
-                              <UserPlus className="w-3.5 h-3.5" />
-                              <span>Asignar</span>
-                            </button>
-                          )}
                         </div>
-                      );
-                    })}
+
+                        {/* List of currently assigned */}
+                        <div className="space-y-2 mb-4">
+                          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest">Personal Asignado ({existingAssignmentsForDay.length + pendingAssignmentsForDay.length})</label>
+                          <div className="flex flex-wrap gap-2">
+                            {existingAssignmentsForDay.map(a => (
+                              <div key={a.horarioEmpleadoId} className="flex items-center space-x-2 px-2 py-1 bg-blue-50 text-blue-700 rounded-lg border border-blue-100 group">
+                                <span className="text-[10px] font-bold">{a.empleadoNombre || a.documentoEmpleado}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleLocalRemove(a.horarioEmpleadoId)}
+                                  className="text-blue-300 hover:text-red-500 transition-colors"
+                                >
+                                  <UserMinus className="w-3 h-3" />
+                                </button>
+                              </div>
+                            ))}
+                            {pendingAssignmentsForDay.map(p => {
+                              const empName = empleados.find(e => e.documentoEmpleado === p.documentoEmpleado)?.nombre || p.documentoEmpleado;
+                              return (
+                                <div key={`pending-${p.documentoEmpleado}`} className="flex items-center space-x-2 px-2 py-1 bg-green-50 text-green-700 rounded-lg border border-green-100 animate-pulse">
+                                  <span className="text-[10px] font-bold">{empName} (NUEVO)</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleLocalRemovePendingCreate(p.documentoEmpleado, p.horarioId)}
+                                    className="text-green-300 hover:text-red-500 transition-colors"
+                                  >
+                                    <UserMinus className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Available personnel list */}
+                        <div className="flex-1 overflow-hidden flex flex-col">
+                          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Personal Disponible</label>
+                          <div className="space-y-2 overflow-y-auto max-h-[300px] pr-2 no-scrollbar">
+                            {availableEmpleados.length > 0 ? (
+                              availableEmpleados.map(emp => {
+                                const h = horarios.find(hor => hor.horarioId === selectedDayForAssign);
+                                const isOverlapping = h ? checkOverlap(emp.documentoEmpleado, h.diaSemana, h.horaInicio, h.horaFin) : false;
+
+                                return (
+                                  <div
+                                    key={emp.documentoEmpleado}
+                                    className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
+                                      isOverlapping 
+                                        ? 'bg-red-50 border-red-100 opacity-60' 
+                                        : 'bg-white border-gray-100 hover:border-blue-200 hover:shadow-sm'
+                                    }`}
+                                  >
+                                    <div className="flex items-center space-x-3">
+                                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-white text-xs ${
+                                        isOverlapping ? 'bg-red-400' : 'bg-gradient-to-br from-blue-400 to-indigo-500'
+                                      }`}>
+                                        {emp.nombre.charAt(0)}
+                                      </div>
+                                      <div>
+                                        <p className="text-[11px] font-bold text-gray-700 leading-none">{emp.nombre}</p>
+                                        <p className="text-[9px] font-medium text-gray-400 mt-1">
+                                          {isOverlapping ? '⚠️ Solapamiento de horario' : `Doc: ${emp.documentoEmpleado}`}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    {!isOverlapping && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleLocalAssign({ horarioId: selectedDayForAssign, documentoEmpleado: emp.documentoEmpleado })}
+                                        className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                                      >
+                                        <UserPlus className="w-4 h-4" />
+                                      </button>
+                                    )}
+                                  </div>
+                                );
+                              })
+                            ) : (
+                              <div className="text-center py-8">
+                                <Users className="w-8 h-8 text-gray-100 mx-auto mb-2" />
+                                <p className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">Sin personal disponible</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
-              ) : (
-                <div className="text-center py-4 text-gray-400 text-sm">
-                  <Users className="w-6 h-6 mx-auto mb-1 text-gray-300" />
-                  {existingAssignmentsForDay.length > 0 || pendingAssignmentsForDay.length > 0
-                    ? 'Todos los empleados activos ya están asignados a este día'
-                    : 'No hay empleados disponibles para asignar'
-                  }
-                </div>
-              )}
+              </div>
             </div>
-          )}
+          </form>
+        </div>
 
-          {/* Info message for new schedules */}
-          {!group && (
-            <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-xl flex items-center space-x-2">
-              <Users className="w-5 h-5 flex-shrink-0" />
-              <span className="text-sm">Podrás asignar empleados después de crear el horario, al editarlo.</span>
-            </div>
-          )}
-
-          {/* Buttons */}
-          <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
+        {/* Footer */}
+        <div className="p-5 bg-white border-t border-gray-100 flex items-center justify-between shrink-0 z-20">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+            * Campos obligatorios para el registro
+          </p>
+          <div className="flex space-x-3">
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-semibold"
-              disabled={saving}
+              className="px-6 py-2.5 rounded-xl font-black text-gray-400 hover:bg-gray-100 transition-all text-[10px] uppercase tracking-widest"
             >
               Cancelar
             </button>
             <button
               type="submit"
+              form="schedule-form"
               disabled={saving}
-              className="px-6 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all font-semibold flex items-center space-x-2 disabled:opacity-60"
+              className="px-8 py-2.5 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:shadow-lg hover:scale-105 active:scale-95 transition-all disabled:opacity-50 flex items-center space-x-2"
             >
-              {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-              <span>{group ? 'Actualizar Horario' : 'Crear Horario'}</span>
+              {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              <span>{group ? 'Actualizar' : 'Registrar'}</span>
             </button>
           </div>
-        </form>
-
+        </div>
       </div>
     </div>
   );
@@ -1151,76 +1160,98 @@ interface ScheduleDetailModalProps {
 
 function ScheduleDetailModal({ group, horarios, assignments, onClose }: ScheduleDetailModalProps) {
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
-        <div className="bg-gradient-to-r from-blue-400 to-cyan-500 p-6 text-white rounded-t-3xl shrink-0">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+        {/* Header - Fixed at top */}
+        <div className="bg-gradient-to-r from-pink-500 to-purple-600 p-5 text-white shrink-0 shadow-md z-20">
           <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-2xl font-bold">Detalle del Horario</h3>
-              <p className="text-blue-100">{group.nombre}</p>
+            <div className="flex items-center space-x-4">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                <Calendar className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold leading-tight">Detalle del Horario</h3>
+                <p className="text-pink-100 text-sm">{group.nombre}</p>
+              </div>
             </div>
             <button
               onClick={onClose}
-              className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
+              className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        <div className="p-6 space-y-6 overflow-y-auto">
-          {/* General Info */}
-          <div className="bg-gray-50 rounded-xl p-4">
-            <h4 className="font-semibold text-gray-800 mb-3">Información General</h4>
-            <div className="grid md:grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="text-gray-600">Nombre:</span>{' '}
-                <span className="font-semibold">{group.nombre}</span>
+        {/* Scrollable Body */}
+        <div className="flex-1 overflow-y-auto p-6 lg:p-8 bg-gray-50/30 no-scrollbar">
+          <style>{`
+            .no-scrollbar::-webkit-scrollbar { display: none; }
+            .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+          `}</style>
+
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* General Info Card */}
+            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+              <div className="flex items-center space-x-2 text-purple-500 mb-4">
+                <FileText className="w-4 h-4" />
+                <h4 className="font-bold uppercase text-[10px] tracking-widest">Información General</h4>
               </div>
-              <div>
-                <span className="text-gray-600">Estado:</span>{' '}
-                <span className={`ml-2 px-2 py-1 rounded-full text-xs font-semibold ${group.estado ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                  }`}>
-                  {group.estado ? 'Activo' : 'Inactivo'}
-                </span>
-              </div>
-              <div>
-                <span className="text-gray-600">Días configurados:</span>{' '}
-                <span className="font-semibold">{horarios.length}</span>
+              <div className="grid md:grid-cols-3 gap-4">
+                <div>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Nombre del Horario:</span>
+                  <p className="font-bold text-gray-800 text-lg">{group.nombre}</p>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Estado del Grupo:</span>
+                  <div className="mt-1">
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${group.estado ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                      {group.estado ? 'Activo' : 'Inactivo'}
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Días Configurados:</span>
+                  <p className="font-bold text-gray-800 text-lg">{horarios.length} días</p>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Days Table */}
-          <div>
-            <h4 className="font-semibold text-gray-800 mb-3">Días y Horarios</h4>
-            {horarios.length > 0 ? (
-              <div className="overflow-hidden rounded-xl border border-gray-200">
-                <table className="w-full text-sm">
-                  <thead className="bg-purple-50">
+            {/* Days and Times Section */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100 flex items-center justify-between">
+                <h4 className="font-bold text-gray-700 text-sm flex items-center space-x-2">
+                  <Clock className="w-4 h-4 text-pink-400" />
+                  <span>Días y Horas de Atención</span>
+                </h4>
+              </div>
+              
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
                     <tr>
-                      <th className="text-left px-4 py-3 font-semibold text-purple-800">Día</th>
-                      <th className="text-left px-4 py-3 font-semibold text-purple-800">Hora Inicio</th>
-                      <th className="text-left px-4 py-3 font-semibold text-purple-800">Hora Fin</th>
-                      <th className="text-left px-4 py-3 font-semibold text-purple-800">Estado</th>
+                      <th className="px-6 py-3 text-left text-[10px] font-black text-gray-400 uppercase tracking-widest">Día de la Semana</th>
+                      <th className="px-6 py-3 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest">Hora Inicio</th>
+                      <th className="px-6 py-3 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest">Hora Fin</th>
+                      <th className="px-6 py-3 text-right text-[10px] font-black text-gray-400 uppercase tracking-widest">Estado</th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {horarios.map(h => (
-                      <tr key={h.horarioId} className="border-t border-gray-100 hover:bg-gray-50">
-                        <td className="px-4 py-3 font-medium text-gray-800">{h.diaSemana}</td>
-                        <td className="px-4 py-3 text-gray-700 flex items-center space-x-1">
-                          <Clock className="w-3.5 h-3.5 text-purple-500" />
-                          <span>{h.horaInicio}</span>
+                  <tbody className="divide-y divide-gray-50">
+                    {horarios.map((h) => (
+                      <tr key={h.horarioId} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="px-6 py-4 font-bold text-gray-700">{h.diaSemana}</td>
+                        <td className="px-6 py-4 text-center">
+                          <span className="inline-flex items-center px-3 py-1 rounded-lg bg-blue-50 text-blue-700 font-bold text-sm">
+                            {h.horaInicio.substring(0, 5)}
+                          </span>
                         </td>
-                        <td className="px-4 py-3 text-gray-700">
-                          <div className="flex items-center space-x-1">
-                            <Clock className="w-3.5 h-3.5 text-pink-500" />
-                            <span>{h.horaFin}</span>
-                          </div>
+                        <td className="px-6 py-4 text-center">
+                          <span className="inline-flex items-center px-3 py-1 rounded-lg bg-pink-50 text-pink-700 font-bold text-sm">
+                            {h.horaFin.substring(0, 5)}
+                          </span>
                         </td>
-                        <td className="px-4 py-3">
-                          <span className={`px-2 py-1 rounded-full text-xs font-semibold ${h.estado ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                        <td className="px-6 py-4 text-right">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${h.estado ? 'text-green-600 bg-green-50' : 'text-red-600 bg-red-50'}`}>
                             {h.estado ? 'Activo' : 'Inactivo'}
                           </span>
                         </td>
@@ -1229,48 +1260,50 @@ function ScheduleDetailModal({ group, horarios, assignments, onClose }: Schedule
                   </tbody>
                 </table>
               </div>
-            ) : (
-              <div className="text-center py-6 text-gray-400">
-                <Calendar className="w-8 h-8 mx-auto mb-2" />
-                <p>No hay días configurados</p>
-              </div>
-            )}
-          </div>
+            </div>
 
-          {/* Assigned Employees */}
-          <div>
-            <h4 className="font-semibold text-gray-800 mb-4">Empleados Asignados</h4>
-            {assignments.length > 0 ? (
-              <div className="grid md:grid-cols-2 gap-4">
-                {assignments.map(a => (
-                  <div key={a.horarioEmpleadoId} className="flex items-center space-x-3 p-4 border border-gray-200 rounded-xl">
-                    <div className="w-10 h-10 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full flex items-center justify-center">
-                      <Users className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <div className="font-semibold text-gray-800">{a.empleadoNombre || 'Empleado'}</div>
-                      <div className="text-sm text-gray-600">Doc: {a.documentoEmpleado}</div>
-                    </div>
+            {/* Assigned Employees Section */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100">
+                <h4 className="font-bold text-gray-700 text-sm flex items-center space-x-2">
+                  <Users className="w-4 h-4 text-blue-400" />
+                  <span>Personal Asignado a este Horario</span>
+                </h4>
+              </div>
+              <div className="p-6">
+                {assignments.length > 0 ? (
+                  <div className="grid md:grid-cols-2 gap-4">
+                    {assignments.map((a) => (
+                      <div key={a.horarioEmpleadoId} className="flex items-center space-x-4 p-4 bg-gray-50 rounded-2xl border border-gray-100 hover:bg-gray-100 transition-colors">
+                        <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center text-blue-500 font-bold text-xl">
+                          {(a.empleadoNombre || 'E').charAt(0)}
+                        </div>
+                        <div>
+                          <p className="font-bold text-gray-800">{a.empleadoNombre || 'Empleado'}</p>
+                          <p className="text-xs text-gray-500 font-mono">Doc: {a.documentoEmpleado}</p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                ) : (
+                  <div className="text-center py-8">
+                    <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                    <p className="text-gray-500 font-medium">No hay empleados asignados actualmente</p>
+                  </div>
+                )}
               </div>
-            ) : (
-              <div className="text-center py-6 text-gray-400">
-                <Users className="w-8 h-8 mx-auto mb-2" />
-                <p>No hay empleados asignados a este horario</p>
-              </div>
-            )}
+            </div>
           </div>
+        </div>
 
-          {/* Close Button */}
-          <div className="flex justify-end pt-6 border-t border-gray-200">
-            <button
-              onClick={onClose}
-              className="px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-600 text-white rounded-xl hover:shadow-lg transition-all font-semibold"
-            >
-              Cerrar
-            </button>
-          </div>
+        {/* Footer - Fixed at bottom */}
+        <div className="p-5 bg-white border-t border-gray-100 flex flex-wrap gap-3 justify-end shrink-0 z-20">
+          <button
+            onClick={onClose}
+            className="px-8 py-2.5 rounded-xl font-black text-gray-500 hover:bg-gray-200 hover:text-gray-800 active:scale-95 transition-all text-sm uppercase tracking-widest shadow-sm"
+          >
+            Cerrar
+          </button>
         </div>
       </div>
     </div>
@@ -1291,33 +1324,40 @@ interface DeleteScheduleModalProps {
 
 function DeleteScheduleModal({ group, horarios, onClose, onConfirm, saving }: DeleteScheduleModalProps) {
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
-        <div className="bg-gradient-to-r from-red-400 to-pink-500 p-6 text-white rounded-t-3xl shrink-0">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-red-500 to-pink-600 p-5 text-white shrink-0 shadow-md">
           <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-xl font-bold">Confirmar Eliminación</h3>
-              <p className="text-red-100 text-sm">Esta acción no se puede deshacer</p>
+            <div className="flex items-center space-x-4">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm shadow-inner">
+                <Trash2 className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold leading-tight">Confirmar Eliminación</h3>
+                <p className="text-red-100 text-xs font-medium">Esta acción no se puede deshacer</p>
+              </div>
             </div>
             <button
               onClick={onClose}
-              className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
+              className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
             >
-              <X className="w-5 h-5" />
+              <X className="w-5 h-5 text-white" />
             </button>
           </div>
         </div>
 
-        <div className="p-6">
-          <div className="text-center mb-6">
-            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <AlertCircle className="w-8 h-8 text-red-600" />
+        <div className="p-8">
+          <div className="text-center mb-8">
+            <div className="w-20 h-20 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-red-100 rotate-3">
+              <AlertCircle className="w-10 h-10 text-red-500 -rotate-3" />
             </div>
             <h4 className="text-lg font-bold text-gray-800 mb-2">
               ¿Eliminar horario "{group.nombre}"?
             </h4>
-            <p className="text-gray-600">
-              Se eliminarán {horarios.length} día{horarios.length !== 1 ? 's' : ''} configurado{horarios.length !== 1 ? 's' : ''} ({horarios.map(h => DIAS_SHORT[h.diaSemana] || h.diaSemana).join(', ')}). Los empleados asignados no serán eliminados.
+            <p className="text-sm text-gray-500 leading-relaxed">
+              Se eliminarán <span className="font-bold text-gray-700">{horarios.length} día{horarios.length !== 1 ? 's' : ''}</span> configurado{horarios.length !== 1 ? 's' : ''} ({horarios.map(h => DIAS_SHORT[h.diaSemana] || h.diaSemana).join(', ')}). 
+              Los empleados asignados no serán eliminados del sistema.
             </p>
           </div>
 
@@ -1325,16 +1365,20 @@ function DeleteScheduleModal({ group, horarios, onClose, onConfirm, saving }: De
             <button
               onClick={onClose}
               disabled={saving}
-              className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
+              className="flex-1 px-6 py-3 rounded-xl font-black text-gray-400 hover:bg-gray-100 transition-all text-[10px] uppercase tracking-widest"
             >
               Cancelar
             </button>
             <button
               onClick={onConfirm}
               disabled={saving}
-              className="flex-1 bg-gradient-to-r from-red-500 to-red-600 text-white px-4 py-3 rounded-xl font-semibold hover:shadow-lg transition-all flex items-center justify-center space-x-2 disabled:opacity-60"
+              className="flex-1 bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:shadow-lg hover:scale-105 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center space-x-2"
             >
-              {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+              {saving ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="w-3.5 h-3.5" />
+              )}
               <span>Eliminar</span>
             </button>
           </div>
@@ -1388,115 +1432,139 @@ function AssignEmployeeModal({ group, horarios, empleados, existingAssignments, 
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
-        <div className="bg-gradient-to-r from-purple-400 to-indigo-500 p-6 text-white rounded-t-3xl shrink-0">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-purple-500 to-indigo-600 p-5 text-white shrink-0 shadow-md">
           <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-xl font-bold">Asignar Empleado</h3>
-              <p className="text-purple-100 text-sm">
-                Horario: {group.nombre}
-              </p>
+            <div className="flex items-center space-x-4">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm shadow-inner">
+                <UserPlus className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold leading-tight">Asignar Empleado</h3>
+                <p className="text-purple-100 text-xs font-medium">Horario: {group.nombre}</p>
+              </div>
             </div>
             <button
               onClick={onClose}
-              className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
+              className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
             >
-              <X className="w-5 h-5" />
+              <X className="w-5 h-5 text-white" />
             </button>
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto">
+        <form onSubmit={handleSubmit} className="p-8 space-y-6">
           {/* Day selector for assignment */}
           {horarios.length > 1 && (
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Seleccionar Día *
-              </label>
+            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+              <div className="flex items-center space-x-2 text-purple-500 mb-4">
+                <Calendar className="w-4 h-4" />
+                <h4 className="font-bold uppercase text-[10px] tracking-widest">Seleccionar Día</h4>
+              </div>
               <div className="flex flex-wrap gap-2">
                 {horarios.map(h => (
                   <button
                     key={h.horarioId}
                     type="button"
                     onClick={() => { setSelectedHorarioId(h.horarioId); setSelectedEmpleado(''); }}
-                    className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${selectedHorarioId === h.horarioId
-                      ? 'bg-gradient-to-r from-purple-400 to-indigo-500 text-white shadow-md'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
+                    className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${
+                      selectedHorarioId === h.horarioId
+                        ? 'bg-purple-600 border-purple-600 text-white shadow-sm'
+                        : 'bg-white border-gray-100 text-gray-400 hover:border-purple-200'
+                    }`}
                   >
-                    {h.diaSemana} ({h.horaInicio} - {h.horaFin})
+                    {h.diaSemana.substring(0, 3)} ({h.horaInicio.substring(0, 5)} - {h.horaFin.substring(0, 5)})
                   </button>
                 ))}
               </div>
             </div>
           )}
 
-          {availableEmpleados.length > 0 ? (
-            <div className="space-y-3">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Seleccionar Empleado *
-              </label>
-              {availableEmpleados.map(emp => {
-                const h = horarios.find(hor => hor.horarioId === selectedHorarioId);
-                const isOverlapping = h ? checkOverlap(emp.documentoEmpleado, h.diaSemana, h.horaInicio, h.horaFin) : false;
+          <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+            <div className="flex items-center space-x-2 text-blue-500 mb-4">
+              <Users className="w-4 h-4" />
+              <h4 className="font-bold uppercase text-[10px] tracking-widest">Seleccionar Empleado</h4>
+            </div>
 
-                return (
-                  <label
-                    key={emp.documentoEmpleado}
-                    className={`flex items-center space-x-3 p-4 border rounded-xl transition-all ${
-                      isOverlapping 
-                        ? 'opacity-50 cursor-not-allowed bg-red-50 border-red-100' 
-                        : selectedEmpleado === emp.documentoEmpleado
-                          ? 'border-purple-400 bg-purple-50 ring-2 ring-purple-200 cursor-pointer'
-                          : 'border-gray-200 hover:bg-gray-50 cursor-pointer'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="empleado"
-                      value={emp.documentoEmpleado}
-                      checked={selectedEmpleado === emp.documentoEmpleado}
-                      onChange={(e) => !isOverlapping && setSelectedEmpleado(e.target.value)}
-                      disabled={isOverlapping}
-                      className="w-4 h-4 text-purple-600 border-gray-300 focus:ring-purple-500 disabled:opacity-30"
-                    />
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                      isOverlapping ? 'bg-red-200' : 'bg-gradient-to-r from-pink-400 to-purple-500'
-                    }`}>
-                      <Users className="w-5 h-5 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-semibold text-gray-800">{emp.nombre}</div>
-                      <div className="text-sm text-gray-600">
-                        {isOverlapping ? (
-                          <span className="text-red-600 flex items-center font-medium">
-                            <AlertCircle className="w-3.5 h-3.5 mr-1" />
-                            Ocupado en otro horario a esta hora
-                          </span>
-                        ) : (
-                          `Doc: ${emp.documentoEmpleado}`
-                        )}
+            {availableEmpleados.length > 0 ? (
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-2 no-scrollbar">
+                {availableEmpleados.map(emp => {
+                  const h = horarios.find(hor => hor.horarioId === selectedHorarioId);
+                  const isOverlapping = h ? checkOverlap(emp.documentoEmpleado, h.diaSemana, h.horaInicio, h.horaFin) : false;
+
+                  return (
+                    <label
+                      key={emp.documentoEmpleado}
+                      className={`flex items-center space-x-3 p-3 rounded-xl border transition-all cursor-pointer group ${
+                        isOverlapping 
+                          ? 'opacity-50 cursor-not-allowed bg-red-50 border-red-100' 
+                          : selectedEmpleado === emp.documentoEmpleado
+                            ? 'border-purple-500 bg-purple-50 shadow-sm'
+                            : 'border-gray-100 hover:border-purple-200 hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="relative flex items-center justify-center">
+                        <input
+                          type="radio"
+                          name="empleado"
+                          value={emp.documentoEmpleado}
+                          checked={selectedEmpleado === emp.documentoEmpleado}
+                          onChange={(e) => !isOverlapping && setSelectedEmpleado(e.target.value)}
+                          disabled={isOverlapping}
+                          className="sr-only"
+                        />
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                          selectedEmpleado === emp.documentoEmpleado
+                            ? 'border-purple-600 bg-purple-600'
+                            : 'border-gray-300'
+                        }`}>
+                          {selectedEmpleado === emp.documentoEmpleado && (
+                            <div className="w-2 h-2 bg-white rounded-full" />
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-gray-500">
-              <Users className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-              <p className="font-medium">No hay empleados disponibles para asignar</p>
-              <p className="text-sm mt-1">Todos los empleados activos ya están asignados a este día</p>
-            </div>
-          )}
+                      
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white text-sm ${
+                        isOverlapping ? 'bg-red-400' : 'bg-gradient-to-br from-blue-400 to-indigo-500'
+                      }`}>
+                        {emp.nombre.charAt(0)}
+                      </div>
 
-          <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
+                      <div className="flex-1">
+                        <div className="text-[11px] font-bold text-gray-700 leading-none">{emp.nombre}</div>
+                        <div className="text-[9px] font-medium text-gray-400 mt-1 uppercase tracking-wider">
+                          {isOverlapping ? (
+                            <span className="text-red-600 flex items-center">
+                              <AlertCircle className="w-3 h-3 mr-1" />
+                              Ocupado en este horario
+                            </span>
+                          ) : (
+                            `Doc: ${emp.documentoEmpleado}`
+                          )}
+                        </div>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Users className="w-10 h-10 text-gray-100 mx-auto mb-2" />
+                <p className="text-[10px] font-bold text-gray-300 uppercase tracking-widest leading-relaxed">
+                  No hay empleados disponibles<br />para este día y hora
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="flex space-x-3 pt-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-semibold"
               disabled={saving}
+              className="flex-1 px-6 py-3 rounded-xl font-black text-gray-400 hover:bg-gray-100 transition-all text-[10px] uppercase tracking-widest"
             >
               Cancelar
             </button>
@@ -1504,9 +1572,13 @@ function AssignEmployeeModal({ group, horarios, empleados, existingAssignments, 
               <button
                 type="submit"
                 disabled={saving || !selectedEmpleado}
-                className="px-6 py-3 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl hover:shadow-lg transition-all font-semibold flex items-center space-x-2 disabled:opacity-60"
+                className="flex-1 bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:shadow-lg hover:scale-105 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center space-x-2"
               >
-                {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+                {saving ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <UserPlus className="w-3.5 h-3.5" />
+                )}
                 <span>Asignar</span>
               </button>
             )}

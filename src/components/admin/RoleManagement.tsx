@@ -4,7 +4,7 @@ import {
   CheckCircle, UserCheck, UserX, Settings, Eye, Trash2, Search,
   LayoutDashboard, Calendar, Scissors, ShoppingCart,
   ShoppingBag, Truck, Box, UsersRound, Tag, Clock, Boxes,
-  PackageCheck, Loader2
+  PackageCheck, Loader2, Briefcase, Lock
 } from 'lucide-react';
 import { mockRoles, mockPermissions } from '../../data/management';
 import { roleService, RolListDto, RolResponseDto } from '../../services/roleService';
@@ -46,26 +46,26 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
   const [roleToDelete, setRoleToDelete] = useState<Role | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
+  const [itemsPerPage] = useState(5);
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
 
   // Mapping for permissions (Frontend Strings <-> Backend IDs)
   const PERMISSION_MAP = {
-    'module_dashboard': 1,
-    'module_users': 2,
-    'module_appointments': 3,
-    'module_services': 4,
-    'module_sales': 6,
-    'module_purchases': 7,
-    'module_suppliers': 8,
-    'module_products': 9,
-    'module_clients': 10,
-    'module_categories': 11,
-    'module_schedules': 12,
-    'module_supplies': 13,
-    'module_deliveries': 14,
-    'module_roles': 16
+    'module_appointments': 1,
+    'module_categories': 2,
+    'module_clients': 3,
+    'module_purchases': 4,
+    'module_employees': 5,
+    'module_deliveries': 6,
+    'module_schedules': 7,
+    'module_supplies': 8,
+    'module_suppliers': 9,
+    'module_roles': 10,
+    'module_services': 11,
+    'module_users': 12,
+    'module_sales': 13,
+    'module_dashboard': 14
   };
 
   const REVERSE_PERMISSION_MAP = Object.fromEntries(
@@ -109,20 +109,20 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
 
   // Módulos permitidos para gestionar roles
   const ALLOWED_MODULES = [
-    'dashboard',      // Dashboard
-    'users',          // Usuarios (incluye gestión de roles)
-    'appointments',   // Agendamiento
-    'schedules',      // Horarios
-    'sales',          // Ventas
-    'services',       // Servicios
-    'clients',        // Clientes
-    'purchases',      // Compras
-    'supplies',       // Insumos
-    'categories',     // Categoría de Insumos
-    'suppliers',      // Proveedores
-    'deliveries',     // Entrega de Insumos
-    'roles',          // Roles
-    'products'        // Productos
+    'appointments',   // Agenda (ID 1)
+    'categories',     // Categoría (ID 2)
+    'clients',        // Clientes (ID 3)
+    'purchases',      // Compras (ID 4)
+    'employees',      // Empleados (ID 5)
+    'deliveries',     // Entregas (ID 6)
+    'schedules',      // Horarios (ID 7)
+    'supplies',       // Insumo (ID 8)
+    'suppliers',      // Proveedores (ID 9)
+    'roles',          // Roles (ID 10)
+    'services',       // Servicios (ID 11)
+    'users',          // Usuarios (ID 12)
+    'sales',          // Ventas (ID 13)
+    'dashboard'       // Dashboard (ID 14)
   ];
 
   // Auto-hide success alert after 4 seconds
@@ -149,21 +149,20 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
 
   // Definir nombres y orden de módulos
   const moduleNames = {
-    dashboard: 'Dashboard',
-    users: 'Usuarios',
-    roles: 'Roles',
-    appointments: 'Agendamiento',
-    services: 'Servicios',
-    sales: 'Ventas',
-    purchases: 'Compras',
-    suppliers: 'Proveedores',
-    products: 'Productos',
+    appointments: 'Agenda',
+    categories: 'Categoría',
     clients: 'Clientes',
-    categories: 'Categoria de Insumos',
+    purchases: 'Compras',
+    employees: 'Empleados',
+    deliveries: 'Entregas',
     schedules: 'Horarios',
-    supplies: 'Insumos',
-    deliveries: 'Entrega de Insumos',
-    orders: 'Pedidos'
+    supplies: 'Insumo',
+    suppliers: 'Proveedores',
+    roles: 'Roles',
+    services: 'Servicios',
+    users: 'Usuarios',
+    sales: 'Ventas',
+    dashboard: 'Dashboard'
   };
 
   // Iconos para cada módulo
@@ -176,13 +175,12 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
     sales: ShoppingCart,
     purchases: ShoppingBag,
     suppliers: Truck,
-    products: Box,
     clients: UsersRound,
+    employees: Briefcase,
     categories: Tag,
     schedules: Clock,
     supplies: Boxes,
-    deliveries: PackageCheck,
-    orders: ShoppingBag
+    deliveries: PackageCheck
   };
 
   const getModuleIcon = (module: string) => {
@@ -347,8 +345,26 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
     }
   };
 
-  const handleViewRole = (role) => {
-    setViewingRole(role);
+  const handleViewRole = async (role) => {
+    setLoading(true);
+    try {
+      const fullRole = await roleService.getRoleById(parseInt(role.id));
+      const mappedRole = {
+        id: fullRole.rolId.toString(),
+        name: fullRole.nombre,
+        description: fullRole.descripcion,
+        permissions: (fullRole.permisosIds || []).map(id => REVERSE_PERMISSION_MAP[id]).filter(p => p),
+        status: fullRole.estado ? 'active' : 'inactive',
+        isSuperUser: fullRole.nombre.toLowerCase().trim() === 'super admin'
+      };
+      setViewingRole(mappedRole);
+    } catch (error) {
+      console.error('Error fetching role details for view:', error);
+      // Fallback to basic info if API fails
+      setViewingRole({ ...role });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const toggleRoleStatus = async (roleId) => {
@@ -607,221 +623,352 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
       </div>
 
       {/* Create Role Modal */}
-      {showCreateModal && (() => {
-        return (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-              <div className="bg-gradient-to-r from-pink-500 to-purple-600 p-6 text-white rounded-t-3xl">
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header - Fixed at top */}
+            <div className="bg-gradient-to-r from-pink-500 to-purple-600 p-5 text-white shrink-0 shadow-md z-20">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
-                  <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
-                    <Plus className="w-7 h-7 text-white" />
+                  <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+                    <Plus className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-2xl font-bold">Crear Nuevo Rol</h3>
-                    <p className="text-pink-100 opacity-90">Define un nuevo rol y selecciona los módulos de acceso</p>
+                    <h3 className="text-xl font-bold leading-tight">Registrar Nuevo Rol</h3>
+                    <p className="text-pink-100 text-sm">Define un nuevo rol y sus permisos</p>
                   </div>
                 </div>
-              </div>
-
-              <div className="p-6 space-y-6">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Nombre del rol
-                  </label>
-                  <input
-                    type="text"
-                    value={newRoleData.name}
-                    onChange={(e) => setNewRoleData({ ...newRoleData, name: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
-                    placeholder="Ej: Supervisor"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Descripción del rol
-                  </label>
-                  <textarea
-                    value={newRoleData.description}
-                    onChange={(e) => setNewRoleData({ ...newRoleData, description: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
-                    rows={3}
-                    placeholder="Describe las responsabilidades de este rol..."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-4">
-                    Módulos de acceso
-                    <span className="block text-xs font-normal text-gray-500 mt-1">
-                      Selecciona los módulos a los que este rol tendrá acceso
-                    </span>
-                  </label>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto p-4 border border-gray-200 rounded-xl">
-                    {Object.keys(permissionsByModule)
-                      .filter(module => ALLOWED_MODULES.includes(module))
-                      .sort()
-                      .map(module => {
-                        const ModuleIcon = getModuleIcon(module);
-                        const modulePermissions = permissionsByModule[module].map(p => p.id);
-                        const isModuleSelected = modulePermissions.every(permId =>
-                          newRoleData.permissions.includes(permId)
-                        );
-
-                        return (
-                          <label
-                            key={module}
-                            className={`flex items-center space-x-4 p-5 border-2 rounded-2xl cursor-pointer transition-all ${isModuleSelected
-                              ? 'border-pink-400 bg-gradient-to-r from-pink-50 to-purple-50 shadow-sm'
-                              : 'border-gray-200 hover:border-pink-200 hover:bg-gray-50'
-                              }`}
-                          >
-                            <div className="relative flex items-center justify-center">
-                              <input
-                                type="checkbox"
-                                checked={isModuleSelected}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setNewRoleData({
-                                      ...newRoleData,
-                                      permissions: [...new Set([...newRoleData.permissions, ...modulePermissions])]
-                                    });
-                                  } else {
-                                    setNewRoleData({
-                                      ...newRoleData,
-                                      permissions: newRoleData.permissions.filter(p => !modulePermissions.includes(p))
-                                    });
-                                  }
-                                }}
-                                className="sr-only"
-                              />
-                              <div className={`w-7 h-7 border-2 rounded-xl flex items-center justify-center transition-all ${isModuleSelected
-                                ? 'bg-gradient-to-r from-pink-400 to-purple-500 border-transparent shadow-md'
-                                : 'border-gray-300 bg-white'
-                                }`}>
-                                {isModuleSelected && <CheckCircle className="w-4 h-4 text-white" />}
-                              </div>
-                            </div>
-
-                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${isModuleSelected
-                              ? 'bg-gradient-to-r from-pink-400 to-purple-500 shadow-md'
-                              : 'bg-gray-100'
-                              }`}>
-                              <ModuleIcon className={`w-6 h-6 ${isModuleSelected ? 'text-white' : 'text-gray-600'}`} />
-                            </div>
-
-                            <div className="flex-1">
-                              <div className={`font-bold text-lg ${isModuleSelected ? 'text-purple-700' : 'text-gray-800'}`}>
-                                {moduleNames[module as keyof typeof moduleNames]}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                {isModuleSelected ? 'Módulo habilitado' : 'Sin acceso'}
-                              </div>
-                            </div>
-                          </label>
-                        );
-                      })}
-                  </div>
-                </div>
-
-                <div className="flex space-x-4">
+                <div className="flex items-center space-x-3">
+                  <button
+                    onClick={handleCreateRole}
+                    disabled={loading}
+                    className="flex items-center space-x-2 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-xl transition-all font-bold text-xs uppercase tracking-widest backdrop-blur-sm shadow-sm"
+                  >
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    <span>{loading ? 'Guardando...' : 'Guardar'}</span>
+                  </button>
                   <button
                     onClick={() => {
                       setShowCreateModal(false);
                       setNewRoleData({ name: '', description: '', permissions: [] });
                     }}
-                    className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors flex items-center justify-center space-x-2"
+                    className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
                   >
-                    <X className="w-5 h-5" />
-                    <span>Cancelar</span>
-                  </button>
-                  <button
-                    onClick={handleCreateRole}
-                    className="flex-1 bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all flex items-center justify-center space-x-2"
-                  >
-                    <Save className="w-5 h-5" />
-                    <span>Crear Rol</span>
+                    <X className="w-5 h-5 text-white" />
                   </button>
                 </div>
               </div>
             </div>
+
+            {/* Scrollable Body */}
+            <div className="flex-1 overflow-y-auto p-6 lg:p-8 bg-gray-50/30 no-scrollbar">
+              <style>{`
+                .no-scrollbar::-webkit-scrollbar { display: none; }
+                .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+              `}</style>
+
+              <div className="max-w-4xl mx-auto space-y-6">
+                {/* Form Alert if needed */}
+                {(newRoleData.name.trim() === '' || newRoleData.description.trim() === '') && showValidationErrorModal && (
+                  <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-xl flex items-center space-x-3 animate-in slide-in-from-left-2 duration-200">
+                    <AlertCircle className="w-5 h-5 text-red-500" />
+                    <p className="text-sm text-red-700">Por favor, completa los campos obligatorios.</p>
+                  </div>
+                )}
+
+                <div className="grid md:grid-cols-2 gap-6">
+                  {/* Basic Info Card */}
+                  <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-5">
+                    <div className="flex items-center space-x-2 text-pink-500">
+                      <Settings className="w-4 h-4" />
+                      <h4 className="font-bold uppercase text-[10px] tracking-widest">Información del Rol</h4>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Nombre del Rol *</label>
+                        <input
+                          type="text"
+                          value={newRoleData.name}
+                          onChange={(e) => setNewRoleData({ ...newRoleData, name: e.target.value })}
+                          className="w-full px-4 py-3 bg-gray-50/50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all font-medium text-gray-700"
+                          placeholder="Ej: Supervisor de Salón"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Descripción *</label>
+                        <textarea
+                          value={newRoleData.description}
+                          onChange={(e) => setNewRoleData({ ...newRoleData, description: e.target.value })}
+                          className="w-full px-4 py-3 bg-gray-50/50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all font-medium text-gray-700 resize-none"
+                          rows={4}
+                          placeholder="Describe las funciones y responsabilidades..."
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Permissions Summary Card */}
+                  <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm flex flex-col justify-center items-center text-center space-y-4">
+                    <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mb-2">
+                      <Lock className="w-8 h-8 text-purple-600" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-gray-800 text-lg">Resumen de Accesos</h4>
+                      <p className="text-sm text-gray-500 px-4">Has seleccionado <span className="font-bold text-purple-600">{newRoleData.permissions.length}</span> permisos para este rol.</p>
+                    </div>
+                    <div className="w-full h-px bg-gray-100 my-2"></div>
+                    <div className="flex items-center space-x-2 text-[10px] font-black uppercase tracking-widest text-gray-400">
+                      <Shield className="w-3 h-3" />
+                      <span>Seguridad del Sistema</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Permissions Selection Section */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                  <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100 flex items-center justify-between">
+                    <h4 className="font-bold text-gray-700 text-sm flex items-center space-x-2">
+                      <Lock className="w-4 h-4 text-purple-400" />
+                      <span>Configuración de Permisos por Módulo</span>
+                    </h4>
+                    <span className="text-[10px] font-black bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full uppercase">
+                      Selecciona los módulos
+                    </span>
+                  </div>
+
+                  <div className="p-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {ALLOWED_MODULES
+                        .filter(module => permissionsByModule[module])
+                        .map(module => {
+                          const ModuleIcon = getModuleIcon(module);
+                          const modulePermissions = permissionsByModule[module].map(p => p.id);
+                          const isModuleSelected = modulePermissions.every(permId =>
+                            newRoleData.permissions.includes(permId)
+                          );
+
+                          return (
+                            <label
+                              key={module}
+                              className={`flex items-center space-x-4 p-4 border-2 rounded-2xl cursor-pointer transition-all ${isModuleSelected
+                                ? 'border-pink-400 bg-pink-50/30 shadow-sm ring-1 ring-pink-100'
+                                : 'border-gray-100 hover:border-pink-200 hover:bg-gray-50'
+                                }`}
+                            >
+                              <div className="relative flex items-center justify-center">
+                                <input
+                                  type="checkbox"
+                                  checked={isModuleSelected}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setNewRoleData({
+                                        ...newRoleData,
+                                        permissions: [...new Set([...newRoleData.permissions, ...modulePermissions])]
+                                      });
+                                    } else {
+                                      setNewRoleData({
+                                        ...newRoleData,
+                                        permissions: newRoleData.permissions.filter(p => !modulePermissions.includes(p))
+                                      });
+                                    }
+                                  }}
+                                  className="sr-only"
+                                />
+                                <div className={`w-6 h-6 border-2 rounded-lg flex items-center justify-center transition-all ${isModuleSelected
+                                  ? 'bg-gradient-to-r from-pink-400 to-purple-500 border-transparent shadow-sm'
+                                  : 'border-gray-200 bg-white'
+                                  }`}>
+                                  {isModuleSelected && <CheckCircle className="w-3.5 h-3.5 text-white" />}
+                                </div>
+                              </div>
+
+                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isModuleSelected
+                                ? 'bg-gradient-to-r from-pink-400 to-purple-500 shadow-sm'
+                                : 'bg-gray-100'
+                                }`}>
+                                <ModuleIcon className={`w-5 h-5 ${isModuleSelected ? 'text-white' : 'text-gray-500'}`} />
+                              </div>
+
+                              <div className="flex-1">
+                                <div className={`font-bold text-sm ${isModuleSelected ? 'text-purple-700' : 'text-gray-700'}`}>
+                                  {moduleNames[module as keyof typeof moduleNames]}
+                                </div>
+                                <div className="text-[10px] text-gray-400 font-medium">
+                                  {isModuleSelected ? 'Habilitado' : 'Sin acceso'}
+                                </div>
+                              </div>
+                            </label>
+                          );
+                        })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer - Fixed at bottom */}
+            <div className="p-5 bg-white border-t border-gray-100 flex flex-wrap gap-3 justify-end shrink-0 z-20">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCreateModal(false);
+                  setNewRoleData({ name: '', description: '', permissions: [] });
+                }}
+                className="px-8 py-2.5 rounded-xl font-black text-gray-500 hover:bg-gray-200 hover:text-gray-800 active:scale-95 transition-all text-sm uppercase tracking-widest shadow-sm"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleCreateRole}
+                disabled={loading}
+                className="px-8 py-2.5 bg-gradient-to-r from-pink-400 to-purple-500 text-white rounded-xl font-black hover:shadow-lg active:scale-95 transition-all text-sm uppercase tracking-widest shadow-md flex items-center space-x-2"
+              >
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                <span>{loading ? 'Creando...' : 'Crear Rol'}</span>
+              </button>
+            </div>
           </div>
-        );
-      })()}
+        </div>
+      )}
 
       {/* View Role Modal */}
       {viewingRole && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-
-            {/* Header con gradiente */}
-            <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-8 text-white rounded-t-3xl relative overflow-hidden">
-              <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-3xl"></div>
-              <div className="flex items-center space-x-4 relative z-10">
-                <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm shadow-inner">
-                  {React.createElement(getRoleIcon(viewingRole.id), { className: "w-8 h-8 text-white" })}
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header - Fixed at top */}
+            <div className="bg-gradient-to-r from-pink-500 to-purple-600 p-5 text-white shrink-0 shadow-md z-20">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                    {React.createElement(getRoleIcon(viewingRole.id), { className: "w-6 h-6 text-white" })}
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold leading-tight">Detalle del Rol: {viewingRole.name}</h3>
+                    <p className="text-pink-100 text-sm">Configuración de accesos y permisos</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-2xl font-bold">{viewingRole.name}</h3>
-                  <p className="text-sm opacity-90 mt-1">Detalle del rol</p>
+                <button
+                  onClick={() => setViewingRole(null)}
+                  className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Scrollable Body */}
+            <div className="flex-1 overflow-y-auto p-6 lg:p-8 bg-gray-50/30 no-scrollbar">
+              <style>{`
+                .no-scrollbar::-webkit-scrollbar { display: none; }
+                .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+              `}</style>
+
+              <div className="max-w-4xl mx-auto space-y-6">
+                <div className="grid md:grid-cols-3 gap-4">
+                  {/* General Info Card */}
+                  <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm md:col-span-2">
+                    <div className="flex items-center space-x-2 text-pink-500 mb-3">
+                      <Shield className="w-4 h-4" />
+                      <h4 className="font-bold uppercase text-[10px] tracking-widest">Información General</h4>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Identificador:</span>
+                        <p className="font-mono text-gray-600 text-sm">#{viewingRole.id}</p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Creado el:</span>
+                        <p className="font-bold text-gray-700 text-sm">{viewingRole.createdAt || 'N/A'}</p>
+                      </div>
+                    </div>
+                    <div className="mt-4 pt-4 border-t border-gray-50">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Descripción:</span>
+                      <p className="text-gray-700 text-sm mt-1 italic">{viewingRole.description || 'Sin descripción disponible.'}</p>
+                    </div>
+                  </div>
+
+                  {/* Status Card */}
+                  <div className={`rounded-2xl p-5 border shadow-sm flex flex-col items-center justify-center ${
+                    viewingRole.status === 'active' 
+                    ? 'bg-green-50/50 border-green-100 text-green-600' 
+                    : 'bg-red-50/50 border-red-100 text-red-600'
+                  }`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-2 ${
+                      viewingRole.status === 'active' ? 'bg-green-100' : 'bg-red-100'
+                    }`}>
+                      {viewingRole.status === 'active' ? <CheckCircle className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+                    </div>
+                    <span className="font-black uppercase text-[10px] tracking-[0.2em]">
+                      {viewingRole.status === 'active' ? 'Rol Activo' : 'Rol Inactivo'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Permissions Section */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                  <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100 flex items-center justify-between">
+                    <h4 className="font-bold text-gray-700 text-sm flex items-center space-x-2">
+                      <Lock className="w-4 h-4 text-purple-400" />
+                      <span>Permisos y Accesos Asignados</span>
+                    </h4>
+                    <span className="text-[10px] font-black bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full uppercase">
+                      {viewingRole.isSuperUser ? 'Acceso Total' : `${viewingRole.permissions.length} permisos`}
+                    </span>
+                  </div>
+                  
+                  <div className="p-6">
+                    {viewingRole.isSuperUser ? (
+                      <div className="bg-purple-50 border border-purple-100 rounded-2xl p-6 flex flex-col items-center text-center space-y-3">
+                        <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                          <Shield className="w-6 h-6 text-purple-600" />
+                        </div>
+                        <div>
+                          <h5 className="font-bold text-purple-900">Permisos Totales Protegidos</h5>
+                          <p className="text-sm text-purple-700">Este rol tiene acceso completo a todos los módulos y funciones del sistema por seguridad.</p>
+                        </div>
+                        <div className="flex flex-wrap justify-center gap-2 mt-2">
+                          {mockPermissions.map((permission) => (
+                            <span key={permission.id} className="px-3 py-1 bg-white border border-purple-100 text-[10px] font-bold text-purple-600 rounded-full uppercase tracking-wider">
+                              {permission.name}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {viewingRole.permissions.length > 0 ? (
+                          viewingRole.permissions.map((permissionId) => {
+                            const permission = mockPermissions.find(p => p.id === permissionId);
+                            return permission ? (
+                              <div key={permissionId} className="flex items-center space-x-3 p-3 bg-gray-50/50 rounded-xl border border-gray-100 hover:bg-gray-50 transition-colors">
+                                <div className="w-2 h-2 rounded-full bg-purple-400" />
+                                <span className="text-xs font-bold text-gray-700">{permission.name}</span>
+                              </div>
+                            ) : null;
+                          })
+                        ) : (
+                          <div className="col-span-full py-8 flex flex-col items-center justify-center text-gray-400 space-y-2">
+                            <Lock className="w-8 h-8 opacity-20" />
+                            <p className="text-sm font-medium">No hay permisos asignados a este rol.</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="p-6 space-y-6">
-              <div>
-                <h4 className="font-semibold text-gray-800 mb-3">Información General</h4>
-                <div className="bg-gradient-to-r from-pink-50 to-purple-50 border border-pink-100 rounded-2xl p-4 space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-500 text-sm">ID:</span>
-                    <span className="font-semibold text-gray-800 bg-white px-3 py-1 rounded-lg text-sm shadow-sm">{viewingRole.id}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-500 text-sm">Estado:</span>
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${getStatusColor(viewingRole.status || 'active')}`}>
-                      {getStatusLabel(viewingRole.status || 'active')}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-500 text-sm">Fecha de creación:</span>
-                    <span className="font-semibold text-gray-800 bg-white px-3 py-1 rounded-lg text-sm shadow-sm">{viewingRole.createdAt || 'N/A'}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <h4 className="font-semibold text-gray-800 mb-3">Descripción</h4>
-                <p className="text-gray-700 bg-gradient-to-r from-pink-50 to-purple-50 border border-pink-100 rounded-2xl p-4">{viewingRole.description}</p>
-              </div>
-
-              <div>
-                <h4 className="font-semibold text-gray-800 mb-3">Permisos Asignados ({viewingRole.permissions.length})</h4>
-                <div className="grid md:grid-cols-2 gap-3 max-h-64 overflow-y-auto pr-1">
-                  {viewingRole.permissions.map((permissionId) => {
-                    const permission = mockPermissions.find(p => p.id === permissionId);
-                    return permission ? (
-                      <div key={permissionId} className="flex items-center space-x-3 p-3 bg-gradient-to-r from-pink-50 to-purple-50 rounded-xl border border-pink-100">
-                        <div className="w-8 h-8 bg-gradient-to-r from-pink-400 to-purple-500 rounded-lg flex items-center justify-center flex-shrink-0">
-                          <CheckCircle className="w-4 h-4 text-white" />
-                        </div>
-                        <div>
-                          <div className="font-semibold text-gray-800 text-sm">{permission.name}</div>
-                          <div className="text-xs text-gray-500">{permission.description}</div>
-                        </div>
-                      </div>
-                    ) : null;
-                  })}
-                </div>
-              </div>
-
-              <div className="flex justify-end pt-2">
-                <button
-                  onClick={() => setViewingRole(null)}
-                  className="px-6 py-3 border-2 border-gray-200 text-gray-600 rounded-xl font-semibold hover:bg-gray-50 hover:border-gray-300 transition-all"
-                >
-                  Cerrar
-                </button>
-              </div>
+            {/* Footer - Fixed at bottom */}
+            <div className="p-5 bg-white border-t border-gray-100 flex flex-wrap gap-3 justify-end shrink-0 z-20">
+              <button
+                onClick={() => setViewingRole(null)}
+                className="px-8 py-2.5 rounded-xl font-black text-gray-500 hover:bg-gray-200 hover:text-gray-800 active:scale-95 transition-all text-sm uppercase tracking-widest shadow-sm"
+              >
+                Cerrar
+              </button>
             </div>
           </div>
         </div>
@@ -838,177 +985,231 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
         }
 
         return (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-              <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-8 text-white rounded-t-3xl relative overflow-hidden">
-                {/* Decorative background element */}
-                <div className="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full blur-3xl"></div>
-
-                <div className="flex items-center space-x-4 relative z-10">
-                  <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm shadow-inner">
-                    {React.createElement(getRoleIcon(editingRole.id), { className: "w-8 h-8 text-white" })}
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+              {/* Header - Fixed at top */}
+              <div className="bg-gradient-to-r from-pink-500 to-purple-600 p-5 text-white shrink-0 shadow-md z-20">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm shadow-inner">
+                      {React.createElement(getRoleIcon(editingRole.id), { className: "w-6 h-6 text-white" })}
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold leading-tight">Editar Rol: {editingRole.name}</h3>
+                      <p className="text-pink-100 text-sm">
+                        {isSuperAdmin
+                          ? 'Rol de sistema con permisos totales protegidos'
+                          : 'Configura las capacidades y descripción del rol'}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-2xl font-bold">Editar Rol: {editingRole.name}</h3>
-                    <p className="text-sm opacity-90 mt-1 flex items-center">
-                      <span className="w-2 h-2 bg-white/40 rounded-full mr-2"></span>
-                      {isSuperAdmin
-                        ? 'Este rol de sistema tiene permisos totales protegidos'
-                        : 'Configura las capacidades y descripción de este rol'}
-                    </p>
+                  <div className="flex items-center space-x-3">
+                    {!isSuperAdmin && (
+                      <button
+                        onClick={handleSaveRole}
+                        disabled={loading}
+                        className="flex items-center space-x-2 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-xl transition-all font-bold text-xs uppercase tracking-widest backdrop-blur-sm shadow-sm"
+                      >
+                        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                        <span>{loading ? 'Guardando...' : 'Guardar'}</span>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setEditingRole(null)}
+                      className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
+                    >
+                      <X className="w-5 h-5 text-white" />
+                    </button>
                   </div>
                 </div>
               </div>
 
-              <div className="p-6 space-y-6">
-                {/* Mensaje informativo para Super Admin */}
-                {isSuperAdmin && (
-                  <div className="bg-gradient-to-r from-pink-50 to-purple-50 border-2 border-pink-200 rounded-xl p-4">
-                    <div className="flex items-start space-x-3">
-                      <Shield className="w-6 h-6 text-purple-600 mt-0.5" />
+              {/* Scrollable Body */}
+              <div className="flex-1 overflow-y-auto p-6 lg:p-8 bg-gray-50/30 no-scrollbar">
+                <style>{`
+                  .no-scrollbar::-webkit-scrollbar { display: none; }
+                  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+                `}</style>
+
+                <div className="max-w-4xl mx-auto space-y-6">
+                  {/* Mensaje informativo para Super Admin */}
+                  {isSuperAdmin && (
+                    <div className="bg-gradient-to-r from-pink-50 to-purple-50 border-2 border-pink-200 rounded-2xl p-5 animate-in fade-in duration-500">
+                      <div className="flex items-start space-x-4">
+                        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm shrink-0">
+                          <Shield className="w-6 h-6 text-purple-600" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-gray-800 mb-1">Rol del Sistema Protegido</h4>
+                          <p className="text-sm text-gray-700 leading-relaxed">
+                            El rol <span className="font-bold text-purple-600">Super Admin</span> tiene todos los permisos habilitados de forma permanente.
+                            Esta configuración garantiza el acceso total para la administración del sistema y no puede ser modificado.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid md:grid-cols-2 gap-6">
+                    {/* Basic Info Card */}
+                    <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-5">
+                      <div className="flex items-center space-x-2 text-pink-500">
+                        <Settings className="w-4 h-4" />
+                        <h4 className="font-bold uppercase text-[10px] tracking-widest">Identidad del Rol</h4>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Nombre del Rol</label>
+                          <input
+                            type="text"
+                            value={editingRole.name}
+                            onChange={(e) => setEditingRole({ ...editingRole, name: e.target.value })}
+                            disabled={isSuperAdmin}
+                            className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all font-medium ${isSuperAdmin ? 'bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed' : 'bg-gray-50/50 border-gray-200 text-gray-700'
+                              }`}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Descripción</label>
+                          <textarea
+                            value={editingRole.description}
+                            onChange={(e) => setEditingRole({ ...editingRole, description: e.target.value })}
+                            disabled={isSuperAdmin}
+                            className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all font-medium resize-none ${isSuperAdmin ? 'bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed' : 'bg-gray-50/50 border-gray-200 text-gray-700'
+                              }`}
+                            rows={4}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Permissions Summary Card */}
+                    <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm flex flex-col justify-center items-center text-center space-y-4">
+                      <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-2 ${isSuperAdmin ? 'bg-pink-100' : 'bg-purple-100'}`}>
+                        {isSuperAdmin ? <Shield className="w-8 h-8 text-pink-600" /> : <Lock className="w-8 h-8 text-purple-600" />}
+                      </div>
                       <div>
-                        <h4 className="font-bold text-gray-800 mb-1">Rol Protegido</h4>
-                        <p className="text-sm text-gray-700">
-                          El Super Admin tiene todos los permisos del sistema habilitados de forma permanente.
-                          Este rol no puede ser modificado para garantizar el acceso completo al sistema.
-                        </p>
+                        <h4 className="font-bold text-gray-800 text-lg">Permisos Asignados</h4>
+                        <p className="text-sm text-gray-500 px-4">Este rol cuenta con <span className="font-bold text-purple-600">{editingRole.permissions.length}</span> permisos activos en el sistema.</p>
+                      </div>
+                      <div className="w-full h-px bg-gray-100 my-2"></div>
+                      <div className="flex items-center space-x-2 text-[10px] font-black uppercase tracking-widest text-gray-400">
+                        <Shield className="w-3 h-3" />
+                        <span>Estado: {editingRole.status === 'active' ? 'Activo' : 'Inactivo'}</span>
                       </div>
                     </div>
                   </div>
-                )}
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Nombre del rol
-                  </label>
-                  <input
-                    type="text"
-                    value={editingRole.name}
-                    onChange={(e) => setEditingRole({ ...editingRole, name: e.target.value })}
-                    disabled={isSuperAdmin}
-                    className={`w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${isSuperAdmin ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''
-                      } `}
-                  />
-                </div>
+                  {/* Permissions Selection Section */}
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100 flex items-center justify-between">
+                      <h4 className="font-bold text-gray-700 text-sm flex items-center space-x-2">
+                        <Lock className="w-4 h-4 text-purple-400" />
+                        <span>Configuración de Accesos</span>
+                      </h4>
+                      {isSuperAdmin && (
+                        <span className="text-[10px] font-black bg-pink-100 text-pink-600 px-2 py-0.5 rounded-full uppercase">
+                          Control Total Habilitado
+                        </span>
+                      )}
+                    </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Descripción del rol
-                  </label>
-                  <textarea
-                    value={editingRole.description}
-                    onChange={(e) => setEditingRole({ ...editingRole, description: e.target.value })}
-                    disabled={isSuperAdmin}
-                    className={`w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${isSuperAdmin ? 'bg-gray-100 cursor-not-allowed opacity-60' : ''
-                      } `}
-                    rows={3}
-                  />
-                </div>
+                    <div className="p-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {ALLOWED_MODULES
+                          .filter(module => permissionsByModule[module])
+                          .map(module => {
+                            const ModuleIcon = getModuleIcon(module);
+                            const modulePermissions = permissionsByModule[module].map(p => p.id);
+                            const isModuleSelected = modulePermissions.every(permId =>
+                              editingRole.permissions.includes(permId)
+                            );
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-4">
-                    Módulos de acceso
-                    {isSuperAdmin && (
-                      <span className="ml-2 text-xs text-purple-600 font-normal">
-                        (Todos los permisos están habilitados permanentemente)
-                      </span>
-                    )}
-                    {!isSuperAdmin && (
-                      <span className="block text-xs font-normal text-gray-500 mt-1">
-                        Selecciona los módulos a los que este rol tendrá acceso
-                      </span>
-                    )}
-                  </label>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto p-4 border border-gray-200 rounded-xl">
-                    {Object.keys(permissionsByModule)
-                      .filter(module => ALLOWED_MODULES.includes(module))
-                      .sort()
-                      .map(module => {
-                        const ModuleIcon = getModuleIcon(module);
-                        const modulePermissions = permissionsByModule[module].map(p => p.id);
-                        const isModuleSelected = modulePermissions.every(permId =>
-                          editingRole.permissions.includes(permId)
-                        );
+                            return (
+                              <label
+                                key={module}
+                                className={`flex items-center space-x-4 p-4 border-2 rounded-2xl transition-all ${isSuperAdmin
+                                  ? 'bg-gray-50 border-gray-100 cursor-not-allowed opacity-80'
+                                  : isModuleSelected
+                                    ? 'border-pink-400 bg-pink-50/30 shadow-sm ring-1 ring-pink-100 cursor-pointer'
+                                    : 'border-gray-100 hover:border-pink-200 hover:bg-gray-50 cursor-pointer'
+                                  }`}
+                              >
+                                <div className="relative flex items-center justify-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={isModuleSelected}
+                                    disabled={isSuperAdmin}
+                                    onChange={(e) => {
+                                      if (!isSuperAdmin) {
+                                        if (e.target.checked) {
+                                          setEditingRole({
+                                            ...editingRole,
+                                            permissions: [...new Set([...editingRole.permissions, ...modulePermissions])]
+                                          });
+                                        } else {
+                                          setEditingRole({
+                                            ...editingRole,
+                                            permissions: editingRole.permissions.filter(p => !modulePermissions.includes(p))
+                                          });
+                                        }
+                                      }
+                                    }}
+                                    className="sr-only"
+                                  />
+                                  <div className={`w-6 h-6 border-2 rounded-lg flex items-center justify-center transition-all ${isModuleSelected
+                                    ? 'bg-gradient-to-r from-pink-400 to-purple-500 border-transparent shadow-sm'
+                                    : 'border-gray-200 bg-white'
+                                    }`}>
+                                    {isModuleSelected && <CheckCircle className="w-3.5 h-3.5 text-white" />}
+                                  </div>
+                                </div>
 
-                        return (
-                          <label
-                            key={module}
-                            className={`flex items-center space-x-4 p-5 border-2 rounded-2xl transition-all ${isSuperAdmin
-                              ? 'bg-gray-50 cursor-not-allowed border-gray-200'
-                              : isModuleSelected
-                                ? 'border-pink-400 bg-gradient-to-r from-pink-50 to-purple-50 cursor-pointer shadow-sm'
-                                : 'border-gray-200 hover:border-pink-200 hover:bg-gray-50 cursor-pointer'
-                              }`}
-                          >
-                            <div className="relative flex items-center justify-center">
-                              <input
-                                type="checkbox"
-                                checked={isModuleSelected}
-                                disabled={isSuperAdmin}
-                                onChange={(e) => {
-                                  if (!isSuperAdmin) {
-                                    if (e.target.checked) {
-                                      setEditingRole({
-                                        ...editingRole,
-                                        permissions: [...new Set([...editingRole.permissions, ...modulePermissions])]
-                                      });
-                                    } else {
-                                      setEditingRole({
-                                        ...editingRole,
-                                        permissions: editingRole.permissions.filter(p => !modulePermissions.includes(p))
-                                      });
-                                    }
-                                  }
-                                }}
-                                className="sr-only"
-                              />
-                              <div className={`w-7 h-7 border-2 rounded-xl flex items-center justify-center transition-all ${isModuleSelected
-                                ? 'bg-gradient-to-r from-pink-400 to-purple-500 border-transparent shadow-md'
-                                : 'border-gray-300 bg-white'
-                                } ${isSuperAdmin ? 'opacity-50' : ''}`}>
-                                {isModuleSelected && <CheckCircle className="w-4 h-4 text-white" />}
-                              </div>
-                            </div>
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isModuleSelected
+                                  ? 'bg-gradient-to-r from-pink-400 to-purple-500 shadow-sm'
+                                  : 'bg-gray-100'
+                                  }`}>
+                                  <ModuleIcon className={`w-5 h-5 ${isModuleSelected ? 'text-white' : 'text-gray-500'}`} />
+                                </div>
 
-                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${isModuleSelected
-                              ? 'bg-gradient-to-r from-pink-400 to-purple-500 shadow-md'
-                              : 'bg-gray-100'
-                              }`}>
-                              <ModuleIcon className={`w-6 h-6 ${isModuleSelected ? 'text-white' : 'text-gray-600'}`} />
-                            </div>
-
-                            <div className="flex-1">
-                              <div className={`font-bold text-lg ${isModuleSelected ? 'text-purple-700' : 'text-gray-800'}`}>
-                                {moduleNames[module as keyof typeof moduleNames]}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                {isModuleSelected ? (isSuperAdmin ? 'Rol de sistema' : 'Módulo habilitado') : 'Sin acceso'}
-                              </div>
-                            </div>
-                          </label>
-                        );
-                      })}
+                                <div className="flex-1">
+                                  <div className={`font-bold text-sm ${isModuleSelected ? 'text-purple-700' : 'text-gray-700'}`}>
+                                    {moduleNames[module as keyof typeof moduleNames]}
+                                  </div>
+                                  <div className="text-[10px] text-gray-400 font-medium">
+                                    {isModuleSelected ? 'Acceso Permitido' : 'Sin acceso'}
+                                  </div>
+                                </div>
+                              </label>
+                            );
+                          })}
+                      </div>
+                    </div>
                   </div>
                 </div>
+              </div>
 
-                <div className="flex space-x-4">
+              {/* Footer - Fixed at bottom */}
+              <div className="p-5 bg-white border-t border-gray-100 flex flex-wrap gap-3 justify-end shrink-0 z-20">
+                <button
+                  type="button"
+                  onClick={() => setEditingRole(null)}
+                  className="px-8 py-2.5 rounded-xl font-black text-gray-500 hover:bg-gray-200 hover:text-gray-800 active:scale-95 transition-all text-sm uppercase tracking-widest shadow-sm"
+                >
+                  {isSuperAdmin ? 'Cerrar' : 'Cancelar'}
+                </button>
+                {!isSuperAdmin && (
                   <button
-                    onClick={() => setEditingRole(null)}
-                    className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors flex items-center justify-center space-x-2"
+                    onClick={handleSaveRole}
+                    disabled={loading}
+                    className="px-8 py-2.5 bg-gradient-to-r from-pink-400 to-purple-500 text-white rounded-xl font-black hover:shadow-lg active:scale-95 transition-all text-sm uppercase tracking-widest shadow-md flex items-center space-x-2"
                   >
-                    <X className="w-5 h-5" />
-                    <span>{isSuperAdmin ? 'Cerrar' : 'Cancelar'}</span>
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                    <span>{loading ? 'Guardando...' : 'Actualizar Rol'}</span>
                   </button>
-                  {!isSuperAdmin && (
-                    <button
-                      onClick={handleSaveRole}
-                      className={`flex-1 bg-gradient-to-r ${getRoleColor(editingRole.id)} text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all flex items-center justify-center space-x-2`}
-                    >
-                      <Save className="w-5 h-5" />
-                      <span>Guardar Cambios</span>
-                    </button>
-                  )}
-                </div>
+                )}
               </div>
             </div>
           </div>
@@ -1017,32 +1218,50 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
 
       {/* Delete Role Modal */}
       {showDeleteModal && roleToDelete && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md">
-            <div className="p-6">
-              <div className="flex items-center space-x-4 mb-6">
-                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                  <AlertCircle className="w-6 h-6 text-red-600" />
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-red-500 to-pink-600 p-5 text-white shrink-0 shadow-md">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm shadow-inner">
+                    <Trash2 className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold leading-tight">Confirmar Eliminación</h3>
+                    <p className="text-red-100 text-xs font-medium">Esta acción no se puede deshacer</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-xl font-bold text-gray-800">Confirmar Eliminación</h3>
-                  <p className="text-gray-600">Esta acción no se puede deshacer</p>
-                </div>
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
+                >
+                  <X className="w-5 h-5 text-white" />
+                </button>
               </div>
+            </div>
 
-              <div className="mb-6">
-                <p className="text-gray-700 mb-4">
-                  ¿Estás segura de que quieres eliminar el rol <strong>{roleToDelete.name}</strong>?
+            <div className="p-8">
+              <div className="text-center mb-8">
+                <div className="w-20 h-20 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-red-100 rotate-3">
+                  <AlertCircle className="w-10 h-10 text-red-500 -rotate-3" />
+                </div>
+                <h4 className="text-lg font-bold text-gray-800 mb-2">
+                  ¿Eliminar rol "{roleToDelete.name}"?
+                </h4>
+                <p className="text-sm text-gray-500 leading-relaxed mb-6">
+                  Estás a punto de eliminar este rol de forma permanente. 
+                  Esta acción afectará los accesos de los usuarios que tengan este rol asignado.
                 </p>
-                <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-10 h-10 bg-gradient-to-r ${getRoleColor(roleToDelete.id)} rounded-full flex items-center justify-center`}>
-                      {React.createElement(getRoleIcon(roleToDelete.id), { className: "w-5 h-5 text-white" })}
-                    </div>
-                    <div>
-                      <div className="font-semibold text-gray-800">{roleToDelete.name}</div>
-                      <div className="text-sm text-gray-600">{roleToDelete.permissions.length} permiso{roleToDelete.permissions.length !== 1 ? 's' : ''} asignado{roleToDelete.permissions.length !== 1 ? 's' : ''}</div>
-                    </div>
+                
+                <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 flex items-center space-x-4">
+                  <div className={`w-12 h-12 bg-gradient-to-r ${getRoleColor(roleToDelete.id)} rounded-xl shadow-sm flex items-center justify-center`}>
+                    {React.createElement(getRoleIcon(roleToDelete.id), { className: "w-6 h-6 text-white" })}
+                  </div>
+                  <div className="text-left">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Rol a eliminar</p>
+                    <p className="font-bold text-gray-700">{roleToDelete.name}</p>
+                    <p className="text-[10px] text-gray-400 uppercase">{roleToDelete.permissions.length} permisos asignados</p>
                   </div>
                 </div>
               </div>
@@ -1050,15 +1269,16 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
               <div className="flex space-x-3">
                 <button
                   onClick={() => setShowDeleteModal(false)}
-                  className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
+                  className="flex-1 px-6 py-3 rounded-xl font-black text-gray-400 hover:bg-gray-100 transition-all text-[10px] uppercase tracking-widest"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={confirmDeleteRole}
-                  className="flex-1 bg-gradient-to-r from-red-400 to-red-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all"
+                  className="flex-1 bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center justify-center space-x-2"
                 >
-                  Eliminar
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Eliminar</span>
                 </button>
               </div>
             </div>
@@ -1068,27 +1288,47 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
 
       {/* Inactive Role Warning Modal */}
       {showInactiveWarningModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md">
-            <div className="p-6">
-              <div className="flex items-center space-x-4 mb-6">
-                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                  <AlertCircle className="w-6 h-6 text-red-600" />
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-red-500 to-pink-600 p-5 text-white shrink-0 shadow-md">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm shadow-inner">
+                    <Shield className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold leading-tight">Acción No Permitida</h3>
+                    <p className="text-red-100 text-xs font-medium">Restricción de seguridad</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-xl font-bold text-gray-800">Advertencia</h3>
-                  <p className="text-gray-600">No se puede inactivar el rol de Administrador</p>
-                </div>
-              </div>
-
-              <div className="flex space-x-3">
                 <button
                   onClick={() => setShowInactiveWarningModal(false)}
-                  className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
+                  className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 transition-all"
                 >
-                  Cerrar
+                  <X className="w-5 h-5 text-white" />
                 </button>
               </div>
+            </div>
+
+            <div className="p-8 text-center">
+              <div className="w-20 h-20 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-red-100">
+                <AlertCircle className="w-10 h-10 text-red-500" />
+              </div>
+              <h4 className="text-lg font-bold text-gray-800 mb-2">
+                No se puede inactivar el Administrador
+              </h4>
+              <p className="text-sm text-gray-500 leading-relaxed mb-6">
+                Por motivos de seguridad y para garantizar que siempre haya acceso administrativo al sistema, 
+                el rol de Administrador principal no puede ser desactivado.
+              </p>
+              
+              <button
+                onClick={() => setShowInactiveWarningModal(false)}
+                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-600 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all"
+              >
+                Entendido
+              </button>
             </div>
           </div>
         </div>
@@ -1096,27 +1336,47 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
 
       {/* Delete Role Warning Modal */}
       {showDeleteWarningModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md">
-            <div className="p-6">
-              <div className="flex items-center space-x-4 mb-6">
-                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                  <AlertCircle className="w-6 h-6 text-red-600" />
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-red-500 to-pink-600 p-5 text-white shrink-0 shadow-md">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm shadow-inner">
+                    <Trash2 className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold leading-tight">Rol Protegido</h3>
+                    <p className="text-red-100 text-xs font-medium">Elemento del sistema</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-xl font-bold text-gray-800">Advertencia</h3>
-                  <p className="text-gray-600">No se puede eliminar un rol principal del sistema (Administrador o Super Admin)</p>
-                </div>
-              </div>
-
-              <div className="flex space-x-3">
                 <button
                   onClick={() => setShowDeleteWarningModal(false)}
-                  className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
+                  className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 transition-all"
                 >
-                  Cerrar
+                  <X className="w-5 h-5 text-white" />
                 </button>
               </div>
+            </div>
+
+            <div className="p-8 text-center">
+              <div className="w-20 h-20 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-red-100">
+                <Shield className="w-10 h-10 text-red-500" />
+              </div>
+              <h4 className="text-lg font-bold text-gray-800 mb-2">
+                No se puede eliminar roles principales
+              </h4>
+              <p className="text-sm text-gray-500 leading-relaxed mb-6">
+                Los roles de Administrador y Super Admin son esenciales para el funcionamiento del sistema 
+                y no pueden ser eliminados bajo ninguna circunstancia.
+              </p>
+              
+              <button
+                onClick={() => setShowDeleteWarningModal(false)}
+                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-600 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all"
+              >
+                Cerrar Advertencia
+              </button>
             </div>
           </div>
         </div>
@@ -1124,35 +1384,46 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
 
       {/* Validation Error Modal */}
       {showValidationErrorModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md">
-            <div className="p-6">
-              <div className="flex items-center space-x-4 mb-6">
-                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                  <AlertCircle className="w-6 h-6 text-red-600" />
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-red-500 to-pink-600 p-5 text-white shrink-0 shadow-md">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm shadow-inner">
+                    <AlertCircle className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold leading-tight">Campos Requeridos</h3>
+                    <p className="text-red-100 text-xs font-medium">Error de validación</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-xl font-bold text-red-600">Campos Requeridos</h3>
-                  <p className="text-gray-600">Por favor completa todos los campos</p>
-                </div>
-              </div>
-
-              <div className="mb-6">
-                <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4">
-                  <p className="text-red-700 font-medium text-center">
-                    Debes completar el nombre y la descripción del rol antes de crearlo.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex space-x-3">
                 <button
                   onClick={() => setShowValidationErrorModal(false)}
-                  className="flex-1 px-6 py-3 bg-red-500 text-white rounded-xl font-semibold hover:bg-red-600 transition-colors"
+                  className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 transition-all"
                 >
-                  Entendido
+                  <X className="w-5 h-5 text-white" />
                 </button>
               </div>
+            </div>
+
+            <div className="p-8 text-center">
+              <div className="w-20 h-20 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-red-100">
+                <AlertCircle className="w-10 h-10 text-red-500" />
+              </div>
+              <h4 className="text-lg font-bold text-gray-800 mb-2">
+                Falta información obligatoria
+              </h4>
+              <p className="text-sm text-gray-500 leading-relaxed mb-6 italic">
+                Debes completar el nombre y la descripción del rol antes de crearlo.
+              </p>
+              
+              <button
+                onClick={() => setShowValidationErrorModal(false)}
+                className="w-full bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-md shadow-red-200"
+              >
+                Entendido
+              </button>
             </div>
           </div>
         </div>

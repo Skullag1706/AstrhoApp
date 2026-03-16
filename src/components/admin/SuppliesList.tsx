@@ -1,7 +1,7 @@
 import React, { useEffect, useState  } from 'react';
 import { X, 
   Package, Edit, Trash2, Eye, Search, Filter, Plus,
-  AlertCircle, CheckCircle, Clock, Archive
+  AlertCircle, CheckCircle, Clock, Archive, Tag, TrendingUp, Truck, MapPin, FileText
 } from 'lucide-react';
 import {
   Pagination,
@@ -167,7 +167,7 @@ export function SuppliesList({ hasPermission }: SuppliesListProps) {
   const [filterType, setFilterType] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
+  const [itemsPerPage] = useState(5);
 
   // Filter supplies
   const filteredSupplies = supplies.filter(supply => {
@@ -576,121 +576,188 @@ export function SuppliesList({ hasPermission }: SuppliesListProps) {
 
       {/* Supply Detail Modal */}
       {showDetailModal && selectedSupply && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-            <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-6 text-white rounded-t-3xl shrink-0">
-              <div className="flex items-center space-x-3 mb-4">
-                <Package className="w-8 h-8" />
-                <div>
-                  <h3 className="text-2xl font-bold">{selectedSupply.name}</h3>
-                  <p className="text-pink-100">Detalle del insumo</p>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header - Fixed at top */}
+            <div className="bg-gradient-to-r from-pink-500 to-purple-600 p-5 text-white shrink-0 shadow-md z-20">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                    <Package className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold leading-tight">Detalle del Insumo</h3>
+                    <p className="text-pink-100 text-sm">{selectedSupply.name}</p>
+                  </div>
                 </div>
+                <button
+                  onClick={() => setShowDetailModal(false)}
+                  className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
             </div>
-            
-            <div className="p-6 space-y-6 overflow-y-auto">
-              {/* Basic Information */}
-              <div>
-                <h4 className="font-semibold text-gray-800 mb-4">Información Básica</h4>
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <span className="text-sm text-gray-600">SKU</span>
-                    <p className="font-semibold text-gray-800">{selectedSupply.sku}</p>
+
+            {/* Scrollable Body */}
+            <div className="flex-1 overflow-y-auto p-6 lg:p-8 bg-gray-50/30 no-scrollbar">
+              <style>{`
+                .no-scrollbar::-webkit-scrollbar { display: none; }
+                .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+              `}</style>
+
+              <div className="max-w-4xl mx-auto space-y-6">
+                {/* Info Cards Row */}
+                <div className="grid md:grid-cols-3 gap-4">
+                  {/* Basic Info Card */}
+                  <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+                    <div className="flex items-center space-x-2 text-purple-500 mb-3">
+                      <Tag className="w-4 h-4" />
+                      <h4 className="font-bold uppercase text-[10px] tracking-widest">Información Básica</h4>
+                    </div>
+                    <div className="mb-1">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Nombre:</span>
+                      <p className="font-bold text-gray-800 text-lg mb-1 truncate">{selectedSupply.name}</p>
+                    </div>
+                    <div className="flex items-center space-x-2 text-gray-500">
+                      <span className="text-xs font-mono bg-gray-100 px-2 py-0.5 rounded-md">SKU: {selectedSupply.sku}</span>
+                    </div>
                   </div>
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <span className="text-sm text-gray-600">Tipo</span>
-                    <p className="font-semibold text-gray-800">{getTypeDisplayName(selectedSupply.type)}</p>
+
+                  {/* Stock Info Card */}
+                  <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+                    <div className="flex items-center space-x-2 text-pink-500 mb-3">
+                      <TrendingUp className="w-4 h-4" />
+                      <h4 className="font-bold uppercase text-[10px] tracking-widest">Estado de Stock</h4>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-400">Cantidad:</span>
+                        <span className={`font-bold ${selectedSupply.quantity <= selectedSupply.minStock ? 'text-red-500' : 'text-blue-600'}`}>
+                          {selectedSupply.quantity} {selectedSupply.unit}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-400">Tipo:</span>
+                        <span className="font-bold text-gray-700">{getTypeDisplayName(selectedSupply.type)}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <span className="text-sm text-gray-600">Cantidad Actual</span>
-                    <p className="font-semibold text-gray-800">{selectedSupply.quantity} {selectedSupply.unit}</p>
-                  </div>
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <span className="text-sm text-gray-600">Estado</span>
-                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusBadgeColor(selectedSupply.status)}`}>
+
+                  {/* Status Card */}
+                  <div className={`rounded-2xl p-5 border shadow-sm flex flex-col items-center justify-center ${
+                    selectedSupply.status === 'active' 
+                    ? 'bg-green-50/50 border-green-100 text-green-600' 
+                    : 'bg-red-50/50 border-red-100 text-red-600'
+                  }`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-2 ${
+                      selectedSupply.status === 'active' ? 'bg-green-100' : 'bg-red-100'
+                    }`}>
+                      <CheckCircle className="w-5 h-5" />
+                    </div>
+                    <span className="font-black uppercase text-[10px] tracking-[0.2em]">
                       {getStatusDisplayName(selectedSupply.status)}
                     </span>
                   </div>
                 </div>
-              </div>
 
-              {/* Description */}
-              <div>
-                <h4 className="font-semibold text-gray-800 mb-2">Descripción</h4>
-                <p className="text-gray-700 bg-gray-50 rounded-lg p-4">{selectedSupply.description}</p>
-              </div>
-
-              {/* Stock Information */}
-              <div>
-                <h4 className="font-semibold text-gray-800 mb-4">Información de Stock</h4>
-                <div className="grid md:grid-cols-3 gap-4">
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <span className="text-sm text-gray-600">Stock Mínimo</span>
-                    <p className="font-semibold text-gray-800">{selectedSupply.minStock} {selectedSupply.unit}</p>
-                  </div>
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <span className="text-sm text-gray-600">Stock Máximo</span>
-                    <p className="font-semibold text-gray-800">{selectedSupply.maxStock} {selectedSupply.unit}</p>
-                  </div>
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <span className="text-sm text-gray-600">Precio de Costo</span>
-                    <p className="font-semibold text-gray-800">${selectedSupply.costPrice.toLocaleString()}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Location and Dates */}
-              <div>
-                <h4 className="font-semibold text-gray-800 mb-4">Ubicación y Fechas</h4>
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <span className="text-sm text-gray-600">Ubicación</span>
-                    <p className="font-semibold text-gray-800">{selectedSupply.location}</p>
-                  </div>
-                  {selectedSupply.expirationDate && (
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <span className="text-sm text-gray-600">Fecha de Vencimiento</span>
-                      <p className="font-semibold text-gray-800">{selectedSupply.expirationDate}</p>
+                {/* Grid for Detailed Sections */}
+                <div className="grid md:grid-cols-2 gap-6">
+                  {/* Stock Details Section */}
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100">
+                      <h4 className="font-bold text-gray-700 text-sm flex items-center space-x-2">
+                        <Package className="w-4 h-4 text-blue-400" />
+                        <span>Parámetros de Inventario</span>
+                      </h4>
                     </div>
-                  )}
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <span className="text-sm text-gray-600">Creado</span>
-                    <p className="font-semibold text-gray-800">{selectedSupply.createdAt}</p>
+                    <div className="p-6">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="p-3 bg-gray-50 rounded-xl">
+                          <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Mínimo</span>
+                          <p className="font-bold text-gray-700">{selectedSupply.minStock} {selectedSupply.unit}</p>
+                        </div>
+                        <div className="p-3 bg-gray-50 rounded-xl">
+                          <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Máximo</span>
+                          <p className="font-bold text-gray-700">{selectedSupply.maxStock} {selectedSupply.unit}</p>
+                        </div>
+                        <div className="p-3 bg-green-50 rounded-xl col-span-2">
+                          <span className="text-[10px] font-black text-green-600 uppercase tracking-widest block mb-1">Precio de Costo</span>
+                          <p className="font-bold text-green-700 text-lg">${selectedSupply.costPrice.toLocaleString()}</p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <span className="text-sm text-gray-600">Última Actualización</span>
-                    <p className="font-semibold text-gray-800">{selectedSupply.updatedAt}</p>
+
+                  {/* Supplier & Location Section */}
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100">
+                      <h4 className="font-bold text-gray-700 text-sm flex items-center space-x-2">
+                        <Truck className="w-4 h-4 text-purple-400" />
+                        <span>Logística y Origen</span>
+                      </h4>
+                    </div>
+                    <div className="p-6">
+                      <div className="space-y-4">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center">
+                            <MapPin className="w-4 h-4 text-purple-500" />
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Ubicación</span>
+                            <p className="font-bold text-gray-700 text-sm">{selectedSupply.location}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-3">
+                          <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+                            <Truck className="w-4 h-4 text-blue-500" />
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Proveedor</span>
+                            <p className="font-bold text-gray-700 text-sm">{selectedSupply.supplierName}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Description & Notes Section */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                  <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100">
+                    <h4 className="font-bold text-gray-700 text-sm flex items-center space-x-2">
+                      <FileText className="w-4 h-4 text-pink-400" />
+                      <span>Detalles Adicionales</span>
+                    </h4>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div>
+                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">Descripción</span>
+                      <p className="text-gray-700 text-sm leading-relaxed bg-gray-50 p-4 rounded-xl italic">
+                        {selectedSupply.description || 'Sin descripción disponible.'}
+                      </p>
+                    </div>
+                    {selectedSupply.notes && (
+                      <div>
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">Notas del Insumo</span>
+                        <p className="text-gray-700 text-sm leading-relaxed bg-yellow-50/50 p-4 rounded-xl border border-yellow-100">
+                          {selectedSupply.notes}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
+            </div>
 
-              {/* Supplier Information */}
-              <div>
-                <h4 className="font-semibold text-gray-800 mb-4">Información del Proveedor</h4>
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <span className="text-sm text-gray-600">Proveedor</span>
-                  <p className="font-semibold text-gray-800">{selectedSupply.supplierName}</p>
-                </div>
-              </div>
-
-              {/* Notes */}
-              {selectedSupply.notes && (
-                <div>
-                  <h4 className="font-semibold text-gray-800 mb-2">Notas</h4>
-                  <p className="text-gray-700 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                    {selectedSupply.notes}
-                  </p>
-                </div>
-              )}
-              
-              <div className="flex justify-end">
-                <button
-                  onClick={() => setShowDetailModal(false)}
-                  className="px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
-                >
-                  Cerrar
-                </button>
-              </div>
+            {/* Footer - Fixed at bottom */}
+            <div className="p-5 bg-white border-t border-gray-100 flex flex-wrap gap-3 justify-end shrink-0 z-20">
+              <button
+                onClick={() => setShowDetailModal(false)}
+                className="px-8 py-2.5 rounded-xl font-black text-gray-500 hover:bg-gray-200 hover:text-gray-800 active:scale-95 transition-all text-sm uppercase tracking-widest shadow-sm"
+              >
+                Cerrar
+              </button>
             </div>
           </div>
         </div>
@@ -698,46 +765,67 @@ export function SuppliesList({ hasPermission }: SuppliesListProps) {
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && supplyToDelete && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
-            <div className="p-6">
-              <div className="flex items-center space-x-4 mb-6">
-                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                  <AlertCircle className="w-6 h-6 text-red-600" />
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-red-500 to-pink-600 p-5 text-white shrink-0 shadow-md">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm shadow-inner">
+                    <Trash2 className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold leading-tight">Confirmar Eliminación</h3>
+                    <p className="text-red-100 text-xs font-medium">Esta acción no se puede deshacer</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-xl font-bold text-gray-800">Confirmar Eliminación</h3>
-                  <p className="text-gray-600">Esta acción no se puede deshacer</p>
-                </div>
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
+                >
+                  <X className="w-5 h-5 text-white" />
+                </button>
               </div>
-              
-              <div className="mb-6">
-                <p className="text-gray-700 mb-4">
-                  ¿Estás segura de que quieres eliminar el insumo <strong>{supplyToDelete.name}</strong>?
+            </div>
+
+            <div className="p-8">
+              <div className="text-center mb-8">
+                <div className="w-20 h-20 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-red-100 rotate-3">
+                  <AlertCircle className="w-10 h-10 text-red-500 -rotate-3" />
+                </div>
+                <h4 className="text-lg font-bold text-gray-800 mb-2">
+                  ¿Eliminar insumo "{supplyToDelete.name}"?
+                </h4>
+                <p className="text-sm text-gray-500 leading-relaxed mb-6">
+                  Estás a punto de eliminar este insumo de forma permanente. 
+                  Esta acción afectará los registros históricos y el inventario actual.
                 </p>
-                <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-                  <div className="flex items-center space-x-3">
-                    <Package className="w-8 h-8 text-red-500" />
-                    <div>
-                      <div className="font-semibold text-gray-800">{supplyToDelete.name}</div>
-                      <div className="text-sm text-gray-600">SKU: {supplyToDelete.sku}</div>
-                    </div>
+                
+                <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 flex items-center space-x-4">
+                  <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center">
+                    <Package className="w-6 h-6 text-pink-500" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Insumo a eliminar</p>
+                    <p className="font-bold text-gray-700">{supplyToDelete.name}</p>
+                    <p className="text-[10px] font-mono text-gray-400 uppercase">SKU: {supplyToDelete.sku}</p>
                   </div>
                 </div>
               </div>
-              
+
               <div className="flex space-x-3">
                 <button
                   onClick={() => setShowDeleteModal(false)}
-                  className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
+                  className="flex-1 px-6 py-3 rounded-xl font-black text-gray-400 hover:bg-gray-100 transition-all text-[10px] uppercase tracking-widest"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={confirmDeleteSupply}
-                  className="flex-1 bg-gradient-to-r from-red-400 to-red-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all"
+                  className="flex-1 bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center justify-center space-x-2"
                 >
-                  Eliminar
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Eliminar</span>
                 </button>
               </div>
             </div>

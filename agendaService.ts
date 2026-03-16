@@ -213,18 +213,6 @@ export const agendaService = {
     return raw.map(normalizeAgendaItem);
   },
 
-  async getMisCitas(): Promise<AgendaItem[]> {
-    const data = await apiClient.get("/Agenda/mis-citas");
-    const raw: any[] = Array.isArray(data)
-      ? data
-      : Array.isArray(data?.data)
-      ? data.data
-      : Array.isArray(data?.$values)
-      ? data.$values
-      : [];
-    return raw.map(normalizeAgendaItem);
-  },
-
   async create(data: CreateAgendaData): Promise<any> {
     return apiClient.post("/Agenda", data);
   },
@@ -279,14 +267,25 @@ export interface EstadoAgenda {
 
 export const estadoAgendaService = {
   async getAll(): Promise<EstadoAgenda[]> {
-    // El endpoint /EstadoAgenda suele dar 404 en algunas configuraciones,
-    // devolvemos la lista estática para garantizar el funcionamiento.
-    return [
-      { estadoId: 1, nombre: 'Pendiente' },
-      { estadoId: 2, nombre: 'Confirmado' },
-      { estadoId: 3, nombre: 'Cancelado' },
-      { estadoId: 4, nombre: 'Completado' },
-      { estadoId: 5, nombre: 'Sin Agendar' },
-    ];
+    try {
+      const data = await apiClient.get("/EstadoAgenda");
+      const raw: any[] = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.$values)
+        ? data.$values
+        : Array.isArray(data?.data)
+        ? data.data
+        : [];
+      return raw.filter((e) => e.estadoId > 0 && e.nombre);
+    } catch {
+      // Fallback to known values if endpoint is unavailable
+      return [
+        { estadoId: 1, nombre: 'Pendiente' },
+        { estadoId: 2, nombre: 'Confirmado' },
+        { estadoId: 3, nombre: 'Cancelado' },
+        { estadoId: 4, nombre: 'Completado' },
+        { estadoId: 5, nombre: 'Sin Agendar' },
+      ];
+    }
   },
 };

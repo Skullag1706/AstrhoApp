@@ -479,10 +479,10 @@ export const mockRoles: Role[] = [
     name: 'Super Administrador',
     description: 'Acceso total y absoluto al sistema. Rol asignado a Astrid Eugenia Hoyos.',
     permissions: [
-      'module_dashboard', 'module_users', 'module_appointments', 'module_services',
-      'module_inventory', 'module_sales', 'module_purchases', 'module_suppliers',
-      'module_products', 'module_clients', 'module_categories', 'module_schedules',
-      'module_supplies', 'module_deliveries', 'module_reports'
+      'module_appointments', 'module_categories', 'module_clients', 'module_purchases',
+      'module_employees', 'module_deliveries', 'module_schedules', 'module_supplies',
+      'module_suppliers', 'module_roles', 'module_services', 'module_users',
+      'module_sales', 'module_dashboard'
     ],
     status: 'active',
     isSuperUser: true, // Super usuario - no se puede desactivar ni eliminar
@@ -494,10 +494,10 @@ export const mockRoles: Role[] = [
     name: 'Administrador',
     description: 'Acceso administrativo para gestión del salón',
     permissions: [
-      'module_dashboard', 'module_users', 'module_appointments', 'module_services',
-      'module_inventory', 'module_sales', 'module_purchases', 'module_suppliers',
-      'module_products', 'module_clients', 'module_categories', 'module_schedules',
-      'module_supplies', 'module_deliveries', 'module_reports'
+      'module_appointments', 'module_categories', 'module_clients', 'module_purchases',
+      'module_employees', 'module_deliveries', 'module_schedules', 'module_supplies',
+      'module_suppliers', 'module_roles', 'module_services', 'module_users',
+      'module_sales', 'module_dashboard'
     ],
     status: 'active',
     isSuperUser: false,
@@ -522,7 +522,7 @@ export const mockRoles: Role[] = [
     name: 'Cliente',
     description: 'Acceso para clientes del salón',
     permissions: [
-      'module_appointments', 'module_services', 'module_products'
+      'module_appointments', 'module_services', 'module_dashboard'
     ],
     status: 'active',
     isSuperUser: false,
@@ -532,20 +532,20 @@ export const mockRoles: Role[] = [
 ];
 
 export const mockPermissions: Permission[] = [
-  { id: 'module_dashboard', name: 'Dashboard', description: 'Acceso completo al panel de control interactivo', module: 'dashboard' },
-  { id: 'module_users', name: 'Usuarios', description: 'Gestión de usuarios y perfiles del sistema', module: 'users' },
-  { id: 'module_roles', name: 'Roles', description: 'Gestión de roles y permisos del sistema', module: 'roles' },
-  { id: 'module_appointments', name: 'Citas', description: 'Gestión integral de agendamiento y Google Calendar', module: 'appointments' },
-  { id: 'module_services', name: 'Servicios', description: 'Administración de catálogo de servicios y precios', module: 'services' },
-  { id: 'module_sales', name: 'Ventas', description: 'Registro de ventas de productos y servicios agendados', module: 'sales' },
-  { id: 'module_purchases', name: 'Compras', description: 'Gestión de órdenes de compra y abastecimiento', module: 'purchases' },
-  { id: 'module_suppliers', name: 'Proveedores', description: 'Directorio y gestión de proveedores del salón', module: 'suppliers' },
-  { id: 'module_products', name: 'Productos', description: 'Administración del catálogo de productos para la venta', module: 'products' },
+  { id: 'module_appointments', name: 'Agenda', description: 'Gestión integral de agendamiento y Google Calendar', module: 'appointments' },
+  { id: 'module_categories', name: 'Categoría', description: 'Organización de servicios y productos por categorías', module: 'categories' },
   { id: 'module_clients', name: 'Clientes', description: 'Gestión de base de datos de clientes y expedientes', module: 'clients' },
-  { id: 'module_categories', name: 'Categorías', description: 'Organización de servicios y productos por categorías', module: 'categories' },
+  { id: 'module_purchases', name: 'Compras', description: 'Gestión de órdenes de compra y abastecimiento', module: 'purchases' },
+  { id: 'module_employees', name: 'Empleados', description: 'Gestión de empleados y perfiles del personal', module: 'employees' },
+  { id: 'module_deliveries', name: 'Entregas', description: 'Registro de entregas de insumos al personal', module: 'deliveries' },
   { id: 'module_schedules', name: 'Horarios', description: 'Administración de jornadas laborales y excepciones', module: 'schedules' },
-  { id: 'module_supplies', name: 'Insumos', description: 'Control detallado de insumos de uso interno', module: 'supplies' },
-  { id: 'module_deliveries', name: 'Entregas', description: 'Registro de entregas de insumos al personal', module: 'deliveries' }
+  { id: 'module_supplies', name: 'Insumo', description: 'Control detallado de insumos de uso interno', module: 'supplies' },
+  { id: 'module_suppliers', name: 'Proveedores', description: 'Directorio y gestión de proveedores del salón', module: 'suppliers' },
+  { id: 'module_roles', name: 'Roles', description: 'Gestión de roles y permisos del sistema', module: 'roles' },
+  { id: 'module_services', name: 'Servicios', description: 'Administración de catálogo de servicios y precios', module: 'services' },
+  { id: 'module_users', name: 'Usuarios', description: 'Gestión de usuarios y perfiles del sistema', module: 'users' },
+  { id: 'module_sales', name: 'Ventas', description: 'Registro de ventas de productos y servicios agendados', module: 'sales' },
+  { id: 'module_dashboard', name: 'Dashboard', description: 'Acceso completo al panel de control interactivo', module: 'dashboard' }
 ];
 
 export const mockServices = [

@@ -240,10 +240,11 @@ export const authService = {
         const derivedName = data.email ? data.email.split('@')[0] : '';
         return {
             id: data.usuarioId,
+            usuarioId: data.usuarioId, // Keep both for consistency
             name: derivedName,
             firstName: derivedName,
             lastName: '',
-            documentId: '',
+            documentId: data.documentId || '', // Check if documentId is present
             email: data.email || '',
             phone: '',
             role,

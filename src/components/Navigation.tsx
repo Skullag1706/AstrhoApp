@@ -53,20 +53,15 @@ export function Navigation({
     { id: 'my-appointments', label: 'Mis Citas', icon: Calendar, permission: 'module_appointments' }
   ];
 
-  // Admin menu items (only show when not in client view)
-  const adminMenuItems = [
-    { id: 'admin', label: 'Administrar', icon: Shield, permission: 'module_dashboard' }
-  ];
-
   // Build menu items based on user permissions and view mode
   let menuItems = [];
   
-  // For admin users in admin mode, show no navigation buttons (clean admin interface)
-  if ((currentUser?.role === 'admin' || currentUser?.role === 'super_admin') && !isClientView) {
-    // Empty menu - admin in pure admin mode doesn't need navigation buttons
+  // For admin/assistant users in admin mode, show standard navigation if needed, or hide if it's pure admin panel
+  if ((currentUser?.role === 'admin' || currentUser?.role === 'super_admin' || currentUser?.role === 'asistente') && !isClientView) {
+    // Empty menu - staff in pure admin mode doesn't need navigation buttons in the center
     menuItems = [];
   } else {
-    // For all other cases (non-admin users, or admin in client view), show standard navigation
+    // For all other cases (non-admin users, or staff in client view), show standard navigation
     menuItems = [...baseMenuItems];
     
     if (currentUser) {
@@ -75,15 +70,6 @@ export function Navigation({
           menuItems.push(item);
         }
       });
-      
-      // Show admin menu for non-admin users with permissions, or for admin users in client view
-      if (hasPermission('module_dashboard') && (currentUser.role !== 'admin' && currentUser.role !== 'super_admin' || isClientView)) {
-        adminMenuItems.forEach(item => {
-          if (hasPermission(item.permission)) {
-            menuItems.push(item);
-          }
-        });
-      }
     }
   }
 
@@ -152,8 +138,8 @@ export function Navigation({
 
           {/* Right Side Actions */}
           <div className="flex items-center space-x-4">
-            {/* Home/Inicio Toggle for Admin */}
-            {(currentUser?.role === 'admin' || currentUser?.role === 'super_admin') && toggleClientView && (
+            {/* Home/Inicio Toggle for Staff */}
+            {(currentUser?.role === 'admin' || currentUser?.role === 'super_admin' || currentUser?.role === 'asistente') && toggleClientView && (
               <button
                 onClick={toggleClientView}
                 className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center space-x-2 ${
@@ -254,8 +240,8 @@ export function Navigation({
                         }}
                         className="w-full flex items-center space-x-3 px-3 py-2 text-left hover:bg-gray-50 rounded-lg transition-colors"
                       >
-                        <Edit className="w-4 h-4 text-gray-500" />
-                        <span className="text-gray-700">Editar Perfil</span>
+                        <Eye className="w-4 h-4 text-gray-500" />
+                        <span className="text-gray-700">Mostrar Perfil</span>
                       </button>
                       
                       <button
@@ -269,23 +255,6 @@ export function Navigation({
                         <span>Cerrar Sesión</span>
                       </button>
                     </div>
-                  </div>
-                )}
-
-                {/* Quick Actions for Asistente (only in admin view) - Not needed for admin since they have admin-only nav */}
-                {currentUser.role === 'asistente' && !isClientView && (
-                  <div className="hidden lg:flex items-center space-x-2 ml-4">
-                    <button
-                      onClick={() => setCurrentView('admin')}
-                      className={`p-2 rounded-lg transition-colors ${
-                        currentView === 'admin' 
-                          ? 'bg-red-100 text-red-600' 
-                          : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-                      }`}
-                      title="Panel de Administración"
-                    >
-                      <Settings className="w-4 h-4" />
-                    </button>
                   </div>
                 )}
               </div>
@@ -335,7 +304,7 @@ export function Navigation({
                 </div>
                 
                 {/* Mobile Home Toggle */}
-                {(currentUser?.role === 'admin' || currentUser?.role === 'super_admin') && toggleClientView && (
+                {(currentUser?.role === 'admin' || currentUser?.role === 'super_admin' || currentUser?.role === 'asistente') && toggleClientView && (
                   <button
                     onClick={toggleClientView}
                     className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-lg hover:bg-purple-200 transition-colors flex items-center space-x-1"

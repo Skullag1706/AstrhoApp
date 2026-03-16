@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import {
   Users, Plus, Edit, Trash2, Eye, Search, Filter, CheckCircle, XCircle, X, Save,
   AlertCircle, Mail, Phone, Calendar, Shield, UserCog, Download, Upload,
-  FileText, Camera, MapPin, IdCard, UserCheck
+  FileText, Camera, MapPin, IdCard, UserCheck, User, Star
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { SimplePagination } from '../ui/simple-pagination';
 import { userService, UsuarioListItem, UsuarioDetail } from '../../services/userService';
 import { authService } from '../../services/authService';
@@ -17,18 +18,6 @@ interface UserManagementProps {
 }
 
 export function UserManagement({ hasPermission }: UserManagementProps) {
-  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
-  const [alertMessage, setAlertMessage] = useState('');
-
-  // Auto-hide success alert after 4 seconds
-  useEffect(() => {
-    if (showSuccessAlert) {
-      const timer = setTimeout(() => {
-        setShowSuccessAlert(false);
-      }, 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [showSuccessAlert]);
 
   const [users, setUsers] = useState<UsuarioListItem[]>([]);
   const [roles, setRoles] = useState<RolListDto[]>([]);
@@ -44,7 +33,7 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
   const [filterRole, setFilterRole] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
+  const [itemsPerPage] = useState(5);
 
   // Fetch users and roles from API
   const fetchUsers = async () => {
@@ -54,8 +43,7 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
       setUsers(data);
     } catch (error) {
       console.error('Error fetching users:', error);
-      setAlertMessage('Error al cargar los usuarios');
-      setShowSuccessAlert(true);
+      toast.error('Error al cargar los usuarios');
     } finally {
       setLoading(false);
     }
@@ -118,8 +106,7 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
       setShowUserModal(true);
     } catch (error) {
       console.error('Error fetching user details:', error);
-      setAlertMessage('Error al cargar los datos del usuario');
-      setShowSuccessAlert(true);
+      toast.error('Error al cargar los datos del usuario');
     }
   };
 
@@ -130,8 +117,7 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
       setShowDetailModal(true);
     } catch (error) {
       console.error('Error fetching user details:', error);
-      setAlertMessage('Error al cargar los datos del usuario');
-      setShowSuccessAlert(true);
+      toast.error('Error al cargar los datos del usuario');
     }
   };
 
@@ -183,7 +169,7 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
         });
 
         if (hasAppointments || hasSales) {
-          alert("Esta persona ya esta asociada a una Cita o Venta");
+          toast.error("Esta persona ya esta asociada a una Cita o Venta");
           setLoading(false);
           setShowDeleteModal(false);
           setUserToDelete(null);
@@ -193,12 +179,11 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
         await userService.delete(userToDelete.usuarioId);
         setShowDeleteModal(false);
         setUserToDelete(null);
-        setAlertMessage('Usuario eliminado correctamente');
-        setShowSuccessAlert(true);
+        toast.success('Usuario eliminado correctamente');
         await fetchUsers();
       } catch (error) {
         console.error('Error deleting user:', error);
-        alert('Error al eliminar el usuario. Verifique que no existan dependencias activas.');
+        toast.error('Error al eliminar el usuario. Verifique que no existan dependencias activas.');
       } finally {
         setLoading(false);
       }
@@ -218,13 +203,11 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
         };
         await userService.update(selectedUser.usuarioId, updatePayload);
         setShowUserModal(false);
-        setAlertMessage('Usuario actualizado correctamente');
-        setShowSuccessAlert(true);
+        toast.success('Usuario actualizado correctamente');
         await fetchUsers();
       } catch (error: any) {
         console.error('Error updating user:', error);
-        setAlertMessage(error?.message || 'Error al actualizar el usuario');
-        setShowSuccessAlert(true);
+        toast.error(error?.message || 'Error al actualizar el usuario');
       }
       return;
     }
@@ -284,13 +267,11 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
       }
 
       setShowUserModal(false);
-      setAlertMessage('Usuario registrado correctamente');
-      setShowSuccessAlert(true);
+      toast.success('Usuario registrado correctamente');
       await fetchUsers();
     } catch (err: any) {
       console.error('Error creating user:', err);
-      setAlertMessage(err?.message || 'Error al registrar el usuario');
-      setShowSuccessAlert(true);
+      toast.error(err?.message || 'Error al registrar el usuario');
     }
   };
 
@@ -315,13 +296,11 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
         confirmarContrasena: detail.contrasena || 'placeholder',
         estado: newEstado,
       });
-      setAlertMessage('Estado de usuario actualizado correctamente');
-      setShowSuccessAlert(true);
+      toast.success('Estado de usuario actualizado correctamente');
       await fetchUsers();
     } catch (error) {
       console.error('Error toggling user status:', error);
-      setAlertMessage('Error al actualizar el estado del usuario');
-      setShowSuccessAlert(true);
+      toast.error('Error al actualizar el estado del usuario');
     }
   };
 
@@ -558,34 +537,52 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && userToDelete && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
-            <div className="p-6">
-              <div className="flex items-center space-x-4 mb-6">
-                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                  <AlertCircle className="w-6 h-6 text-red-600" />
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-red-500 to-pink-600 p-5 text-white shrink-0 shadow-md">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm shadow-inner">
+                    <Trash2 className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold leading-tight">Confirmar Eliminación</h3>
+                    <p className="text-red-100 text-xs font-medium">Esta acción no se puede deshacer</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-xl font-bold text-gray-800">Confirmar Eliminación</h3>
-                  <p className="text-gray-600">Esta acción no se puede deshacer</p>
-                </div>
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
+                >
+                  <X className="w-5 h-5 text-white" />
+                </button>
               </div>
+            </div>
 
-              <div className="mb-6">
-                <p className="text-gray-700 mb-4">
-                  ¿Estás segura de que quieres eliminar el usuario <strong>{userToDelete.email}</strong>?
+            <div className="p-8">
+              <div className="text-center mb-8">
+                <div className="w-20 h-20 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-red-100 rotate-3">
+                  <AlertCircle className="w-10 h-10 text-red-500 -rotate-3" />
+                </div>
+                <h4 className="text-lg font-bold text-gray-800 mb-2">
+                  ¿Eliminar usuario "{userToDelete.email}"?
+                </h4>
+                <p className="text-sm text-gray-500 leading-relaxed mb-6">
+                  Estás a punto de eliminar este acceso de forma permanente. 
+                  Esto deshabilitará el inicio de sesión para esta cuenta.
                 </p>
-                <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full flex items-center justify-center">
-                      <span className="text-white font-semibold text-sm">
-                        {userToDelete.email.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                    <div>
-                      <div className="font-semibold text-gray-800">{userToDelete.email}</div>
-                      <div className="text-sm text-gray-600">{userToDelete.rolNombre}</div>
-                    </div>
+                
+                <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 flex items-center space-x-4">
+                  <div className="w-12 h-12 bg-gradient-to-r from-pink-400 to-purple-500 rounded-xl shadow-sm flex items-center justify-center">
+                    <span className="text-white font-bold text-lg">
+                      {userToDelete.email.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="text-left">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Cuenta a eliminar</p>
+                    <p className="font-bold text-gray-700 line-clamp-1">{userToDelete.email}</p>
+                    <p className="text-[10px] text-gray-400 uppercase">{userToDelete.rolNombre}</p>
                   </div>
                 </div>
               </div>
@@ -593,15 +590,16 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
               <div className="flex space-x-3">
                 <button
                   onClick={() => setShowDeleteModal(false)}
-                  className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
+                  className="flex-1 px-6 py-3 rounded-xl font-black text-gray-400 hover:bg-gray-100 transition-all text-[10px] uppercase tracking-widest"
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={confirmDeleteUser}
-                  className="flex-1 bg-gradient-to-r from-red-400 to-red-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all"
+                  className="flex-1 bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center justify-center space-x-2"
                 >
-                  Eliminar
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Eliminar</span>
                 </button>
               </div>
             </div>
@@ -611,27 +609,47 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
 
       {/* Inactive Warning Modal */}
       {showInactiveWarningModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
-            <div className="p-6">
-              <div className="flex items-center space-x-4 mb-6">
-                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                  <AlertCircle className="w-6 h-6 text-red-600" />
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-red-500 to-pink-600 p-5 text-white shrink-0 shadow-md">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm shadow-inner">
+                    <Shield className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold leading-tight">Acción Protegida</h3>
+                    <p className="text-red-100 text-xs font-medium">Restricción del sistema</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-xl font-bold text-gray-800">Advertencia</h3>
-                  <p className="text-gray-600">No se puede inactivar al Super Administrador</p>
-                </div>
-              </div>
-
-              <div className="flex space-x-3">
                 <button
                   onClick={() => setShowInactiveWarningModal(false)}
-                  className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
+                  className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 transition-all shadow-sm"
                 >
-                  Cerrar
+                  <X className="w-5 h-5 text-white" />
                 </button>
               </div>
+            </div>
+
+            <div className="p-8 text-center">
+              <div className="w-20 h-20 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-red-100 rotate-3">
+                <AlertCircle className="w-10 h-10 text-red-500 -rotate-3" />
+              </div>
+              <h4 className="text-lg font-bold text-gray-800 mb-2">
+                No se puede inactivar al Super Administrador
+              </h4>
+              <p className="text-sm text-gray-500 leading-relaxed mb-6">
+                Por seguridad del sistema, la cuenta principal de Super Administrador debe permanecer activa 
+                en todo momento para garantizar el acceso total a la plataforma.
+              </p>
+              
+              <button
+                onClick={() => setShowInactiveWarningModal(false)}
+                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-600 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all"
+              >
+                Entendido
+              </button>
             </div>
           </div>
         </div>
@@ -639,50 +657,48 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
 
       {/* Delete Warning Modal */}
       {showDeleteWarningModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
-            <div className="p-6">
-              <div className="flex items-center space-x-4 mb-6">
-                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                  <AlertCircle className="w-6 h-6 text-red-600" />
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-red-500 to-pink-600 p-5 text-white shrink-0 shadow-md">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm shadow-inner">
+                    <Trash2 className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold leading-tight">Acceso Restringido</h3>
+                    <p className="text-red-100 text-xs font-medium">Elemento del sistema</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-xl font-bold text-gray-800">Advertencia</h3>
-                  <p className="text-gray-600">No se puede eliminar al Super Administrador del sistema</p>
-                </div>
-              </div>
-
-              <div className="flex space-x-3">
                 <button
                   onClick={() => setShowDeleteWarningModal(false)}
-                  className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
+                  className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 transition-all shadow-sm"
                 >
-                  Cerrar
+                  <X className="w-5 h-5 text-white" />
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* Success Alert */}
-      {showSuccessAlert && (
-        <div className="fixed top-4 right-4 z-[9999] animate-in slide-in-from-top-5 duration-300">
-          <div className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center space-x-4 min-w-[320px]">
-            <div className="flex-shrink-0">
-              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                <CheckCircle className="w-6 h-6 text-white" />
+            <div className="p-8 text-center">
+              <div className="w-20 h-20 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-red-100">
+                <Shield className="w-10 h-10 text-red-500" />
               </div>
+              <h4 className="text-lg font-bold text-gray-800 mb-2">
+                No se puede eliminar al Super Administrador
+              </h4>
+              <p className="text-sm text-gray-500 leading-relaxed mb-6">
+                La cuenta de Super Administrador es fundamental para la administración global y no puede 
+                ser eliminada. Si necesita realizar cambios, considere editar el perfil en su lugar.
+              </p>
+              
+              <button
+                onClick={() => setShowDeleteWarningModal(false)}
+                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-600 px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all"
+              >
+                Cerrar Advertencia
+              </button>
             </div>
-            <div className="flex-1">
-              <p className="font-semibold">{alertMessage}</p>
-            </div>
-            <button
-              onClick={() => setShowSuccessAlert(false)}
-              className="flex-shrink-0 w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
           </div>
         </div>
       )}
@@ -697,7 +713,7 @@ function UserModal({ user, onClose, onSave, roles }: { user: any; onClose: () =>
   const availableRoles = isEditingSuperAdmin ? roles : roles.filter(r => r.nombre.toLowerCase() !== 'super admin');
 
   const [formData, setFormData] = useState({
-    rolId: user?.rol?.rolId || (availableRoles.find(r => r.nombre.toLowerCase() === 'administrador')?.rolId || (availableRoles.length > 0 ? availableRoles[0].rolId : 0)),
+    rolId: user?.rol?.rolId || (availableRoles.length > 0 ? availableRoles[0].rolId : 0),
     documentType: 'cedula',
     documentId: '',
     nombre: '',
@@ -706,7 +722,7 @@ function UserModal({ user, onClose, onSave, roles }: { user: any; onClose: () =>
     direccion: '',
     estado: user?.estado !== undefined ? user.estado : true,
   });
-  const [saving, setSaving] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [validatingFields, setValidatingFields] = useState<Record<string, boolean>>({});
 
@@ -851,7 +867,7 @@ function UserModal({ user, onClose, onSave, roles }: { user: any; onClose: () =>
 
     // Async uniqueness checks (only on create)
     if (!user) {
-      setSaving(true);
+      setIsSaving(true);
       try {
         const [{ emailExists }, documentExists] = await Promise.all([
           authService.checkDuplicates(formData.email),
@@ -863,21 +879,21 @@ function UserModal({ user, onClose, onSave, roles }: { user: any; onClose: () =>
 
         if (Object.keys(errors).length > 0) {
           setFieldErrors(errors);
-          setSaving(false);
+          setIsSaving(false);
           return;
         }
       } catch {
-        setSaving(false);
+        setIsSaving(false);
         return;
       }
     }
 
     setFieldErrors({});
-    setSaving(true);
+    setIsSaving(true);
     try {
       await onSave(formData);
     } finally {
-      setSaving(false);
+      setIsSaving(false);
     }
   };
 
@@ -907,200 +923,279 @@ function UserModal({ user, onClose, onSave, roles }: { user: any; onClose: () =>
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
-        <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-6 text-white rounded-t-3xl shrink-0">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+        {/* Header - Fixed at top */}
+        <div className="bg-gradient-to-r from-pink-500 to-purple-600 p-5 text-white shrink-0 shadow-md z-20">
           <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-2xl font-bold">
-                {user ? 'Editar Usuario' : 'Nuevo Usuario'}
-              </h3>
-              <p className="text-pink-100">
-                {user ? 'Actualiza la información del usuario' : 'Crea un nuevo usuario'}
-              </p>
+            <div className="flex items-center space-x-4">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                <UserCog className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold leading-tight">
+                  {user ? 'Editar Usuario' : 'Registrar Nuevo Usuario'}
+                </h3>
+                <p className="text-pink-100 text-sm">
+                  {user ? `Actualizando a ${user.email}` : 'Complete la información para el nuevo acceso'}
+                </p>
+              </div>
             </div>
-            <button
-              onClick={onClose}
-              className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={handleSubmit}
+                disabled={isSaving}
+                className="flex items-center space-x-2 px-4 py-2 bg-green-500 hover:bg-green-600 rounded-xl transition-all text-sm font-bold border border-green-400 shadow-lg disabled:opacity-50"
+              >
+                {isSaving ? <CheckCircle className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                <span>{isSaving ? 'Guardando...' : 'Guardar Datos'}</span>
+              </button>
+              <button
+                onClick={onClose}
+                className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto">
-          {/* Form Fields */}
-          <div>
-            <h4 className="text-lg font-semibold text-gray-800 mb-4">Información del Usuario</h4>
+        {/* Scrollable Body */}
+        <form onSubmit={handleSubmit} id="user-form" className="flex-1 overflow-y-auto p-6 lg:p-8 bg-gray-50/30 no-scrollbar">
+          <style>{`
+            .no-scrollbar::-webkit-scrollbar { display: none; }
+            .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+          `}</style>
+
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* Errors Notification */}
+            {Object.keys(fieldErrors).length > 0 && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-2xl flex items-center space-x-3 animate-in fade-in duration-300">
+                <AlertCircle className="w-5 h-5 shrink-0" />
+                <p className="font-semibold text-sm">Por favor corrija los errores marcados en el formulario</p>
+              </div>
+            )}
+
             <div className="grid md:grid-cols-2 gap-6">
-              {/* 1. Rol */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Rol *
-                </label>
-                <select
-                  name="rolId"
-                  value={formData.rolId}
-                  onChange={handleInputChange}
-                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${isEditingSuperAdmin ? 'bg-gray-100/50 text-gray-500 cursor-not-allowed border-gray-200' : 'border-gray-300'}`}
-                  required
-                  disabled={isEditingSuperAdmin}
-                >
-                  <option value="">Seleccionar rol</option>
-                  {availableRoles.map(role => (
-                    <option key={role.rolId} value={role.rolId}>{role.nombre}</option>
-                  ))}
-                </select>
+              {/* Account Data Section */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100 flex items-center space-x-2">
+                  <Shield className="w-4 h-4 text-pink-500" />
+                  <h4 className="font-bold text-gray-700 text-sm uppercase tracking-wider">Acceso y Rol</h4>
+                </div>
+                <div className="p-6 space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Rol del Sistema</label>
+                    <div className="relative">
+                      <Shield className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <select
+                        name="rolId"
+                        value={formData.rolId}
+                        onChange={handleInputChange}
+                        className={`w-full pl-10 pr-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all outline-none appearance-none ${
+                          isEditingSuperAdmin ? 'opacity-60 cursor-not-allowed' : 'border-gray-200'
+                        }`}
+                        disabled={isEditingSuperAdmin}
+                      >
+                        <option value="">Seleccionar rol</option>
+                        {availableRoles.map(role => (
+                          <option key={role.rolId} value={role.rolId}>{role.nombre}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Correo Electrónico</label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <input
+                        type="email"
+                        name="email"
+                        value={formData.email}
+                        onChange={handleInputChange}
+                        onBlur={handleBlur}
+                        className={`w-full pl-10 pr-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all outline-none ${
+                          fieldErrors.email ? 'border-red-300 ring-1 ring-red-100' : 'border-gray-200'
+                        }`}
+                        placeholder="correo@ejemplo.com"
+                      />
+                    </div>
+                    {validatingFields.email && <p className="text-[9px] text-blue-500 mt-1 animate-pulse">Verificando...</p>}
+                    {fieldErrors.email && <p className="text-[9px] text-red-500 mt-1">{fieldErrors.email}</p>}
+                  </div>
+
+                  {user && (
+                    <div className="pt-2">
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Estado del Acceso</label>
+                      <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
+                        <label className={`relative inline-flex items-center ${isEditingSuperAdmin ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+                          <input
+                            type="checkbox"
+                            checked={formData.estado === true}
+                            onChange={(e) => !isEditingSuperAdmin && setFormData({ ...formData, estado: e.target.checked })}
+                            className="sr-only peer"
+                            disabled={isEditingSuperAdmin}
+                          />
+                          <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-pink-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-pink-400 peer-checked:to-purple-500"></div>
+                          <span className={`ml-3 text-sm font-bold ${formData.estado ? 'text-green-600' : 'text-red-600'}`}>
+                            {formData.estado ? 'ACTIVO' : 'INACTIVO'}
+                          </span>
+                        </label>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* 2. Tipo de Documento */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Tipo de Documento *
-                </label>
-                <select
-                  name="documentType"
-                  value={formData.documentType}
-                  onChange={handleInputChange}
-                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${!!user ? 'bg-gray-100/50 text-gray-500 cursor-not-allowed border-gray-200' : 'border-gray-300'}`}
-                  disabled={!!user}
-                >
-                  <option value="cedula">Cédula de Ciudadanía</option>
-                  <option value="cedula_extranjeria">Cédula de Extranjería</option>
-                  <option value="pasaporte">Pasaporte</option>
-                </select>
-                {fieldErrors.documentType && (
-                  <p className="text-red-500 text-sm mt-1">{fieldErrors.documentType}</p>
-                )}
-              </div>
+              {/* Personal Data Section */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100 flex items-center space-x-2">
+                  <IdCard className="w-4 h-4 text-purple-500" />
+                  <h4 className="font-bold text-gray-700 text-sm uppercase tracking-wider">Ficha de Identidad</h4>
+                </div>
+                <div className="p-6 space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Nombre Completo</label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <input
+                        type="text"
+                        name="nombre"
+                        value={formData.nombre}
+                        onChange={handleInputChange}
+                        onBlur={handleBlur}
+                        className={`w-full pl-10 pr-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all outline-none ${
+                          fieldErrors.nombre ? 'border-red-300 ring-1 ring-red-100' : 'border-gray-200'
+                        } ${!!user ? 'opacity-60 cursor-not-allowed' : ''}`}
+                        placeholder="Nombre y Apellidos"
+                        disabled={!!user}
+                      />
+                    </div>
+                    {fieldErrors.nombre && <p className="text-[9px] text-red-500 mt-1">{fieldErrors.nombre}</p>}
+                  </div>
 
-              {/* 3. Documento */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Número de Documento *
-                </label>
-                <input
-                  type="text"
-                  name="documentId"
-                  value={formData.documentId}
-                  onChange={handleInputChange}
-                  onBlur={handleBlur}
-                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${!!user ? 'bg-gray-100/50 text-gray-500 cursor-not-allowed border-gray-200' : fieldErrors.documentId ? 'border-red-500' : 'border-gray-300'}`}
-                  required={!user}
-                  disabled={!!user}
-                />
-                {validatingFields.documentId && (
-                  <p className="text-blue-500 text-sm mt-1">Verificando disponibilidad...</p>
-                )}
-                {fieldErrors.documentId && !validatingFields.documentId && (
-                  <p className="text-red-500 text-sm mt-1">{fieldErrors.documentId}</p>
-                )}
-              </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Tipo Doc.</label>
+                      <div className="relative">
+                        <IdCard className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                        <select
+                          name="documentType"
+                          value={formData.documentType}
+                          onChange={handleInputChange}
+                          className={`w-full pl-10 pr-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all outline-none appearance-none ${
+                            !!user ? 'opacity-60 cursor-not-allowed' : 'border-gray-200'
+                          }`}
+                          disabled={!!user}
+                        >
+                          <option value="cedula">Cédula (CC)</option>
+                          <option value="cedula_extranjeria">Extranjería (CE)</option>
+                          <option value="pasaporte">Pasaporte</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Número Doc.</label>
+                      <div className="relative">
+                        <IdCard className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                        <input
+                          type="text"
+                          name="documentId"
+                          value={formData.documentId}
+                          onChange={handleInputChange}
+                          onBlur={handleBlur}
+                          className={`w-full pl-10 pr-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all outline-none ${
+                            fieldErrors.documentId ? 'border-red-300 ring-1 ring-red-100' : 'border-gray-200'
+                          } ${!!user ? 'opacity-60 cursor-not-allowed' : ''}`}
+                          placeholder="1234567890"
+                          disabled={!!user}
+                        />
+                      </div>
+                      {validatingFields.documentId && <p className="text-[9px] text-blue-500 mt-1 animate-pulse">Verificando...</p>}
+                      {fieldErrors.documentId && <p className="text-[9px] text-red-500 mt-1">{fieldErrors.documentId}</p>}
+                    </div>
+                  </div>
 
-              {/* 4. Nombre */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Nombre *
-                </label>
-                <input
-                  type="text"
-                  name="nombre"
-                  value={formData.nombre}
-                  onChange={handleInputChange}
-                  onBlur={handleBlur}
-                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${!!user ? 'bg-gray-100/50 text-gray-500 cursor-not-allowed border-gray-200' : fieldErrors.nombre ? 'border-red-500' : 'border-gray-300'}`}
-                  required={!user}
-                  disabled={!!user}
-                />
-                {fieldErrors.nombre && (
-                  <p className="text-red-500 text-sm mt-1">{fieldErrors.nombre}</p>
-                )}
-              </div>
-
-              {/* 5. Email */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Correo Electrónico *
-                </label>
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  onBlur={handleBlur}
-                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${fieldErrors.email ? 'border-red-500' : 'border-gray-300'}`}
-                  required
-                />
-                {validatingFields.email && (
-                  <p className="text-blue-500 text-sm mt-1">Verificando disponibilidad...</p>
-                )}
-                {fieldErrors.email && !validatingFields.email && (
-                  <p className="text-red-500 text-sm mt-1">{fieldErrors.email}</p>
-                )}
-              </div>
-
-              {/* 6. Teléfono */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Teléfono *
-                </label>
-                <input
-                  type="tel"
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleInputChange}
-                  onBlur={handleBlur}
-                  placeholder="10 dígitos"
-                  maxLength={10}
-                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${!!user ? 'bg-gray-100/50 text-gray-500 cursor-not-allowed border-gray-200' : fieldErrors.phone ? 'border-red-500' : 'border-gray-300'}`}
-                  required={!user}
-                  disabled={!!user}
-                />
-                {fieldErrors.phone && (
-                  <p className="text-red-500 text-sm mt-1">{fieldErrors.phone}</p>
-                )}
-              </div>
-
-              {/* 7. Dirección */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Dirección *
-                </label>
-                <input
-                  type="text"
-                  name="direccion"
-                  value={formData.direccion}
-                  onChange={handleInputChange}
-                  onBlur={handleBlur}
-                  placeholder="Calle, carrera, número, barrio"
-                  className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${!!user ? 'bg-gray-100/50 text-gray-500 cursor-not-allowed border-gray-200' : fieldErrors.direccion ? 'border-red-500' : 'border-gray-300'}`}
-                  required={!user}
-                  disabled={!!user}
-                />
-                {fieldErrors.direccion && (
-                  <p className="text-red-500 text-sm mt-1">{fieldErrors.direccion}</p>
-                )}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Teléfono</label>
+                      <div className="relative">
+                        <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                        <input
+                          type="tel"
+                          name="phone"
+                          value={formData.phone}
+                          onChange={handleInputChange}
+                          onBlur={handleBlur}
+                          className={`w-full pl-10 pr-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all outline-none ${
+                            fieldErrors.phone ? 'border-red-300 ring-1 ring-red-100' : 'border-gray-200'
+                          } ${!!user ? 'opacity-60 cursor-not-allowed' : ''}`}
+                          placeholder="300 123 4567"
+                          disabled={!!user}
+                        />
+                      </div>
+                      {fieldErrors.phone && <p className="text-[9px] text-red-500 mt-1">{fieldErrors.phone}</p>}
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Dirección</label>
+                      <div className="relative">
+                        <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                        <input
+                          type="text"
+                          name="direccion"
+                          value={formData.direccion}
+                          onChange={handleInputChange}
+                          onBlur={handleBlur}
+                          className={`w-full pl-10 pr-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all outline-none ${
+                            fieldErrors.direccion ? 'border-red-300 ring-1 ring-red-100' : 'border-gray-200'
+                          } ${!!user ? 'opacity-60 cursor-not-allowed' : ''}`}
+                          placeholder="Ej: Calle 10 #20-30"
+                          disabled={!!user}
+                        />
+                      </div>
+                      {fieldErrors.direccion && <p className="text-[9px] text-red-500 mt-1">{fieldErrors.direccion}</p>}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="flex space-x-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="flex-1 bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50"
-            >
-              {saving ? 'Guardando...' : (user ? 'Actualizar' : 'Crear')} Usuario
-            </button>
+            {/* Warning / Summary Card */}
+            <div className="bg-gradient-to-br from-pink-50 to-purple-50 rounded-3xl p-6 border border-pink-100 shadow-sm">
+                <div className="flex items-center space-x-3 mb-3">
+                  <Star className="w-5 h-5 text-pink-400" />
+                  <h4 className="font-black text-[10px] uppercase tracking-[0.2em] text-gray-700">Aviso de Seguridad</h4>
+                </div>
+                <p className="text-sm text-gray-600 italic leading-relaxed">
+                  {user 
+                    ? "Está modificando un acceso existente. Los cambios de rol pueden afectar los permisos del usuario." 
+                    : "La creación de un usuario genera automáticamente un perfil vinculado (Cliente o Empleado) según el rol seleccionado."}
+                </p>
+            </div>
           </div>
         </form>
+
+        {/* Footer - Fixed at bottom */}
+        <div className="p-5 bg-white border-t border-gray-100 flex flex-wrap gap-3 justify-end shrink-0 z-20">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-8 py-2.5 rounded-xl font-black text-gray-500 hover:bg-gray-200 hover:text-gray-800 active:scale-95 transition-all text-sm uppercase tracking-widest shadow-sm"
+            disabled={isSaving}
+          >
+            Cancelar
+          </button>
+          <button
+            form="user-form"
+            type="submit"
+            disabled={isSaving}
+            className="px-8 py-2.5 rounded-xl font-black text-white bg-gradient-to-r from-pink-500 to-purple-600 active:scale-95 transition-all text-sm uppercase tracking-widest shadow-lg hover:shadow-pink-200 disabled:opacity-50 flex items-center space-x-2"
+          >
+            {isSaving ? <CheckCircle className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            <span>{user ? 'Actualizar' : 'Registrar'}</span>
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -1108,6 +1203,35 @@ function UserModal({ user, onClose, onSave, roles }: { user: any; onClose: () =>
 
 // User Detail Modal Component
 function UserDetailModal({ user, onClose }: { user: any; onClose: () => void }) {
+  const [personData, setPersonData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchPerson = async () => {
+      try {
+        const data = await userService.getPersonForUser(user.usuarioId);
+        setPersonData(data);
+      } catch (error) {
+        console.error("Error fetching person for detail:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPerson();
+  }, [user]);
+
+  const getRoleDisplayName = (rolNombre: string) => rolNombre || 'Sin rol';
+  const getRoleBadgeColor = (rolNombre: string) => {
+    const name = (rolNombre || '').toLowerCase();
+    if (name === 'super admin') return 'bg-purple-100 text-purple-700 border border-purple-200';
+    if (name === 'administrador') return 'bg-red-100 text-red-700';
+    if (name === 'asistente') return 'bg-blue-100 text-blue-700';
+    if (name === 'cliente') return 'bg-green-100 text-green-700';
+    return 'bg-gray-100 text-gray-700';
+  };
+
+  const rolNombre = user.rol?.nombre || user.rolNombre || '';
+
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
@@ -1116,10 +1240,10 @@ function UserDetailModal({ user, onClose }: { user: any; onClose: () => void }) 
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                <Users className="w-6 h-6 text-white" />
+                <UserCheck className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h3 className="text-xl font-bold leading-tight">Detalles del Usuario</h3>
+                <h3 className="text-xl font-bold leading-tight">Perfil de Usuario</h3>
                 <p className="text-pink-100 text-sm">{user.email}</p>
               </div>
             </div>
@@ -1140,68 +1264,114 @@ function UserDetailModal({ user, onClose }: { user: any; onClose: () => void }) 
           `}</style>
 
           <div className="max-w-4xl mx-auto space-y-6">
-            <div className="text-center mb-6">
-              <div className="w-24 h-24 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
-                <span className="text-white font-bold text-3xl">
-                  {user.email.charAt(0).toUpperCase()}
-                </span>
+            <div className="grid md:grid-cols-3 gap-4">
+              {/* Identity Card */}
+              <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col items-center justify-center text-center">
+                <div className="w-20 h-20 bg-gradient-to-br from-pink-400 to-purple-500 rounded-3xl flex items-center justify-center shadow-lg mb-3">
+                  <span className="text-white font-bold text-3xl">{user.email.charAt(0).toUpperCase()}</span>
+                </div>
+                <h4 className="font-bold text-gray-800 text-lg line-clamp-1">{personData?.name || 'Usuario'}</h4>
+                <div className="mt-2">
+                  <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${getRoleBadgeColor(rolNombre)}`}>
+                    {getRoleDisplayName(rolNombre)}
+                  </span>
+                </div>
               </div>
-              <h4 className="text-xl font-bold text-gray-800">{user.email}</h4>
-              <div className="mt-2">
-                <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${user.estado ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                  {user.estado ? 'Activo' : 'Inactivo'}
-                </span>
+
+              {/* Account Card */}
+              <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm col-span-2">
+                <div className="flex items-center space-x-2 text-pink-500 mb-4">
+                  <Shield className="w-4 h-4" />
+                  <h4 className="font-bold uppercase text-[10px] tracking-widest">Estado y Acceso</h4>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">ID Usuario</span>
+                    <p className="font-mono font-bold text-gray-700">{user.usuarioId}</p>
+                  </div>
+                  <div className="p-3 bg-gray-50 rounded-xl border border-gray-100">
+                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Estado de Cuenta</span>
+                    <p className={`font-bold ${user.estado ? 'text-green-600' : 'text-red-600'} flex items-center space-x-1`}>
+                      {user.estado ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                      <span>{user.estado ? 'ACTIVA' : 'INACTIVA'}</span>
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-4">
-              {/* User Information Card */}
-              <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-                <div className="flex items-center space-x-2 text-pink-500 mb-4">
-                  <UserCheck className="w-4 h-4" />
-                  <h4 className="font-bold uppercase text-[10px] tracking-widest">Información del Usuario</h4>
-                </div>
-                
-                <div className="space-y-4">
-                  <div className="flex items-center space-x-3 p-3 bg-gray-50/50 rounded-xl hover:bg-gray-50 transition-colors">
-                    <Mail className="w-5 h-5 text-gray-400 flex-shrink-0" />
-                    <div>
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Correo Electrónico</span>
-                      <span className="font-semibold text-gray-800 break-all">{user.email}</span>
-                    </div>
-                  </div>
-                </div>
+            {/* Detailed Info Section */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100 flex items-center space-x-2">
+                <FileText className="w-4 h-4 text-purple-500" />
+                <h4 className="font-bold text-gray-700 text-sm uppercase tracking-wider">Información Vinculada</h4>
               </div>
-
-              {/* System Info Card */}
-              <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-                <div className="flex items-center space-x-2 text-purple-500 mb-4">
-                  <Shield className="w-4 h-4" />
-                  <h4 className="font-bold uppercase text-[10px] tracking-widest">Información del Sistema</h4>
-                </div>
-                
-                <div className="space-y-4">
-                  <div className="flex items-center space-x-3 p-3 bg-gray-50/50 rounded-xl hover:bg-gray-50 transition-colors">
-                    <UserCog className="w-5 h-5 text-gray-400 flex-shrink-0" />
-                    <div>
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Rol Asignado</span>
-                      <span className="font-semibold text-gray-800">
-                        {user.rol?.nombre || user.rolNombre || 'Sin rol'}
-                      </span>
+              <div className="p-6">
+                {loading ? (
+                  <div className="flex justify-center py-8">
+                    <div className="w-8 h-8 border-4 border-pink-200 border-t-pink-500 rounded-full animate-spin"></div>
+                  </div>
+                ) : personData ? (
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                      <div className="flex items-center space-x-4 p-4 bg-gray-50/50 rounded-2xl border border-gray-100">
+                        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm text-gray-400">
+                          <IdCard className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block">Documento</span>
+                          <span className="font-bold text-gray-800">{personData.documentType} {personData.documentId}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-4 p-4 bg-gray-50/50 rounded-2xl border border-gray-100">
+                        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm text-gray-400">
+                          <Phone className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block">Teléfono</span>
+                          <span className="font-bold text-gray-800">{personData.phone || 'N/A'}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                      <div className="flex items-center space-x-4 p-4 bg-gray-50/50 rounded-2xl border border-gray-100">
+                        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm text-gray-400">
+                          <Mail className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block">Email</span>
+                          <span className="font-bold text-gray-800 break-all">{user.email}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-4 p-4 bg-gray-50/50 rounded-2xl border border-gray-100">
+                        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm text-gray-400">
+                          <MapPin className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block">Dirección</span>
+                          <span className="font-bold text-gray-800">{personData.address || 'No registrada'}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-
-                  <div className="flex items-center space-x-3 p-3 bg-gray-50/50 rounded-xl hover:bg-gray-50 transition-colors">
-                    <AlertCircle className="w-5 h-5 text-gray-400 flex-shrink-0" />
-                    <div>
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Estado de Cuenta</span>
-                      <span className={`font-semibold ${user.estado ? 'text-green-600' : 'text-red-600'}`}>
-                        {user.estado ? 'Activo' : 'Inactivo'}
-                      </span>
-                    </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <AlertCircle className="w-12 h-12 text-yellow-500 mx-auto mb-3" />
+                    <p className="text-sm text-gray-500 italic">No se encontró una ficha personal vinculada a este usuario.</p>
                   </div>
-                </div>
+                )}
               </div>
+            </div>
+
+            {/* Footer Summary */}
+            <div className="bg-gradient-to-br from-pink-50 to-purple-50 rounded-3xl p-6 border border-pink-100 shadow-sm">
+                <div className="flex items-center space-x-3 mb-3">
+                  <Star className="w-5 h-5 text-pink-400" />
+                  <h4 className="font-black text-[10px] uppercase tracking-[0.2em] text-gray-700">Resumen Asthro</h4>
+                </div>
+                <p className="text-sm text-gray-600 italic leading-relaxed">
+                  Este es el perfil detallado del usuario en el sistema. Los datos personales provienen de la ficha de {rolNombre?.toLowerCase() === 'cliente' ? 'cliente' : 'empleado'} vinculada.
+                </p>
             </div>
           </div>
         </div>
@@ -1219,3 +1389,4 @@ function UserDetailModal({ user, onClose }: { user: any; onClose: () => void }) 
     </div>
   );
 }
+

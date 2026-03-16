@@ -18,10 +18,12 @@ function App() {
   const [showUserProfile, setShowUserProfile] = useState(false);
   const [isClientView, setIsClientView] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [selectedServiceForBooking, setSelectedServiceForBooking] = useState(null);
+  const [appointmentToReschedule, setAppointmentToReschedule] = useState(null);
 
   // Redirect admin users to admin panel automatically
   useEffect(() => {
-    if ((currentUser?.role === "admin" || currentUser?.role === "super_admin" || currentUser?.role === "asistente") && !isClientView) {
+    if ((currentUser?.role === "admin" || currentUser?.role === "super_admin") && !isClientView) {
       setCurrentView("admin");
     }
   }, [currentUser, isClientView]);
@@ -32,6 +34,10 @@ function App() {
       setShowAuthModal(true);
       return;
     }
+
+    // Ensure we only pass the service object, not an event
+    const serviceToBook = (selectedService && typeof selectedService === 'object' && ('servicioId' in selectedService || 'id' in selectedService)) ? selectedService : null;
+    setSelectedServiceForBooking(serviceToBook);
 
     // Redirect clients to booking interface
     if (
@@ -47,12 +53,21 @@ function App() {
 
   // Navigate to client appointments view
   const navigateToClientAppointments = () => {
+    setAppointmentToReschedule(null); // Reset when going back
+    setSelectedServiceForBooking(null); // Reset when going back
     setCurrentView("my-appointments");
+  };
+
+  // Handle rescheduling navigation
+  const handleRescheduleAppointment = (appointment) => {
+    setAppointmentToReschedule(appointment);
+    setCurrentView("book-appointment");
   };
 
   // Handle booking completion - redirect to client appointments
   const handleBookingComplete = (appointment) => {
-    // Here you would typically save the appointment
+    setAppointmentToReschedule(null); // Clear reschedule state
+    setSelectedServiceForBooking(null); // Clear service state
     setCurrentView("my-appointments");
   };
 
@@ -81,11 +96,57 @@ function App() {
       'manage_supplies': 'module_supplies',
       'book_appointments': 'module_appointments',
       'view_services': 'module_services',
-      'view_products': 'module_products',
       'view_own_appointments': 'module_appointments'
     };
 
     const backendPermission = permissionMapping[permission] || permission;
+
+    // Special case: if we're in client view, everyone should have access to client-specific modules
+    if (isClientView && (backendPermission === 'module_appointments' || backendPermission === 'module_services')) {
+      return true;
+    }
+
+    // Define allowed modules per role as a strict filter
+    const ROLE_ALLOWED_MODULES = {
+      asistente: [
+        "module_dashboard",
+        "module_appointments",
+        "module_services",
+        "module_sales",
+        "module_purchases",
+        "module_suppliers",
+        "module_clients",
+        "module_schedules",
+        "module_products",
+        "module_deliveries"
+      ],
+      admin: [
+        "module_dashboard",
+        "module_users",
+        "module_appointments",
+        "module_services",
+        "module_sales",
+        "module_purchases",
+        "module_suppliers",
+        "module_clients",
+        "module_categories",
+        "module_schedules",
+        "module_deliveries",
+        "module_roles"
+      ],
+      customer: [
+        "module_appointments",
+        "module_services"
+      ]
+    };
+
+    // If the role is not super_admin, we must check if the module is allowed for this role
+    if (currentUser.role !== 'super_admin') {
+      const allowedForRole = ROLE_ALLOWED_MODULES[currentUser.role as keyof typeof ROLE_ALLOWED_MODULES] || [];
+      if (!allowedForRole.includes(backendPermission)) {
+        return false;
+      }
+    }
 
     // Staff members (admin/assistant) should always have access to the dashboard to enter the panel
     if (backendPermission === 'module_dashboard' && (currentUser.role === 'admin' || currentUser.role === 'asistente')) {
@@ -124,18 +185,18 @@ function App() {
           if (typeof p === 'string') {
             const lowerP = p.toLowerCase().trim();
             if (lowerP === 'dashboard') return 'module_dashboard';
-            if (lowerP === 'usuarios') return 'module_users';
-            if (lowerP === 'citas' || lowerP === 'agendamiento') return 'module_appointments';
-            if (lowerP === 'servicios') return 'module_services';
-            if (lowerP === 'ventas') return 'module_sales';
-            if (lowerP === 'compras') return 'module_purchases';
-            if (lowerP === 'proveedores') return 'module_suppliers';
-            if (lowerP === 'productos' || lowerP === 'insumos') return 'module_products';
-            if (lowerP === 'clientes' || lowerP === 'personas') return 'module_clients';
-            if (lowerP === 'categoría de insumos' || lowerP === 'categorías') return 'module_categories';
-            if (lowerP === 'horarios') return 'module_schedules';
-            if (lowerP === 'entrega de insumos' || lowerP === 'entregas') return 'module_deliveries';
-            if (lowerP === 'roles') return 'module_roles';
+            if (lowerP === 'usuarios' || lowerP === 'users') return 'module_users';
+            if (lowerP === 'citas' || lowerP === 'agendamiento' || lowerP === 'agenda' || lowerP === 'calendario' || lowerP === 'appointments') return 'module_appointments';
+            if (lowerP === 'servicios' || lowerP === 'services') return 'module_services';
+            if (lowerP === 'ventas' || lowerP === 'sales') return 'module_sales';
+            if (lowerP === 'compras' || lowerP === 'purchases') return 'module_purchases';
+            if (lowerP === 'proveedores' || lowerP === 'suppliers') return 'module_suppliers';
+            if (lowerP === 'productos' || lowerP === 'insumos' || lowerP === 'products' || lowerP === 'supplies' || lowerP === 'insumo') return 'module_products';
+            if (lowerP === 'clientes' || lowerP === 'personas' || lowerP === 'clients') return 'module_clients';
+            if (lowerP === 'categoría de insumos' || lowerP === 'categorías' || lowerP === 'categories') return 'module_categories';
+            if (lowerP === 'horarios' || lowerP === 'schedules') return 'module_schedules';
+            if (lowerP === 'entrega de insumos' || lowerP === 'entregas' || lowerP === 'deliveries') return 'module_deliveries';
+            if (lowerP === 'roles' || lowerP === 'permisos') return 'module_roles';
           }
           return p;
         });
@@ -143,37 +204,16 @@ function App() {
       return userPermissions.includes(backendPermission);
     }
 
-    // Fallback hardcoded permissions (legacy/static)
+    // For staff (admin/assistant), if no permissions in DB, only allow dashboard
+    if (currentUser.role === 'admin' || currentUser.role === 'asistente') {
+      return backendPermission === 'module_dashboard';
+    }
+
+    // Fallback hardcoded permissions for other roles (like customer)
     const permissions = {
-      admin: [
-        "module_dashboard",
-        "module_users",
-        "module_appointments",
-        "module_services",
-        "module_sales",
-        "module_purchases",
-        "module_suppliers",
-        "module_products",
-        "module_clients",
-        "module_categories",
-        "module_schedules",
-        "module_supplies",
-        "module_deliveries",
-        "module_roles",
-      ],
-      asistente: [
-        "module_dashboard",
-        "module_appointments",
-        "module_services",
-        "module_sales",
-        "module_clients",
-        "module_supplies",
-        "module_deliveries",
-      ],
       customer: [
         "module_appointments",
         "module_services",
-        "module_products",
       ],
     };
 
@@ -225,9 +265,8 @@ function App() {
           return (
             <ClientAppointments
               currentUser={currentUser}
-              onBookNewAppointment={() =>
-                setCurrentView("book-appointment")
-              }
+              onBookNewAppointment={() => navigateToAppointments()}
+              onRescheduleAppointment={handleRescheduleAppointment}
             />
           );
         case "book-appointment":
@@ -271,9 +310,8 @@ function App() {
         return (
           <ClientAppointments
             currentUser={currentUser}
-            onBookNewAppointment={() =>
-              setCurrentView("book-appointment")
-            }
+            onBookNewAppointment={() => navigateToAppointments()}
+            onRescheduleAppointment={handleRescheduleAppointment}
           />
         );
       case "book-appointment":
@@ -282,6 +320,8 @@ function App() {
             currentUser={currentUser}
             onBookingComplete={handleBookingComplete}
             onBack={navigateToClientAppointments}
+            initialService={selectedServiceForBooking}
+            appointmentToReschedule={appointmentToReschedule}
           />
         );
       case "admin":

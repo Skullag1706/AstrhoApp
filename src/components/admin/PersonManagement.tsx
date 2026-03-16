@@ -3,7 +3,7 @@ import {
     Users, Plus, Search, Filter, Eye, Edit, Calendar,
     Phone, Mail, MapPin, Heart, Scissors, ShoppingBag,
     X, Save, AlertCircle, Star, TrendingUp, Clock, Trash2, CheckCircle,
-    Briefcase, Shield
+    Briefcase, Shield, User, UserCheck, IdCard
 } from 'lucide-react';
 import { SimplePagination } from '../ui/simple-pagination';
 import { personService, Person, CreatePersonData } from '../../services/personService';
@@ -15,10 +15,11 @@ import { roleService, RolListDto } from '../../services/roleService';
 
 interface PersonManagementProps {
     hasPermission: (permission: string) => boolean;
+    initialType?: 'client' | 'employee';
 }
 
-export function PersonManagement({ hasPermission }: PersonManagementProps) {
-    const [personType, setPersonType] = useState<'client' | 'employee'>('client');
+export function PersonManagement({ hasPermission, initialType = 'client' }: PersonManagementProps) {
+    const [personType, setPersonType] = useState<'client' | 'employee'>(initialType);
     const [persons, setPersons] = useState<Person[]>([]);
     const [roles, setRoles] = useState<RolListDto[]>([]);
     const [loading, setLoading] = useState(true);
@@ -612,14 +613,14 @@ function PersonProfileModal({ person, onClose, personType }: { person: Person, o
                     <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-4">
                             <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                                {personType === 'client' ? <Users className="w-6 h-6 text-white" /> : <Briefcase className="w-6 h-6 text-white" />}
+                                <User className="w-6 h-6 text-white" />
                             </div>
                             <div>
                                 <h3 className="text-xl font-bold leading-tight">
                                     Detalles de {personType === 'client' ? 'Cliente' : 'Empleado'}
                                 </h3>
-                                <p className="text-white/80 text-[10px] font-black uppercase tracking-widest mt-0.5">
-                                    Documento: {person.documentId}
+                                <p className="text-pink-100 text-sm">
+                                    {person.name}
                                 </p>
                             </div>
                         </div>
@@ -640,93 +641,86 @@ function PersonProfileModal({ person, onClose, personType }: { person: Person, o
                     `}</style>
 
                     <div className="max-w-4xl mx-auto space-y-6">
-                        {/* Info Cards Row */}
-                        <div className="grid md:grid-cols-3 gap-4">
-                            {/* Personal Info Card */}
-                            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-                                <div className="flex items-center space-x-2 text-purple-500 mb-3">
-                                    <Users className="w-4 h-4" />
-                                    <h4 className="font-bold uppercase text-[10px] tracking-widest">Información Personal</h4>
-                                </div>
-                                <div className="mb-1">
-                                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Nombre Completo:</span>
-                                    <p className="font-bold text-gray-800 text-lg mb-1 truncate">{person.name}</p>
-                                </div>
-                                <div className="flex items-center space-x-2 text-gray-500">
-                                    <Shield className="w-3.5 h-3.5" />
-                                    <span className="text-sm">{person.documentType || 'CC'}: {person.documentId}</span>
-                                </div>
+                        {/* Avatar Section */}
+                        <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm text-center">
+                            <div className="w-24 h-24 bg-gradient-to-r from-pink-400 to-purple-50 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg ring-4 ring-pink-50">
+                                <span className="text-white font-bold text-3xl">
+                                    {person.name.charAt(0).toUpperCase()}
+                                </span>
                             </div>
-
-                            {/* Contact Card */}
-                            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-                                <div className="flex items-center space-x-2 text-pink-500 mb-3">
-                                    <Phone className="w-4 h-4" />
-                                    <h4 className="font-bold uppercase text-[10px] tracking-widest">Contacto y Ubicación</h4>
-                                </div>
-                                <div className="space-y-3">
-                                    <div className="flex flex-col">
-                                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Teléfono:</span>
-                                        <div className="flex items-center space-x-2">
-                                            <Phone className="w-3.5 h-3.5 text-gray-400" />
-                                            <span className="font-bold text-gray-700">{person.phone || 'N/A'}</span>
-                                        </div>
-                                    </div>
-                                    <div className="flex flex-col">
-                                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Dirección:</span>
-                                        <div className="flex items-start space-x-2">
-                                            <MapPin className="w-3.5 h-3.5 text-gray-400 mt-1 shrink-0" />
-                                            <span className="font-bold text-gray-700 break-words">{person.address || 'N/A'}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Status Card */}
-                            <div className={`rounded-2xl p-5 border shadow-sm flex flex-col items-center justify-center ${person.status === 'active'
-                                ? 'bg-green-50/50 border-green-100 text-green-600'
-                                : 'bg-red-50/50 border-red-100 text-red-600'
+                            <h4 className="text-2xl font-bold text-gray-800 mb-1">{person.name}</h4>
+                            <p className="text-gray-500 text-sm mb-4">{person.documentType || 'CC'}: {person.documentId}</p>
+                            <div className="flex justify-center">
+                                <span className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest shadow-sm ${
+                                    person.status === 'active' 
+                                    ? 'bg-green-100 text-green-700 border border-green-200' 
+                                    : 'bg-red-100 text-red-700 border border-red-200'
                                 }`}>
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-2 ${person.status === 'active' ? 'bg-green-100' : 'bg-red-100'
-                                    }`}>
-                                    {person.status === 'active' ? <CheckCircle className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
-                                </div>
-                                <span className="font-black uppercase text-[10px] tracking-[0.2em]">
                                     {person.status === 'active' ? 'Estado Activo' : 'Estado Inactivo'}
                                 </span>
                             </div>
                         </div>
 
-                        {/* Extra Info (If any) */}
-                        {person.email && (
-                            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                                <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100 flex items-center justify-between">
-                                    <h4 className="font-bold text-gray-700 text-sm flex items-center space-x-2">
-                                        <Mail className="w-4 h-4 text-blue-400" />
-                                        <span>Información de Cuenta</span>
-                                    </h4>
+                        <div className="grid md:grid-cols-2 gap-6">
+                            {/* Contact Information Card */}
+                            <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+                                <div className="flex items-center space-x-2 text-pink-500 mb-5">
+                                    <Phone className="w-5 h-5" />
+                                    <h4 className="font-bold uppercase text-[10px] tracking-widest">Información de Contacto</h4>
                                 </div>
-                                <div className="p-6">
-                                    <div className="grid md:grid-cols-2 gap-4">
-                                        <div>
-                                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Correo Electrónico:</span>
-                                            <p className="font-bold text-gray-800">{person.email}</p>
+                                
+                                <div className="space-y-4">
+                                    <div className="p-4 bg-gray-50/50 rounded-2xl border border-gray-100 hover:bg-gray-50 transition-colors">
+                                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Teléfono Principal</span>
+                                        <div className="flex items-center space-x-3">
+                                            <Phone className="w-4 h-4 text-pink-400" />
+                                            <span className="font-bold text-gray-700">{person.phone || 'No registrado'}</span>
                                         </div>
-                                        {personType === 'employee' && (
-                                            <div>
-                                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Tipo de Perfil:</span>
-                                                <p className="font-bold text-gray-800">Personal del Salón</p>
-                                            </div>
-                                        )}
+                                    </div>
+
+                                    <div className="p-4 bg-gray-50/50 rounded-2xl border border-gray-100 hover:bg-gray-50 transition-colors">
+                                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Dirección de Residencia</span>
+                                        <div className="flex items-center space-x-3">
+                                            <MapPin className="w-4 h-4 text-purple-400" />
+                                            <span className="font-bold text-gray-700">{person.address || 'No registrada'}</span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        )}
+
+                            {/* Additional Details Card */}
+                            <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+                                <div className="flex items-center space-x-2 text-purple-500 mb-5">
+                                    <Shield className="w-5 h-5" />
+                                    <h4 className="font-bold uppercase text-[10px] tracking-widest">Detalles del Registro</h4>
+                                </div>
+                                
+                                <div className="space-y-4">
+                                    <div className="p-4 bg-gray-50/50 rounded-2xl border border-gray-100 hover:bg-gray-50 transition-colors">
+                                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Correo Electrónico</span>
+                                        <div className="flex items-center space-x-3">
+                                            <Mail className="w-4 h-4 text-purple-400" />
+                                            <span className="font-bold text-gray-700 break-all">{person.email || 'Sin correo asignado'}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-4 bg-gray-50/50 rounded-2xl border border-gray-100 hover:bg-gray-50 transition-colors">
+                                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Tipo de Perfil</span>
+                                        <div className="flex items-center space-x-3">
+                                            <UserCheck className="w-4 h-4 text-blue-400" />
+                                            <span className="font-bold text-gray-700">
+                                                {personType === 'client' ? 'Cliente de Asthro' : 'Colaborador del Salón'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
                 {/* Footer - Fixed at bottom */}
-                <div className="p-5 bg-white border-t border-gray-100 flex justify-end shrink-0 z-20">
+                <div className="p-5 bg-white border-t border-gray-100 flex flex-wrap gap-3 justify-end shrink-0 z-20">
                     <button
                         onClick={onClose}
                         className="px-8 py-2.5 rounded-xl font-black text-gray-500 hover:bg-gray-200 hover:text-gray-800 active:scale-95 transition-all text-sm uppercase tracking-widest shadow-sm"
@@ -754,6 +748,7 @@ function NewPersonModal({ onClose, onSave, editingPerson, personType, roles }: {
     });
 
     const [errors, setErrors] = useState<Record<string, string>>({});
+    const [isSaving, setIsSaving] = useState(false);
 
     const filteredRoles = roles.filter(r => 
         r.nombre.toLowerCase() !== 'cliente' && 
@@ -773,10 +768,15 @@ function NewPersonModal({ onClose, onSave, editingPerson, personType, roles }: {
         return Object.keys(newErrors).length === 0;
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (validateForm()) {
-            onSave(formData);
+            setIsSaving(true);
+            try {
+                await onSave(formData);
+            } finally {
+                setIsSaving(false);
+            }
         }
     };
 
@@ -787,197 +787,239 @@ function NewPersonModal({ onClose, onSave, editingPerson, personType, roles }: {
         }
     };
 
-    const handleAuthChange = (field: string, value: any) => {
-        setFormData(prev => ({
-            ...prev,
-            authData: { ...prev.authData, [field]: value }
-        }));
-        if (errors[field]) {
-            setErrors(prev => ({ ...prev, [field]: '' }));
-        }
-    };
-
     return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-                <div className={`bg-gradient-to-r ${personType === 'client' ? 'from-pink-400 to-purple-500' : 'from-purple-500 to-blue-500'} p-6 text-white rounded-t-3xl`}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+                {/* Header - Fixed at top */}
+                <div className={`bg-gradient-to-r ${personType === 'client' ? 'from-pink-500 to-purple-600' : 'from-purple-500 to-blue-600'} p-5 text-white shrink-0 shadow-md z-20`}>
                     <div className="flex items-center justify-between">
-                        <div>
-                            <h3 className="text-2xl font-bold">
-                                {editingPerson ? `Editar ${personType === 'client' ? 'Cliente' : 'Empleado'}` : `Registrar ${personType === 'client' ? 'Cliente' : 'Empleado'}`}
-                            </h3>
-                            <p className="text-white/80">
-                                {editingPerson ? 'Actualiza la información en el sistema' : 'Ingresa los datos para un nuevo registro'}
-                            </p>
+                        <div className="flex items-center space-x-4">
+                            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                                {personType === 'client' ? <User className="w-6 h-6 text-white" /> : <Briefcase className="w-6 h-6 text-white" />}
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-bold leading-tight">
+                                    {editingPerson ? `Editar ${personType === 'client' ? 'Cliente' : 'Empleado'}` : `Registrar ${personType === 'client' ? 'Nuevo Cliente' : 'Nuevo Empleado'}`}
+                                </h3>
+                                <p className="text-pink-100 text-sm">
+                                    {editingPerson ? `Actualizando datos de ${editingPerson.name}` : 'Complete la información para el registro'}
+                                </p>
+                            </div>
                         </div>
-                        <button
-                            onClick={onClose}
-                            className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
-                        >
-                            <X className="w-5 h-5" />
-                        </button>
+                        <div className="flex items-center space-x-2">
+                            <button
+                                onClick={handleSubmit}
+                                disabled={isSaving}
+                                className="flex items-center space-x-2 px-4 py-2 bg-green-500 hover:bg-green-600 rounded-xl transition-all text-sm font-bold border border-green-400 shadow-lg disabled:opacity-50"
+                            >
+                                {isSaving ? <Clock className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                                <span>{isSaving ? 'Guardando...' : 'Guardar Datos'}</span>
+                            </button>
+                            <button
+                                onClick={onClose}
+                                className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto">
-                    {/* Tipo y Número de Documento */}
-                    <div className="grid md:grid-cols-2 gap-5">
-                        <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                Tipo de Documento <span className="text-red-500">*</span>
-                            </label>
-                            <select
-                                value={formData.documentType}
-                                onChange={(e) => handleChange('documentType', e.target.value)}
-                                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent bg-white"
-                                disabled={!!editingPerson}
-                            >
-                                <option value="TI">Tarjeta de Identidad (TI)</option>
-                                <option value="CC">Cédula de Ciudadanía (CC)</option>
-                                <option value="CE">Cédula de Extranjería (CE)</option>
-                                <option value="NIT">NIT</option>
-                            </select>
-                        </div>
+                {/* Scrollable Body */}
+                <form onSubmit={handleSubmit} id="person-form" className="flex-1 overflow-y-auto p-6 lg:p-8 bg-gray-50/30 no-scrollbar">
+                    <style>{`
+                        .no-scrollbar::-webkit-scrollbar { display: none; }
+                        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+                    `}</style>
 
-                        <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                Número de Documento <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                                type="text"
-                                value={formData.documentId}
-                                onChange={(e) => handleChange('documentId', e.target.value)}
-                                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${errors.documentId ? 'border-red-400 bg-red-50' : 'border-gray-300'
-                                    }`}
-                                placeholder="Ej: 1234567890"
-                                disabled={!!editingPerson}
-                            />
-                            {errors.documentId && (
-                                <div className="flex items-center space-x-1 mt-1.5 text-red-500">
-                                    <AlertCircle className="w-4 h-4" />
-                                    <span className="text-sm font-medium">{errors.documentId}</span>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Nombre */}
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                            Nombre Completo <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                            type="text"
-                            value={formData.name}
-                            onChange={(e) => handleChange('name', e.target.value)}
-                            className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${errors.name ? 'border-red-400 bg-red-50' : 'border-gray-300'
-                                }`}
-                            placeholder="Nombres y Apellidos"
-                        />
-                        {errors.name && (
-                            <div className="flex items-center space-x-1 mt-1.5 text-red-500">
-                                <AlertCircle className="w-4 h-4" />
-                                <span className="text-sm font-medium">{errors.name}</span>
+                    <div className="max-w-4xl mx-auto space-y-6">
+                        {/* Errors Notification */}
+                        {Object.keys(errors).length > 0 && (
+                            <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-2xl flex items-center space-x-3 animate-in fade-in duration-300">
+                                <AlertCircle className="w-5 h-5 shrink-0" />
+                                <p className="font-semibold text-sm">Por favor corrija los errores en el formulario</p>
                             </div>
                         )}
-                    </div>
 
-                    {/* Rol (Solo para empleados nuevos) */}
-                    {personType === 'employee' && !editingPerson && (
-                        <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                Rol del Empleado <span className="text-red-500">*</span>
-                            </label>
-                            <select
-                                value={formData.roleId}
-                                onChange={(e) => handleChange('roleId', Number(e.target.value))}
-                                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-300 focus:border-transparent bg-white"
-                            >
-                                {filteredRoles.map((role) => (
-                                    <option key={role.rolId} value={role.rolId}>
-                                        {role.nombre}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                    )}
-
-                    {/* Teléfono */}
-                    <div className="grid md:grid-cols-2 gap-5">
-                        <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                Teléfono <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                                type="tel"
-                                value={formData.phone}
-                                onChange={(e) => handleChange('phone', e.target.value)}
-                                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${errors.phone ? 'border-red-400 bg-red-50' : 'border-gray-300'
-                                    }`}
-                                placeholder="Ej: 300 123 4567"
-                            />
-                            {errors.phone && (
-                                <div className="flex items-center space-x-1 mt-1.5 text-red-500">
-                                    <AlertCircle className="w-4 h-4" />
-                                    <span className="text-sm font-medium">{errors.phone}</span>
+                        <div className="grid md:grid-cols-2 gap-6">
+                            {/* Identity Section */}
+                            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                                <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100 flex items-center space-x-2">
+                                    <Shield className="w-4 h-4 text-pink-500" />
+                                    <h4 className="font-bold text-gray-700 text-sm uppercase tracking-wider">Identificación</h4>
                                 </div>
-                            )}
-                        </div>
-                        <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                Dirección
-                            </label>
-                            <input
-                                type="text"
-                                value={formData.address}
-                                onChange={(e) => handleChange('address', e.target.value)}
-                                className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent border-gray-300"
-                                placeholder="Ej: Calle 10 #20-30"
-                            />
-                        </div>
-                    </div>
+                                <div className="p-6 space-y-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Tipo de Documento</label>
+                                            <div className="relative">
+                                                <IdCard className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                                                <select
+                                                    value={formData.documentType}
+                                                    onChange={(e) => handleChange('documentType', e.target.value)}
+                                                    className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all outline-none appearance-none"
+                                                    disabled={!!editingPerson}
+                                                >
+                                                    <option value="TI">Tarjeta Identidad (TI)</option>
+                                                    <option value="CC">Cédula (CC)</option>
+                                                    <option value="CE">Extranjería (CE)</option>
+                                                    <option value="NIT">NIT</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Número Documento</label>
+                                            <div className="relative">
+                                                <IdCard className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                                                <input
+                                                    type="text"
+                                                    value={formData.documentId}
+                                                    onChange={(e) => handleChange('documentId', e.target.value)}
+                                                    className={`w-full pl-10 pr-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all outline-none ${
+                                                        errors.documentId ? 'border-red-300 ring-1 ring-red-100' : 'border-gray-200'
+                                                    }`}
+                                                    placeholder="1234567890"
+                                                    disabled={!!editingPerson}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
 
-                    {!editingPerson && (
-                        <div className="mt-4">
-                            <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                Correo Electrónico <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                                type="email"
-                                value={formData.email}
-                                onChange={(e) => handleChange('email', e.target.value)}
-                                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${errors.email ? 'border-red-400 bg-red-50' : 'border-gray-300'
-                                    }`}
-                                placeholder="Ej: correo@dominio.com"
-                            />
-                            {errors.email && (
-                                <div className="flex items-center space-x-1 mt-1.5 text-red-500">
-                                    <AlertCircle className="w-4 h-4" />
-                                    <span className="text-sm font-medium">{errors.email}</span>
+                                    <div>
+                                        <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Nombre Completo</label>
+                                        <div className="relative">
+                                            <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                                            <input
+                                                type="text"
+                                                value={formData.name}
+                                                onChange={(e) => handleChange('name', e.target.value)}
+                                                className={`w-full pl-10 pr-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all outline-none ${
+                                                    errors.name ? 'border-red-300 ring-1 ring-red-100' : 'border-gray-200'
+                                                }`}
+                                                placeholder="Nombres y Apellidos"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {personType === 'employee' && !editingPerson && (
+                                        <div>
+                                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Rol del Colaborador</label>
+                                            <div className="relative">
+                                                <Shield className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                                                <select
+                                                    value={formData.roleId}
+                                                    onChange={(e) => handleChange('roleId', Number(e.target.value))}
+                                                    className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-300 focus:border-transparent transition-all outline-none appearance-none"
+                                                >
+                                                    {filteredRoles.map((role) => (
+                                                        <option key={role.rolId} value={role.rolId}>
+                                                            {role.nombre}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
-                            )}
-                        </div>
-                    )}
+                            </div>
 
-                    {/* Botones */}
-                    <div className="flex space-x-3 pt-6 border-t border-gray-100 mt-6">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="flex-1 bg-white border border-gray-300 text-gray-700 py-3 px-4 rounded-xl font-semibold hover:bg-gray-50 transition-all"
-                        >
-                            Cancelar
-                        </button>
-                        <button
-                            type="submit"
-                            className={`flex-1 text-white py-3 px-4 rounded-xl font-semibold hover:shadow-lg transition-all flex items-center justify-center space-x-2 ${personType === 'client' ? 'bg-gradient-to-r from-pink-400 to-purple-500' : 'bg-gradient-to-r from-purple-500 to-blue-500'
-                                }`}
-                        >
-                            <Save className="w-5 h-5" />
-                            <span>{editingPerson ? 'Actualizar' : 'Guardar'} Datos</span>
-                        </button>
+                            {/* Contact Section */}
+                            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                                <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100 flex items-center space-x-2">
+                                    <Phone className="w-4 h-4 text-purple-500" />
+                                    <h4 className="font-bold text-gray-700 text-sm uppercase tracking-wider">Contacto y Ubicación</h4>
+                                </div>
+                                <div className="p-6 space-y-4">
+                                    <div>
+                                        <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Teléfono Móvil</label>
+                                        <div className="relative">
+                                            <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                                            <input
+                                                type="tel"
+                                                value={formData.phone}
+                                                onChange={(e) => handleChange('phone', e.target.value)}
+                                                className={`w-full pl-10 pr-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all outline-none ${
+                                                    errors.phone ? 'border-red-300 ring-1 ring-red-100' : 'border-gray-200'
+                                                }`}
+                                                placeholder="300 123 4567"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Dirección de Residencia</label>
+                                        <div className="relative">
+                                            <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                                            <input
+                                                type="text"
+                                                value={formData.address}
+                                                onChange={(e) => handleChange('address', e.target.value)}
+                                                className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all outline-none"
+                                                placeholder="Calle 10 #20-30"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {!editingPerson && (
+                                        <div>
+                                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Correo Electrónico</label>
+                                            <div className="relative">
+                                                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                                                <input
+                                                    type="email"
+                                                    value={formData.email}
+                                                    onChange={(e) => handleChange('email', e.target.value)}
+                                                    className={`w-full pl-10 pr-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all outline-none ${
+                                                        errors.email ? 'border-red-300 ring-1 ring-red-100' : 'border-gray-200'
+                                                    }`}
+                                                    placeholder="correo@ejemplo.com"
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Additional Info / Footer Summary */}
+                        <div className="bg-gradient-to-br from-pink-50 to-purple-50 rounded-3xl p-6 border border-pink-100 shadow-sm">
+                            <div className="flex items-center space-x-3 mb-3">
+                                <Star className="w-5 h-5 text-pink-400" />
+                                <h4 className="font-black text-[10px] uppercase tracking-[0.2em] text-gray-700">Resumen del Registro</h4>
+                            </div>
+                            <p className="text-sm text-gray-600 italic">
+                                {editingPerson 
+                                    ? `Está modificando la información de un ${personType === 'client' ? 'cliente' : 'empleado'} existente.` 
+                                    : `Está registrando un nuevo ${personType === 'client' ? 'cliente' : 'empleado'} en el sistema AsthroApp.`}
+                            </p>
+                        </div>
                     </div>
                 </form>
+
+                {/* Footer - Fixed at bottom */}
+                <div className="p-5 bg-white border-t border-gray-100 flex flex-wrap gap-3 justify-end shrink-0 z-20">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="px-8 py-2.5 rounded-xl font-black text-gray-500 hover:bg-gray-200 hover:text-gray-800 active:scale-95 transition-all text-sm uppercase tracking-widest shadow-sm"
+                        disabled={isSaving}
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        form="person-form"
+                        type="submit"
+                        disabled={isSaving}
+                        className={`px-8 py-2.5 rounded-xl font-black text-white active:scale-95 transition-all text-sm uppercase tracking-widest shadow-lg flex items-center space-x-2 ${
+                            personType === 'client' 
+                                ? 'bg-gradient-to-r from-pink-500 to-purple-600 hover:shadow-pink-200' 
+                                : 'bg-gradient-to-r from-purple-500 to-blue-600 hover:shadow-purple-200'
+                        } disabled:opacity-50`}
+                    >
+                        {isSaving ? <Clock className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                        <span>{editingPerson ? 'Actualizar' : 'Registrar'}</span>
+                    </button>
+                </div>
             </div>
         </div>
     );

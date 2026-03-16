@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, Plus, Search, Edit, Trash2, Eye, Package, Wrench, AlertTriangle, X, Loader2 } from 'lucide-react';
+import { CheckCircle, Plus, Search, Edit, Trash2, Eye, Package, Wrench, AlertTriangle, X, Loader2, Tag, TrendingUp, FileText, AlertCircle } from 'lucide-react';
 import { supplyService, Supply } from '../../services/supplyService';
 import { supplierService } from '../../services/supplierService';
 import { SupplyEditModal } from './modals/SupplyEditModal';
@@ -119,19 +119,31 @@ export function SupplyManagement({ hasPermission }: SupplyManagementProps) {
     setShowDetailModal(true);
   };
 
-  const handleDeleteSupply = async (supplyId: number) => {
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [supplyToDelete, setSupplyToDelete] = useState<Supply | null>(null);
+
+  const handleDeleteSupply = (supplyId: number) => {
     const supply = supplies.find(s => s.insumoId === supplyId);
-    if (window.confirm(`¿Estás seguro de que quieres eliminar el insumo "${supply?.nombre}"?`)) {
-      try {
-        await supplyService.deleteSupply(supplyId);
-        await fetchSupplies();
-        setShowSuccessAlert(true);
-        setAlertMessage('Insumo eliminado exitosamente');
-      } catch (err) {
-        console.error('Error deleting supply:', err);
-        setShowSuccessAlert(true);
-        setAlertMessage('Error al eliminar el insumo');
-      }
+    if (supply) {
+      setSupplyToDelete(supply);
+      setShowDeleteModal(true);
+    }
+  };
+
+  const confirmDeleteSupply = async () => {
+    if (!supplyToDelete) return;
+    
+    try {
+      await supplyService.deleteSupply(supplyToDelete.insumoId);
+      await fetchSupplies();
+      setShowDeleteModal(false);
+      setSupplyToDelete(null);
+      setShowSuccessAlert(true);
+      setAlertMessage('Insumo eliminado exitosamente');
+    } catch (err) {
+      console.error('Error deleting supply:', err);
+      setShowSuccessAlert(true);
+      setAlertMessage('Error al eliminar el insumo');
     }
   };
 
@@ -321,42 +333,116 @@ export function SupplyManagement({ hasPermission }: SupplyManagementProps) {
 
       {/* Detail Modal */}
       {showDetailModal && selectedSupply && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg">
-            <div className="bg-gradient-to-r from-purple-400 to-pink-500 p-6 text-white rounded-t-3xl">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header - Fixed at top */}
+            <div className="bg-gradient-to-r from-pink-500 to-purple-600 p-5 text-white shrink-0 shadow-md z-20">
               <div className="flex items-center justify-between">
-                <h3 className="text-xl font-bold">Detalle de Insumo</h3>
+                <div className="flex items-center space-x-4">
+                  <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                    <Package className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold leading-tight">Detalle de Insumo</h3>
+                    <p className="text-pink-100 text-sm">{selectedSupply.nombre}</p>
+                  </div>
+                </div>
                 <button
                   onClick={() => setShowDetailModal(false)}
-                  className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
+                  className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
-            <div className="p-6 space-y-4">
-              <div className="flex gap-2"><span className="text-gray-600">Nombre:</span><span className="font-semibold text-gray-800">{selectedSupply.nombre}</span></div>
-              <div className="flex gap-2"><span className="text-gray-600">SKU:</span><span className="text-gray-800">{selectedSupply.sku}</span></div>
-              <div className="flex gap-2"><span className="text-gray-600">Descripción:</span><span className="text-gray-800">{selectedSupply.descripcion || 'N/A'}</span></div>
-              <div className="flex gap-2"><span className="text-gray-600">Categoría:</span><span className="text-gray-800">{selectedSupply.categoriaNombre || 'N/A'}</span></div>
-              <div className="flex gap-2 items-center">
-                <span className="text-gray-600">Stock:</span>
-                <span className={`px-3 py-1 rounded-full text-sm font-semibold ${(selectedSupply.stock ?? 0) <= 0
-                    ? 'bg-red-100 text-red-800'
-                    : (selectedSupply.stock ?? 0) <= 5
-                      ? 'bg-yellow-100 text-yellow-800'
-                      : 'bg-green-100 text-green-800'
+
+            {/* Scrollable Body */}
+            <div className="flex-1 overflow-y-auto p-6 lg:p-8 bg-gray-50/30 no-scrollbar">
+              <style>{`
+                .no-scrollbar::-webkit-scrollbar { display: none; }
+                .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+              `}</style>
+
+              <div className="max-w-4xl mx-auto space-y-6">
+                {/* Info Cards Row */}
+                <div className="grid md:grid-cols-3 gap-4">
+                  {/* Basic Info Card */}
+                  <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+                    <div className="flex items-center space-x-2 text-purple-500 mb-3">
+                      <Tag className="w-4 h-4" />
+                      <h4 className="font-bold uppercase text-[10px] tracking-widest">Información Básica</h4>
+                    </div>
+                    <div className="mb-1">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Nombre:</span>
+                      <p className="font-bold text-gray-800 text-lg mb-1 truncate">{selectedSupply.nombre}</p>
+                    </div>
+                    <div className="flex items-center space-x-2 text-gray-500">
+                      <span className="text-xs font-mono bg-gray-100 px-2 py-0.5 rounded-md">SKU: {selectedSupply.sku}</span>
+                    </div>
+                  </div>
+
+                  {/* Stock Info Card */}
+                  <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+                    <div className="flex items-center space-x-2 text-pink-500 mb-3">
+                      <TrendingUp className="w-4 h-4" />
+                      <h4 className="font-bold uppercase text-[10px] tracking-widest">Estado de Stock</h4>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-400">Cantidad:</span>
+                        <span className={`font-bold ${(selectedSupply.stock ?? 0) <= 5 ? 'text-red-500' : 'text-blue-600'}`}>
+                          {selectedSupply.stock ?? 0} unidades
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-400">Categoría:</span>
+                        <span className="font-bold text-gray-700">{selectedSupply.categoriaNombre || 'N/A'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Status Card */}
+                  <div className={`rounded-2xl p-5 border shadow-sm flex flex-col items-center justify-center ${
+                    selectedSupply.estado 
+                    ? 'bg-green-50/50 border-green-100 text-green-600' 
+                    : 'bg-red-50/50 border-red-100 text-red-600'
                   }`}>
-                  {selectedSupply.stock ?? 0}
-                </span>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-2 ${
+                      selectedSupply.estado ? 'bg-green-100' : 'bg-red-100'
+                    }`}>
+                      <CheckCircle className="w-5 h-5" />
+                    </div>
+                    <span className="font-black uppercase text-[10px] tracking-[0.2em]">
+                      {selectedSupply.estado ? 'Activo' : 'Inactivo'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Description Section */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                  <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100">
+                    <h4 className="font-bold text-gray-700 text-sm flex items-center space-x-2">
+                      <FileText className="w-4 h-4 text-pink-400" />
+                      <span>Descripción del Insumo</span>
+                    </h4>
+                  </div>
+                  <div className="p-6">
+                    <p className="text-gray-700 italic leading-relaxed">
+                      "{selectedSupply.descripcion || 'Sin descripción adicional.'}"
+                    </p>
+                  </div>
+                </div>
               </div>
-              <div className="flex gap-2 items-center">
-                <span className="text-gray-600">Estado:</span>
-                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${selectedSupply.estado ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                  }`}>
-                  {selectedSupply.estado ? 'Activo' : 'Inactivo'}
-                </span>
-              </div>
+            </div>
+
+            {/* Footer - Fixed at bottom */}
+            <div className="p-5 bg-white border-t border-gray-100 flex flex-wrap gap-3 justify-end shrink-0 z-20">
+              <button
+                onClick={() => setShowDetailModal(false)}
+                className="px-8 py-2.5 rounded-xl font-black text-gray-500 hover:bg-gray-200 hover:text-gray-800 active:scale-95 transition-all text-sm uppercase tracking-widest shadow-sm"
+              >
+                Cerrar
+              </button>
             </div>
           </div>
         </div>
@@ -369,6 +455,76 @@ export function SupplyManagement({ hasPermission }: SupplyManagementProps) {
           onSave={handleSaveSupply}
           suppliers={suppliers}
         />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && supplyToDelete && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-red-500 to-pink-600 p-5 text-white shrink-0 shadow-md">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm shadow-inner">
+                    <Trash2 className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold leading-tight">Confirmar Eliminación</h3>
+                    <p className="text-red-100 text-xs font-medium">Esta acción no se puede deshacer</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
+                >
+                  <X className="w-5 h-5 text-white" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-8">
+              <div className="text-center mb-8">
+                <div className="w-20 h-20 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-red-100 rotate-3">
+                  <AlertCircle className="w-10 h-10 text-red-500 -rotate-3" />
+                </div>
+                <h4 className="text-lg font-bold text-gray-800 mb-2">
+                  ¿Eliminar insumo "{supplyToDelete.nombre}"?
+                </h4>
+                <p className="text-sm text-gray-500 leading-relaxed mb-6">
+                  Estás a punto de eliminar este insumo de forma permanente. 
+                  Esta acción afectará los registros históricos y el inventario actual.
+                </p>
+                
+                <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 flex items-center space-x-4">
+                  <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center">
+                    <Package className="w-6 h-6 text-pink-500" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Insumo a eliminar</p>
+                    <p className="font-bold text-gray-700">{supplyToDelete.nombre}</p>
+                    <p className="text-[10px] font-mono text-gray-400 uppercase">SKU: {supplyToDelete.sku}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  className="flex-1 px-6 py-3 rounded-xl font-black text-gray-400 hover:bg-gray-100 transition-all text-[10px] uppercase tracking-widest"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={confirmDeleteSupply}
+                  className="flex-1 bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center justify-center space-x-2"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Eliminar</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Success Alert */}

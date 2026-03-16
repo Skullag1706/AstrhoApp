@@ -3,7 +3,7 @@ import { CheckCircle,
   DollarSign, Plus, Search, Filter, Eye, X, Calendar,
   CreditCard, TrendingUp, Users,
   Ban, FileText, Scissors,
-  AlertCircle, Save, Clock, ShoppingBag, Phone
+  AlertCircle, Save, Clock, ShoppingBag, Phone, Loader2
 } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { salesService, SaleView } from '../../services/salesService';
@@ -437,77 +437,74 @@ function CancelSaleModal({ sale, isConfirming, onClose, onConfirm }: {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md animate-in zoom-in-95 duration-200">
-        <div className="p-6">
-          <div className="flex items-center space-x-4 mb-6">
-            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-              <AlertCircle className="w-6 h-6 text-red-600" />
-            </div>
-            <div>
-              <h3 className="text-xl font-bold text-gray-800">Confirmar Anulación</h3>
-              <p className="text-gray-600">Esta acción no se puede deshacer</p>
-            </div>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="bg-gradient-to-r from-red-500 to-pink-600 p-6 text-white text-center">
+          <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-sm shadow-inner">
+            {isConfirming ? (
+              <Loader2 className="w-10 h-10 text-white animate-spin" />
+            ) : (
+              <AlertCircle className="w-10 h-10 text-white" />
+            )}
           </div>
+          <h3 className="text-2xl font-black uppercase tracking-tight">
+            {isConfirming ? 'Procesando...' : '¿Anular Venta?'}
+          </h3>
+          <p className="text-red-100 text-sm mt-1">Esta acción no se puede deshacer</p>
+        </div>
 
-          <div className="mb-6">
-            <p className="text-gray-700 mb-4">
-              ¿Estás segura de que quieres anular la venta <strong>#{sale.id}</strong>?
+        <div className="p-8 space-y-6">
+          <div className="text-center">
+            <p className="text-gray-600 leading-relaxed">
+              ¿Estás segura de que quieres anular la venta <span className="font-bold text-gray-800">#{sale.id}</span>? Se generará un registro de devolución.
             </p>
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-              <div className="space-y-2">
-                <div className="font-semibold text-gray-800">
-                  Venta #{sale.id}
-                </div>
-                <div className="text-sm text-gray-600">
-                  Hora: {sale.time}
-                </div>
-                <div className="text-sm text-gray-600">
-                  Total: ${(sale.total || 0).toLocaleString()}
-                </div>
-                <div className="text-sm text-red-600 font-medium">
-                  El estado cambiará a "Anulada" y no se podrá revertir
-                </div>
-              </div>
+          </div>
+
+          <div className="bg-red-50 border border-red-100 rounded-2xl p-5 space-y-3">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-red-400 font-bold uppercase text-[10px] tracking-widest">Cliente:</span>
+              <span className="font-bold text-red-700">{sale.customerName || 'No registrado'}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-red-400 font-bold uppercase text-[10px] tracking-widest">Hora:</span>
+              <span className="font-bold text-red-700">{sale.time}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-red-400 font-bold uppercase text-[10px] tracking-widest">Total:</span>
+              <span className="font-bold text-red-700">${(sale.total || 0).toLocaleString()}</span>
             </div>
           </div>
 
-          {/* Campo de Observación */}
-          <div className="mb-6">
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Motivo de Anulación *
-            </label>
+          <div className="space-y-2">
+            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Motivo de Anulación *</label>
             <textarea
               value={observation}
               onChange={(e) => setObservation(e.target.value)}
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-300 focus:border-transparent transition-all font-medium text-gray-700 resize-none"
               rows={3}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-red-300 focus:border-transparent resize-none"
-              placeholder="Escribe el motivo por el cual se anula esta venta..."
-              required
+              placeholder="Explica brevemente el motivo..."
               disabled={isConfirming}
             />
           </div>
 
-          <div className="flex space-x-3">
-            <button
-              onClick={onClose}
-              disabled={isConfirming}
-              className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors disabled:opacity-50"
-            >
-              Cancelar
-            </button>
+          <div className="flex flex-col gap-3">
             <button
               onClick={handleConfirm}
               disabled={!observation.trim() || isConfirming}
-              className={`flex-1 px-6 py-3 rounded-xl font-semibold transition-all flex items-center justify-center space-x-2 ${!observation.trim() || isConfirming
-                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                : 'bg-gradient-to-r from-red-400 to-red-500 text-white hover:shadow-lg'
+              className={`w-full py-4 rounded-2xl font-black uppercase tracking-[0.2em] shadow-lg transition-all flex items-center justify-center space-x-2 ${!observation.trim() || isConfirming
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                : 'bg-gradient-to-r from-red-500 to-pink-600 text-white hover:shadow-red-200 hover:scale-[1.02] active:scale-95'
                 }`}
             >
-              {isConfirming && (
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              )}
-              <span>{isConfirming ? 'Procesando...' : 'Anular Venta'}</span>
+              {isConfirming && <Loader2 className="w-4 h-4 animate-spin" />}
+              <span>{isConfirming ? 'Anulando...' : 'Confirmar Anulación'}</span>
+            </button>
+            <button
+              onClick={onClose}
+              disabled={isConfirming}
+              className="w-full py-4 bg-gray-100 text-gray-500 rounded-2xl font-black uppercase tracking-[0.2em] hover:bg-gray-200 hover:text-gray-700 transition-all"
+            >
+              Regresar
             </button>
           </div>
         </div>

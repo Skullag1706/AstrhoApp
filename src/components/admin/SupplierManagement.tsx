@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Truck, Plus, Edit, Trash2, Eye, Search, Phone, Mail,
-  MapPin, Package, X, Save, AlertCircle, CheckCircle
+  MapPin, Package, X, Save, AlertCircle, CheckCircle, Loader2, AlertTriangle
 } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
 import { supplierService } from '../../services/supplierService';
@@ -57,7 +57,7 @@ export function SupplierManagement({ hasPermission }: SupplierManagementProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [supplierTypeFilter, setSupplierTypeFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(9); // 3x3 grid
+  const [itemsPerPage] = useState(5); // 3x3 grid removed for standardization
   const [isLoading, setIsLoading] = useState(true);
   const [checkingPurchases, setCheckingPurchases] = useState(false);
   const [supplierHasPurchases, setSupplierHasPurchases] = useState(false);
@@ -499,79 +499,133 @@ export function SupplierManagement({ hasPermission }: SupplierManagementProps) {
 // Supplier Detail Modal Component
 function SupplierDetailModal({ supplier, onClose }) {
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-        {/* Modal Header */}
-        <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-6 text-white rounded-t-3xl">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+        {/* Header - Fixed at top */}
+        <div className="bg-gradient-to-r from-pink-500 to-purple-600 p-5 text-white shrink-0 shadow-md z-20">
           <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-3xl font-bold">{supplier.name}</h3>
-              <p className="text-pink-100 text-lg">{supplier.supplierType === 'juridica' ? supplier.contactPerson : supplier.taxId}</p>
-              <div className="mt-2">
-                <span className={`px-3 py-1 rounded-full text-sm font-semibold ${supplier.status === 'active'
-                  ? 'bg-green-400 text-white'
-                  : 'bg-gray-400 text-white'
-                  }`}>
-                  {supplier.status === 'active' ? 'Activo' : 'Inactivo'}
-                </span>
+            <div className="flex items-center space-x-4">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                <Truck className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold leading-tight">Detalle de Proveedor</h3>
+                <p className="text-pink-100 text-sm">{supplier.name}</p>
               </div>
             </div>
             <button
               onClick={onClose}
-              className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
+              className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        <div className="p-6">
-          {/* Contact Information */}
-          <div className="grid md:grid-cols-2 gap-8">
-            <div>
-              <h4 className="font-bold text-gray-800 mb-4">Información de Contacto</h4>
-              <div className="space-y-3">
-                <div className="flex items-center space-x-3">
-                  <Phone className="w-5 h-5 text-gray-400" />
-                  <span className="text-gray-700">{supplier.phone}</span>
+        {/* Scrollable Body */}
+        <div className="flex-1 overflow-y-auto p-6 lg:p-8 bg-gray-50/30 no-scrollbar">
+          <style>{`
+            .no-scrollbar::-webkit-scrollbar { display: none; }
+            .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+          `}</style>
+          
+          <div className="max-w-4xl mx-auto space-y-6">
+            <div className="grid md:grid-cols-2 gap-4">
+              
+              {/* Commercial Status Card */}
+              <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+                <div className="flex items-center space-x-2 text-purple-500 mb-4">
+                  <Package className="w-4 h-4" />
+                  <h4 className="font-bold uppercase text-[10px] tracking-widest">Información Comercial</h4>
                 </div>
-                <div className="flex items-center space-x-3">
-                  <Mail className="w-5 h-5 text-gray-400" />
-                  <span className="text-gray-700">{supplier.email}</span>
-                </div>
-                <div className="flex items-start space-x-3">
-                  <MapPin className="w-5 h-5 text-gray-400 mt-0.5" />
+                
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Tipo de Proveedor:</span>
+                      <div className="mt-1">
+                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${supplier.supplierType === 'juridica'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-green-100 text-green-800'
+                          }`}>
+                          {supplier.supplierType === 'juridica' ? 'Persona Jurídica' : 'Persona Natural'}
+                        </span>
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Estado:</span>
+                      <div className="mt-1">
+                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${supplier.status === 'active'
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-gray-100 text-gray-800'
+                          }`}>
+                          {supplier.status === 'active' ? 'Activo' : 'Inactivo'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  
                   <div>
-                    <div className="text-gray-700">{supplier.address}</div>
-                    <div className="text-gray-600">{supplier.city}</div>
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">
+                      {supplier.supplierType === 'juridica' ? 'NIT:' : 'Cédula:'}
+                    </span>
+                    <p className="font-mono text-gray-800 font-semibold">{supplier.taxId}</p>
+                  </div>
+                  
+                  <div>
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Persona de Contacto / Rep. Legal:</span>
+                    <p className="text-gray-800 font-semibold">{supplier.supplierType === 'juridica' ? supplier.contactPerson : supplier.name}</p>
                   </div>
                 </div>
               </div>
-            </div>
 
-            <div>
-              <h4 className="font-bold text-gray-800 mb-4">Información Comercial</h4>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Tipo de Proveedor:</span>
-                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${supplier.supplierType === 'juridica'
-                    ? 'bg-blue-100 text-blue-800'
-                    : 'bg-green-100 text-green-800'
-                    }`}>
-                    {supplier.supplierType === 'juridica' ? 'Persona Jurídica' : 'Persona Natural'}
-                  </span>
+              {/* Contact Information Card */}
+              <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+                <div className="flex items-center space-x-2 text-pink-500 mb-4">
+                  <Phone className="w-4 h-4" />
+                  <h4 className="font-bold uppercase text-[10px] tracking-widest">Información de Contacto</h4>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">{supplier.supplierType === 'juridica' ? 'NIT:' : 'Cédula:'}</span>
-                  <span className="text-gray-800">{supplier.taxId}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Departamento:</span>
-                  <span className="text-gray-800">{supplier.department || 'N/A'}</span>
+                
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded-lg transition-colors">
+                    <Phone className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                    <div>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Teléfono</span>
+                      <span className="text-gray-800 font-medium">{supplier.phone}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded-lg transition-colors">
+                    <Mail className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                    <div>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Correo Electrónico</span>
+                      <span className="text-gray-800 font-medium break-all">{supplier.email}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-start space-x-3 p-2 hover:bg-gray-50 rounded-lg transition-colors">
+                    <MapPin className="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight block">Ubicación</span>
+                      <div className="text-gray-800 font-medium">{supplier.address}</div>
+                      <div className="text-gray-500 text-sm mt-0.5">{supplier.city}, {supplier.department || 'N/A'}</div>
+                    </div>
+                  </div>
                 </div>
               </div>
+              
             </div>
           </div>
+        </div>
+
+        {/* Footer - Fixed at bottom */}
+        <div className="p-5 bg-white border-t border-gray-100 flex flex-wrap gap-3 justify-end shrink-0 z-20">
+          <button
+            onClick={onClose}
+            className="px-8 py-2.5 rounded-xl font-black text-gray-500 hover:bg-gray-200 hover:text-gray-800 active:scale-95 transition-all text-sm uppercase tracking-widest shadow-sm"
+          >
+            Cerrar
+          </button>
         </div>
       </div>
     </div>
@@ -812,247 +866,256 @@ function SupplierEditModal({ supplier, existingSuppliers = [], onClose, onSave }
   const hasErrors = Object.keys(errors).length > 0;
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[85vh] flex flex-col">
-        <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-6 text-white rounded-t-3xl flex-shrink-0">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+        {/* Header - Fixed at top */}
+        <div className="bg-gradient-to-r from-pink-500 to-purple-600 p-5 text-white shrink-0 shadow-md z-20">
           <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-2xl font-bold">
-                {supplier ? 'Editar Proveedor' : 'Nuevo Proveedor'}
-              </h3>
-              <p className="text-pink-100">
-                {supplier ? 'Actualiza la información del proveedor' : 'Agrega un nuevo proveedor'}
-              </p>
+            <div className="flex items-center space-x-4">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm shadow-inner">
+                <Truck className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold leading-tight">
+                  {supplier ? 'Editar Proveedor' : 'Registrar Nuevo Proveedor'}
+                </h3>
+                <p className="text-pink-100 text-sm">
+                  {supplier ? 'Actualiza los datos comerciales y de contacto' : 'Ingresa la información para el nuevo aliado comercial'}
+                </p>
+              </div>
             </div>
-            <button
-              onClick={onClose}
-              className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={handleSubmit}
+                disabled={isSubmitting || hasErrors}
+                className="flex items-center space-x-2 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-xl transition-all font-bold text-xs uppercase tracking-widest backdrop-blur-sm shadow-sm"
+              >
+                {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                <span>{isSubmitting ? 'Guardando...' : 'Guardar'}</span>
+              </button>
+              <button
+                onClick={onClose}
+                className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto flex-1">
-          {/* Campos en dos columnas */}
-          <div className="grid md:grid-cols-2 gap-x-6 gap-y-6">
-            {/* Tipo de Proveedor */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Tipo de Proveedor *
-              </label>
-              <select
-                name="supplierType"
-                value={formData.supplierType}
-                onChange={handleInputChange}
-                disabled={supplier !== null}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                <option value="juridica">Persona Jurídica</option>
-                <option value="natural">Persona Natural</option>
-              </select>
-              {supplier !== null && (
-                <p className="text-xs text-gray-500 mt-1">
-                  No se puede modificar después de la creación
-                </p>
-              )}
-            </div>
+        {/* Scrollable Body */}
+        <div className="flex-1 overflow-y-auto p-6 lg:p-8 bg-gray-50/30 no-scrollbar">
+          <style>{`
+            .no-scrollbar::-webkit-scrollbar { display: none; }
+            .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+          `}</style>
 
-            {/* Tipo de Documento - Solo si es Persona Natural */}
-            {formData.supplierType === 'natural' && (
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Tipo de Documento *
-                </label>
-                <select
-                  name="documentType"
-                  value={formData.documentType}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
-                >
-                  <option value="CC">Cédula de Ciudadanía</option>
-                  <option value="CE">Cédula de Extranjería</option>
-                  <option value="PP">Pasaporte</option>
-                </select>
+          <form onSubmit={handleSubmit} className="max-w-4xl mx-auto space-y-6">
+            {/* Form Alert */}
+            {hasErrors && (
+              <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-xl flex items-center space-x-3 animate-in slide-in-from-left-2 duration-200">
+                <AlertCircle className="w-5 h-5 text-red-500" />
+                <p className="text-sm text-red-700">Por favor, completa los campos obligatorios y corrige los errores.</p>
               </div>
             )}
 
-            {/* Documento (Cédula o NIT) */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                {formData.supplierType === 'juridica' ? 'NIT *' : 'Documento *'}
-              </label>
-              <input
-                type="text"
-                name="taxId"
-                value={formData.taxId}
-                onChange={handleInputChange}
-                className={inputClass('taxId')}
-              />
-              {errors.taxId && (
-                <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-                  <AlertCircle className="w-3 h-3" />
-                  {errors.taxId}
-                </p>
-              )}
-            </div>
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Basic Info Card */}
+              <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-5">
+                <div className="flex items-center space-x-2 text-purple-500">
+                  <Package className="w-4 h-4" />
+                  <h4 className="font-bold uppercase text-[10px] tracking-widest">Información Básica</h4>
+                </div>
 
-            {/* Nombre */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                {formData.supplierType === 'juridica' ? 'Nombre de la Empresa *' : 'Nombre Completo *'}
-              </label>
-              <input
-                type="text"
-                name="name"
-                value={formData.name}
-                onChange={handleInputChange}
-                className={inputClass('name')}
-              />
-              {errors.name && (
-                <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-                  <AlertCircle className="w-3 h-3" />
-                  {errors.name}
-                </p>
-              )}
-            </div>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Tipo de Proveedor *</label>
+                      <select
+                        name="supplierType"
+                        value={formData.supplierType}
+                        onChange={handleInputChange}
+                        disabled={supplier !== null}
+                        className="w-full px-4 py-3 bg-gray-50/50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all font-medium text-gray-700 disabled:opacity-50"
+                      >
+                        <option value="juridica">Persona Jurídica</option>
+                        <option value="natural">Persona Natural</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Documento / NIT *</label>
+                      <input
+                        type="text"
+                        name="taxId"
+                        value={formData.taxId}
+                        onChange={handleInputChange}
+                        className={`w-full px-4 py-3 bg-gray-50/50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all font-medium text-gray-700 ${errors.taxId ? 'border-red-300' : 'border-gray-200'}`}
+                        placeholder="Ej: 900.123.456-7"
+                      />
+                      {errors.taxId && <p className="text-[10px] text-red-500 mt-1 ml-1">{errors.taxId}</p>}
+                    </div>
+                  </div>
 
-            {/* Persona de Contacto - Solo si es Jurídica */}
-            {formData.supplierType === 'juridica' && (
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Persona de Contacto *
-                </label>
-                <input
-                  type="text"
-                  name="contactPerson"
-                  value={formData.contactPerson}
-                  onChange={handleInputChange}
-                  className={inputClass('contactPerson')}
-                />
-                {errors.contactPerson && (
-                  <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3" />
-                    {errors.contactPerson}
-                  </p>
-                )}
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">
+                      {formData.supplierType === 'juridica' ? 'Razón Social / Empresa *' : 'Nombre Completo *'}
+                    </label>
+                    <input
+                      type="text"
+                      name="name"
+                      value={formData.name}
+                      onChange={handleInputChange}
+                      className={`w-full px-4 py-3 bg-gray-50/50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all font-medium text-gray-700 ${errors.name ? 'border-red-300' : 'border-gray-200'}`}
+                      placeholder="Nombre comercial"
+                    />
+                    {errors.name && <p className="text-[10px] text-red-500 mt-1 ml-1">{errors.name}</p>}
+                  </div>
+
+                  {formData.supplierType === 'juridica' && (
+                    <div>
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Persona de Contacto *</label>
+                      <input
+                        type="text"
+                        name="contactPerson"
+                        value={formData.contactPerson}
+                        onChange={handleInputChange}
+                        className={`w-full px-4 py-3 bg-gray-50/50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all font-medium text-gray-700 ${errors.contactPerson ? 'border-red-300' : 'border-gray-200'}`}
+                        placeholder="Nombre del representante"
+                      />
+                      {errors.contactPerson && <p className="text-[10px] text-red-500 mt-1 ml-1">{errors.contactPerson}</p>}
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Estado</label>
+                    <select
+                      name="status"
+                      value={formData.status}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-3 bg-gray-50/50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all font-medium text-gray-700"
+                    >
+                      <option value="active">Activo</option>
+                      <option value="inactive">Inactivo</option>
+                    </select>
+                  </div>
+                </div>
               </div>
-            )}
 
-            {/* Email */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Email *
-              </label>
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                className={inputClass('email')}
-              />
-              {errors.email && (
-                <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-                  <AlertCircle className="w-3 h-3" />
-                  {errors.email}
-                </p>
-              )}
+              {/* Contact Info Card */}
+              <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-5">
+                <div className="flex items-center space-x-2 text-pink-500">
+                  <Phone className="w-4 h-4" />
+                  <h4 className="font-bold uppercase text-[10px] tracking-widest">Datos de Contacto</h4>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Correo Electrónico *</label>
+                    <input
+                      type="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleInputChange}
+                      className={`w-full px-4 py-3 bg-gray-50/50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all font-medium text-gray-700 ${errors.email ? 'border-red-300' : 'border-gray-200'}`}
+                      placeholder="ejemplo@proveedor.com"
+                    />
+                    {errors.email && <p className="text-[10px] text-red-500 mt-1 ml-1">{errors.email}</p>}
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Teléfono de Contacto *</label>
+                    <input
+                      type="tel"
+                      name="phone"
+                      value={formData.phone}
+                      onChange={handleInputChange}
+                      className={`w-full px-4 py-3 bg-gray-50/50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all font-medium text-gray-700 ${errors.phone ? 'border-red-300' : 'border-gray-200'}`}
+                      placeholder="Número de 10 dígitos"
+                    />
+                    {errors.phone && <p className="text-[10px] text-red-500 mt-1 ml-1">{errors.phone}</p>}
+                  </div>
+
+                  <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm shrink-0">
+                      <Truck className="w-5 h-5 text-pink-400" />
+                    </div>
+                    <p className="text-[10px] text-gray-500 font-medium leading-tight">
+                      Asegúrate de que los datos de contacto sean correctos para el envío de órdenes de compra.
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {/* Teléfono */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Teléfono *
-              </label>
-              <input
-                type="tel"
-                name="phone"
-                value={formData.phone}
-                onChange={handleInputChange}
-                className={inputClass('phone')}
-              />
-              {errors.phone && (
-                <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-                  <AlertCircle className="w-3 h-3" />
-                  {errors.phone}
-                </p>
-              )}
-            </div>
+            {/* Location Card */}
+            <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-5">
+              <div className="flex items-center space-x-2 text-blue-500">
+                <MapPin className="w-4 h-4" />
+                <h4 className="font-bold uppercase text-[10px] tracking-widest">Ubicación y Dirección</h4>
+              </div>
 
-            {/* Dirección */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Dirección *
-              </label>
-              <input
-                type="text"
-                name="address"
-                value={formData.address}
-                onChange={handleInputChange}
-                className={inputClass('address')}
-              />
-              {errors.address && (
-                <p className="text-red-500 text-xs mt-1 flex items-center gap-1">
-                  <AlertCircle className="w-3 h-3" />
-                  {errors.address}
-                </p>
-              )}
+              <div className="grid md:grid-cols-3 gap-6">
+                <div>
+                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Departamento *</label>
+                  <select
+                    name="department"
+                    value={formData.department}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 bg-gray-50/50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all font-medium text-gray-700"
+                  >
+                    {departments.map(dept => (
+                      <option key={dept} value={dept}>{dept}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Ciudad *</label>
+                  <select
+                    name="city"
+                    value={formData.city}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 bg-gray-50/50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all font-medium text-gray-700"
+                  >
+                    {availableCities.map(city => (
+                      <option key={city} value={city}>{city}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Dirección *</label>
+                  <input
+                    type="text"
+                    name="address"
+                    value={formData.address}
+                    onChange={handleInputChange}
+                    className={`w-full px-4 py-3 bg-gray-50/50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all font-medium text-gray-700 ${errors.address ? 'border-red-300' : 'border-gray-200'}`}
+                    placeholder="Calle, Carrera, Barrio..."
+                  />
+                  {errors.address && <p className="text-[10px] text-red-500 mt-1 ml-1">{errors.address}</p>}
+                </div>
+              </div>
             </div>
+          </form>
+        </div>
 
-            {/* Departamento */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Departamento *
-              </label>
-              <select
-                name="department"
-                value={formData.department}
-                onChange={handleInputChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
-              >
-                {departments.map(department => (
-                  <option key={department} value={department}>{department}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Ciudad */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Ciudad *
-              </label>
-              <select
-                name="city"
-                value={formData.city}
-                onChange={handleInputChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
-              >
-                {availableCities.map(city => (
-                  <option key={city} value={city}>{city}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Botones */}
-          <div className="flex space-x-4 mt-8 pt-6 border-t border-gray-200">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isSubmitting}
-              className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors disabled:opacity-50"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting || hasErrors}
-              className="flex-1 bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50"
-            >
-              {isSubmitting ? 'Procesando...' : (supplier ? 'Actualizar' : 'Crear')} Proveedor
-            </button>
-          </div>
-        </form>
+        {/* Footer - Fixed at bottom */}
+        <div className="p-5 bg-white border-t border-gray-100 flex flex-wrap gap-3 justify-end shrink-0 z-20">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-8 py-2.5 rounded-xl font-black text-gray-500 hover:bg-gray-200 hover:text-gray-800 active:scale-95 transition-all text-sm uppercase tracking-widest shadow-sm"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={isSubmitting || hasErrors}
+            className="px-8 py-2.5 bg-gradient-to-r from-pink-400 to-purple-500 text-white rounded-xl font-black hover:shadow-lg active:scale-95 transition-all text-sm uppercase tracking-widest shadow-md flex items-center space-x-2"
+          >
+            {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            <span>{supplier ? 'Actualizar Proveedor' : 'Registrar Proveedor'}</span>
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -1061,64 +1124,70 @@ function SupplierEditModal({ supplier, existingSuppliers = [], onClose, onSave }
 // Delete Confirmation Modal Component
 function DeleteConfirmationModal({ supplier, hasPurchases, isChecking, onClose, onConfirm }) {
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md">
-        <div className="p-6">
-          <div className="flex items-center space-x-4 mb-6">
-            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-              <AlertCircle className="w-6 h-6 text-red-600" />
-            </div>
-            <div>
-              <h3 className="text-xl font-bold text-gray-800">
-                {isChecking ? 'Verificando...' : hasPurchases ? 'Operación No Permitida' : 'Confirmar Eliminación'}
-              </h3>
-              <p className="text-gray-600">
-                {isChecking ? 'Comprobando compras asociadas' : hasPurchases ? 'El proveedor tiene registros asociados' : 'Esta acción no se puede deshacer'}
-              </p>
-            </div>
-          </div>
-
-          <div className="mb-6">
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-gradient-to-r from-blue-400 to-purple-500 rounded-full flex items-center justify-center">
-                  <Truck className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <div className="font-semibold text-gray-800">{supplier.name}</div>
-                  <div className="text-sm text-gray-600">
-                    {supplier.supplierType === 'juridica' ? 'Persona Jurídica' : 'Persona Natural'} • {supplier.taxId}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {hasPurchases ? (
-              <div className="bg-orange-50 border border-orange-200 text-orange-800 px-4 py-3 rounded-xl text-sm font-medium">
-                No se puede eliminar este proveedor porque está asociado a una o más órdenes de compra en el historial. Para eliminarlo, primero se deben anular o reasignar sus compras.
-              </div>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className={`bg-gradient-to-r ${hasPurchases ? 'from-orange-500 to-amber-600' : 'from-red-500 to-pink-600'} p-6 text-white text-center`}>
+          <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-sm shadow-inner">
+            {isChecking ? (
+              <Loader2 className="w-10 h-10 text-white animate-spin" />
+            ) : hasPurchases ? (
+              <AlertTriangle className="w-10 h-10 text-white" />
             ) : (
-              <p className="text-gray-700">
-                ¿Estás segura de que quieres eliminar el proveedor <strong>{supplier.name}</strong>?
-              </p>
+              <Trash2 className="w-10 h-10 text-white" />
             )}
           </div>
+          <h3 className="text-2xl font-black uppercase tracking-tight">
+            {isChecking ? 'Verificando...' : hasPurchases ? 'No es posible eliminar' : '¿Eliminar Proveedor?'}
+          </h3>
+          <p className="text-white/80 text-sm mt-1">
+            {isChecking ? 'Comprobando historial de compras' : hasPurchases ? 'Existen registros vinculados' : 'Esta acción no se puede deshacer'}
+          </p>
+        </div>
 
-          <div className="flex space-x-3">
-            <button
-              onClick={onClose}
-              className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
-            >
-              Cerrar
-            </button>
+        <div className="p-8 space-y-6">
+          <div className="bg-gray-50 border border-gray-100 rounded-2xl p-5">
+            <div className="flex items-center space-x-4">
+              <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm text-purple-500">
+                <Truck className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="font-bold text-gray-800">{supplier.name}</div>
+                <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                  {supplier.supplierType === 'juridica' ? 'Persona Jurídica' : 'Persona Natural'} • {supplier.taxId}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {hasPurchases ? (
+            <div className="bg-orange-50 border-l-4 border-orange-400 p-4 rounded-xl">
+              <p className="text-sm text-orange-800 leading-relaxed">
+                Este proveedor tiene <span className="font-bold text-orange-900">órdenes de compra registradas</span> en el sistema. Por seguridad e integridad de los datos contables, no puede ser eliminado.
+              </p>
+            </div>
+          ) : (
+            <div className="text-center">
+              <p className="text-gray-600 leading-relaxed">
+                ¿Estás segura de que quieres eliminar permanentemente al proveedor <span className="font-bold text-gray-800">{supplier.name}</span>? Todos sus datos de contacto serán borrados.
+              </p>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-3">
             {!isChecking && !hasPurchases && (
               <button
                 onClick={onConfirm}
-                className="flex-1 bg-gradient-to-r from-red-400 to-red-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all"
+                className="w-full py-4 bg-gradient-to-r from-red-500 to-pink-600 text-white rounded-2xl font-black uppercase tracking-[0.2em] shadow-lg hover:shadow-red-200 hover:scale-[1.02] active:scale-95 transition-all"
               >
-                Eliminar
+                Sí, Eliminar Proveedor
               </button>
             )}
+            <button
+              onClick={onClose}
+              className="w-full py-4 bg-gray-100 text-gray-500 rounded-2xl font-black uppercase tracking-[0.2em] hover:bg-gray-200 hover:text-gray-700 transition-all"
+            >
+              {hasPurchases ? 'Entendido' : 'Cancelar'}
+            </button>
           </div>
         </div>
       </div>

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Bell, AlertTriangle, ShoppingBag, CheckCircle, X, Calendar } from 'lucide-react';
+import { Bell, AlertTriangle, ShoppingBag, CheckCircle, X, Calendar, Clock } from 'lucide-react';
 import { supplyService } from '../services/supplyService';
 import { agendaService } from '../services/agendaService';
 
@@ -88,6 +88,91 @@ export function NotificationBell({ currentUser }: NotificationBellProps) {
           time: 'Hoy',
           icon: CheckCircle,
           color: 'text-green-600 bg-green-100',
+          view: 'agenda'
+        });
+      }
+
+      // 3. Check Upcoming & Overdue Appointments
+      const now = new Date();
+      const todayStr = now.toISOString().split('T')[0];
+      
+      const timeToMinutes = (time: string) => {
+        const [h, m] = time.split(':').map(Number);
+        return h * 60 + m;
+      };
+
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+      const upcomingApts = agenda.filter(a => {
+        const isToday = a.fechaCita === todayStr;
+        if (!isToday) return false;
+        
+        const startMin = timeToMinutes(a.horaInicio);
+        const diff = startMin - currentMinutes;
+        const status = a.estado.toLowerCase();
+        
+        // "No pendientes" within 2 hours
+        return (
+          status !== 'pendiente' && 
+          status !== 'cancelado' &&
+          status !== 'sin agendar' &&
+          status !== 'completado' &&
+          diff > 0 && diff <= 120
+        );
+      });
+
+      const overdueApts = agenda.filter(a => {
+        const aptDate = new Date(a.fechaCita + 'T' + a.horaInicio);
+        const status = a.estado.toLowerCase();
+        const nonCompletedStates = ['pendiente', 'confirmado'];
+        
+        return (
+          nonCompletedStates.includes(status) &&
+          aptDate < now
+        );
+      });
+
+      if (upcomingApts.length > 0) {
+        newAlerts.push({
+          id: 'upcoming-apt-' + Date.now(),
+          type: 'warning',
+          message: `${upcomingApts.length} cita${upcomingApts.length > 1 ? 's' : ''} próxima${upcomingApts.length > 1 ? 's' : ''} a iniciar`,
+          action: 'Ver agenda',
+          time: 'En 2h',
+          icon: Clock,
+          color: 'text-red-600 bg-red-50',
+          view: 'agenda'
+        });
+      }
+
+      if (overdueApts.length > 0) {
+        newAlerts.push({
+          id: 'overdue-apt-' + Date.now(),
+          type: 'warning',
+          message: `${overdueApts.length} cita${overdueApts.length > 1 ? 's' : ''} vencida${overdueApts.length > 1 ? 's' : ''} sin completar`,
+          action: 'Revisar agenda',
+          time: 'Vencido',
+          icon: AlertTriangle,
+          color: 'text-red-700 bg-red-100',
+          view: 'agenda'
+        });
+      }
+
+      // 4. Check Auto-cancelled Appointments
+      const autoCancelled = agenda.filter(a => 
+        a.estado.toLowerCase() === 'cancelado' &&
+        a.observaciones?.includes('Cancelación automática')
+      );
+
+      if (autoCancelled.length > 0) {
+        newAlerts.push({
+          id: 'auto-cancelled-' + Date.now(),
+          type: 'info',
+          message: `${autoCancelled.length} cita${autoCancelled.length > 1 ? 's' : ''} cancelada${autoCancelled.length > 1 ? 's' : ''} automáticamente`,
+          action: 'Ver agenda',
+          time: 'Reciente',
+          icon: X,
+          color: 'text-gray-600 bg-gray-100',
           view: 'agenda'
         });
       }

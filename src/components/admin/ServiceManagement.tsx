@@ -724,7 +724,7 @@ function ServiceDetailModal({ service, onClose }) {
               </div>
             </div>
 
-            {/* Info & Description Grid - 3 Columns for horizontal efficiency */}
+            {/* Info & Description Grid */}
             <div className="grid md:grid-cols-3 gap-4 pb-4">
               {/* Column 1: General Info */}
               <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col h-full">
@@ -738,8 +738,8 @@ function ServiceDetailModal({ service, onClose }) {
                 <div className="mt-auto">
                   <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
                     service.status === 'active' 
-                      ? 'bg-green-100 text-green-700' 
-                      : 'bg-red-100 text-red-700'
+                      ? 'bg-green-100 text-green-700 border border-green-200 shadow-sm' 
+                      : 'bg-red-100 text-red-700 border border-red-200 shadow-sm'
                   }`}>
                     {service.status === 'active' ? 'Servicio Activo' : 'Servicio Inactivo'}
                   </span>
@@ -771,11 +771,22 @@ function ServiceDetailModal({ service, onClose }) {
                   <h4 className="font-bold uppercase text-[10px] tracking-widest">Descripción</h4>
                 </div>
                 <div className="flex-1 overflow-y-auto no-scrollbar max-h-[120px]">
-                  <p className="text-gray-600 text-xs leading-relaxed">
+                  <p className="text-gray-600 text-xs leading-relaxed italic">
                     {service.description || 'Sin descripción adicional.'}
                   </p>
                 </div>
               </div>
+            </div>
+
+            {/* Resumen Card */}
+            <div className="bg-gradient-to-br from-pink-50 to-purple-50 rounded-3xl p-6 border border-pink-100 shadow-sm">
+                <div className="flex items-center space-x-3 mb-3">
+                  <Star className="w-5 h-5 text-pink-400" />
+                  <h4 className="font-black text-[10px] uppercase tracking-[0.2em] text-gray-700">Resumen del Servicio</h4>
+                </div>
+                <p className="text-sm text-gray-600 italic leading-relaxed">
+                  Este servicio forma parte del catálogo oficial de AsthroApp. Los precios y duraciones son aproximados y pueden variar según la complejidad.
+                </p>
             </div>
           </div>
         </div>
@@ -801,6 +812,7 @@ function ServiceEditModal({ service, onClose, onSave }) {
     description: service?.description || '',
     duration: service?.duration || 30,
     price: service?.price || 0,
+    status: service?.status || 'active',
     image: service?.image || 'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=400&h=300&fit=crop',
     imageFile: null,
     images: service?.images || []
@@ -808,14 +820,14 @@ function ServiceEditModal({ service, onClose, onSave }) {
 
   const [errors, setErrors] = useState({});
   const [imagePreview, setImagePreview] = useState(service?.image || null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
-      // Crear una URL temporal para previsualización
       const reader = new FileReader();
       reader.onloadend = () => {
-        setImagePreview(reader.result);
+        setImagePreview(reader.result as string);
         setFormData({
           ...formData,
           image: reader.result as string,
@@ -835,7 +847,7 @@ function ServiceEditModal({ service, onClose, onSave }) {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     const newErrors = {};
@@ -849,7 +861,12 @@ function ServiceEditModal({ service, onClose, onSave }) {
       return;
     }
 
-    onSave(formData);
+    setIsSaving(true);
+    try {
+      await onSave(formData);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleInputChange = (e) => {
@@ -865,194 +882,247 @@ function ServiceEditModal({ service, onClose, onSave }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[1000] flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
-        <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-6 text-white rounded-t-3xl shrink-0">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+        {/* Header - Fixed at top */}
+        <div className="bg-gradient-to-r from-pink-500 to-purple-600 p-5 text-white shrink-0 shadow-md z-20">
           <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-2xl font-bold">
-                {service ? 'Editar Servicio' : 'Registrar Servicio'}
-              </h3>
-              <p className="text-pink-100">
-                {service ? 'Actualiza la información del servicio' : 'Registra un nuevo servicio'}
-              </p>
+            <div className="flex items-center space-x-4">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                <Scissors className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold leading-tight">
+                  {service ? 'Editar Servicio' : 'Registrar Nuevo Servicio'}
+                </h3>
+                <p className="text-pink-100 text-sm">
+                  {service ? `Actualizando ${service.name}` : 'Complete la información del servicio'}
+                </p>
+              </div>
             </div>
-            <button
-              onClick={onClose}
-              className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={handleSubmit}
+                disabled={isSaving}
+                className="flex items-center space-x-2 px-4 py-2 bg-green-500 hover:bg-green-600 rounded-xl transition-all text-sm font-bold border border-green-400 shadow-lg disabled:opacity-50"
+              >
+                {isSaving ? <Clock className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                <span>{isSaving ? 'Guardando...' : 'Guardar Servicio'}</span>
+              </button>
+              <button
+                onClick={onClose}
+                className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Nombre del Servicio *
-            </label>
-            <input
-              type="text"
-              name="name"
-              value={formData.name}
-              onChange={handleInputChange}
-              className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${errors.name ? 'border-red-300' : 'border-gray-300'
-                }`}
-              placeholder="Ej: Corte y Peinado"
-            />
-            {errors.name && (
-              <div className="flex items-center space-x-1 mt-1 text-red-600">
-                <AlertCircle className="w-4 h-4" />
-                <span className="text-sm">{errors.name}</span>
+        {/* Scrollable Body */}
+        <form onSubmit={handleSubmit} id="service-form" className="flex-1 overflow-y-auto p-6 lg:p-8 bg-gray-50/30 no-scrollbar">
+          <style>{`
+            .no-scrollbar::-webkit-scrollbar { display: none; }
+            .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+          `}</style>
+
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* Errors Notification */}
+            {Object.keys(errors).length > 0 && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-2xl flex items-center space-x-3 animate-in fade-in duration-300">
+                <AlertCircle className="w-5 h-5 shrink-0" />
+                <p className="font-semibold text-sm">Por favor corrija los errores en el formulario</p>
               </div>
             )}
-          </div>
 
-          <div className="grid md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Duración (minutos) *
-              </label>
-              <input
-                type="number"
-                name="duration"
-                value={formData.duration}
-                onChange={handleInputChange}
-                min="1"
-                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${errors.duration ? 'border-red-300' : 'border-gray-300'
-                  }`}
-              />
-              {errors.duration && (
-                <div className="flex items-center space-x-1 mt-1 text-red-600">
-                  <AlertCircle className="w-4 h-4" />
-                  <span className="text-sm">{errors.duration}</span>
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Basic Info Section */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100 flex items-center space-x-2">
+                  <Tag className="w-4 h-4 text-pink-500" />
+                  <h4 className="font-bold text-gray-700 text-sm uppercase tracking-wider">Información Básica</h4>
                 </div>
-              )}
-            </div>
+                <div className="p-6 space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Nombre del Servicio</label>
+                    <div className="relative">
+                      <Scissors className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <input
+                        type="text"
+                        name="name"
+                        value={formData.name}
+                        onChange={handleInputChange}
+                        className={`w-full pl-10 pr-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all outline-none ${
+                          errors.name ? 'border-red-300 ring-1 ring-red-100' : 'border-gray-200'
+                        }`}
+                        placeholder="Ej: Corte y Peinado"
+                      />
+                    </div>
+                  </div>
 
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Precio (COP) *
-              </label>
-              <input
-                type="number"
-                name="price"
-                value={formData.price}
-                onChange={handleInputChange}
-                min="0"
-                step="1000"
-                className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${errors.price ? 'border-red-300' : 'border-gray-300'
-                  }`}
-              />
-              {errors.price && (
-                <div className="flex items-center space-x-1 mt-1 text-red-600">
-                  <AlertCircle className="w-4 h-4" />
-                  <span className="text-sm">{errors.price}</span>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Duración (Minutos)</label>
+                      <div className="relative">
+                        <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                        <input
+                          type="number"
+                          name="duration"
+                          value={formData.duration}
+                          onChange={handleInputChange}
+                          className={`w-full pl-10 pr-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all outline-none ${
+                            errors.duration ? 'border-red-300 ring-1 ring-red-100' : 'border-gray-200'
+                          }`}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Precio (COP)</label>
+                      <div className="relative">
+                        <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                        <input
+                          type="number"
+                          name="price"
+                          value={formData.price}
+                          onChange={handleInputChange}
+                          className={`w-full pl-10 pr-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all outline-none ${
+                            errors.price ? 'border-red-300 ring-1 ring-red-100' : 'border-gray-200'
+                          }`}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Descripción del Servicio</label>
+                    <div className="relative">
+                      <FileText className="absolute left-3 top-3 text-gray-400 w-4 h-4" />
+                      <textarea
+                        name="description"
+                        value={formData.description}
+                        onChange={handleInputChange}
+                        rows={3}
+                        className={`w-full pl-10 pr-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all outline-none ${
+                          errors.description ? 'border-red-300 ring-1 ring-red-100' : 'border-gray-200'
+                        }`}
+                        placeholder="Describa el servicio..."
+                      />
+                    </div>
+                  </div>
+
+                  {service && (
+                    <div className="pt-2">
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Estado del Servicio</label>
+                      <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formData.status === 'active'}
+                            onChange={(e) => setFormData({ ...formData, status: e.target.checked ? 'active' : 'inactive' })}
+                            className="sr-only peer"
+                          />
+                          <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-pink-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-pink-400 peer-checked:to-purple-500"></div>
+                          <span className={`ml-3 text-sm font-bold ${formData.status === 'active' ? 'text-green-600' : 'text-red-600'}`}>
+                            {formData.status === 'active' ? 'ACTIVO' : 'INACTIVO'}
+                          </span>
+                        </label>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
+
+              {/* Image Section */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100 flex items-center space-x-2">
+                  <ImageIcon className="w-4 h-4 text-purple-500" />
+                  <h4 className="font-bold text-gray-700 text-sm uppercase tracking-wider">Imagen Representativa</h4>
+                </div>
+                <div className="p-6">
+                  {imagePreview ? (
+                    <div className="relative group">
+                      <img
+                        src={imagePreview}
+                        alt="Preview"
+                        className="w-full h-64 object-cover rounded-2xl border border-gray-200 shadow-inner"
+                        onError={handleImageError}
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl flex items-center justify-center space-x-2">
+                        <label htmlFor="image-upload-change" className="p-3 bg-white text-pink-500 rounded-full cursor-pointer hover:scale-110 transition-transform shadow-lg">
+                          <ImageIcon className="w-6 h-6" />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={handleRemoveImage}
+                          className="p-3 bg-white text-red-500 rounded-full hover:scale-110 transition-transform shadow-lg"
+                        >
+                          <Trash2 className="w-6 h-6" />
+                        </button>
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="hidden"
+                        id="image-upload-change"
+                      />
+                    </div>
+                  ) : (
+                    <div className="border-2 border-dashed border-gray-200 rounded-2xl p-12 text-center hover:border-pink-300 hover:bg-pink-50/30 transition-all">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="hidden"
+                        id="image-upload-new"
+                      />
+                      <label htmlFor="image-upload-new" className="cursor-pointer">
+                        <div className="w-16 h-16 bg-pink-100 rounded-2xl flex items-center justify-center mx-auto mb-4 text-pink-500">
+                          <Plus className="w-8 h-8" />
+                        </div>
+                        <p className="text-sm font-bold text-gray-600">Subir Imagen</p>
+                        <p className="text-xs text-gray-400 mt-1">PNG, JPG o WEBP (máx. 5MB)</p>
+                      </label>
+                    </div>
+                  )}
+
+                  <div className="mt-6 p-4 bg-purple-50 rounded-2xl border border-purple-100">
+                    <div className="flex items-start space-x-3">
+                      <Star className="w-5 h-5 text-purple-500 mt-0.5" />
+                      <div>
+                        <p className="text-xs font-bold text-purple-700 uppercase tracking-widest mb-1">Consejo Asthro</p>
+                        <p className="text-[11px] text-purple-600 leading-relaxed italic">
+                          Una buena imagen ayuda a tus clientes a visualizar el resultado del servicio.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-
-          {/* Upload de Imagen */}
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Imagen del Servicio
-            </label>
-
-            {imagePreview ? (
-              <div className="relative">
-                <img
-                  src={imagePreview}
-                  alt="Preview"
-                  className="w-full h-48 object-cover rounded-xl border border-gray-200"
-                  onError={handleImageError}
-                />
-                <button
-                  type="button"
-                  onClick={handleRemoveImage}
-                  className="absolute top-2 right-2 w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            ) : (
-              <div className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-pink-400 transition-colors">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  className="hidden"
-                  id="image-upload"
-                />
-                <label htmlFor="image-upload" className="cursor-pointer">
-                  <ImageIcon className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-                  <p className="text-sm text-gray-600 mb-1">Haz clic para subir una imagen</p>
-                  <p className="text-xs text-gray-500">PNG, JPG o WEBP (máx. 5MB)</p>
-                </label>
-              </div>
-            )}
-          </div>
-
-          {service && (
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Estado
-              </label>
-              <div className="flex items-center space-x-3">
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.status === 'active'}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.checked ? 'active' : 'inactive' })}
-                    className="sr-only peer"
-                  />
-                  <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-pink-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-pink-400 peer-checked:to-purple-500"></div>
-                  <span className={`ml-3 text-sm font-medium ${formData.status === 'active' ? 'text-green-600' : 'text-red-600'
-                    }`}>
-                    {formData.status === 'active' ? 'Activo' : 'Inactivo'}
-                  </span>
-                </label>
-              </div>
-            </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Descripción *
-            </label>
-            <textarea
-              name="description"
-              value={formData.description}
-              onChange={handleInputChange}
-              rows={3}
-              className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent ${errors.description ? 'border-red-300' : 'border-gray-300'
-                }`}
-              placeholder="Describe el servicio detalladamente..."
-            />
-            {errors.description && (
-              <div className="flex items-center space-x-1 mt-1 text-red-600">
-                <AlertCircle className="w-4 h-4" />
-                <span className="text-sm">{errors.description}</span>
-              </div>
-            )}
-          </div>
-
-          <div className="flex space-x-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="flex-1 bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all"
-            >
-              {service ? 'Actualizar' : 'Crear'} Servicio
-            </button>
           </div>
         </form>
+
+        {/* Footer - Fixed at bottom */}
+        <div className="p-5 bg-white border-t border-gray-100 flex flex-wrap gap-3 justify-end shrink-0 z-20">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-8 py-2.5 rounded-xl font-black text-gray-500 hover:bg-gray-200 hover:text-gray-800 active:scale-95 transition-all text-sm uppercase tracking-widest shadow-sm"
+            disabled={isSaving}
+          >
+            Cancelar
+          </button>
+          <button
+            form="service-form"
+            type="submit"
+            disabled={isSaving}
+            className="px-8 py-2.5 rounded-xl font-black text-white bg-gradient-to-r from-pink-500 to-purple-600 active:scale-95 transition-all text-sm uppercase tracking-widest shadow-lg hover:shadow-pink-200 disabled:opacity-50 flex items-center space-x-2"
+          >
+            {isSaving ? <Clock className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            <span>{service ? 'Actualizar' : 'Registrar'}</span>
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -1061,29 +1131,50 @@ function ServiceEditModal({ service, onClose, onSave }) {
 // Delete Confirmation Modal Component
 function DeleteConfirmationModal({ service, onClose, onConfirm }) {
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[1000] flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
-        <div className="p-6">
-          <div className="flex items-center space-x-4 mb-6">
-            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-              <AlertCircle className="w-6 h-6 text-red-600" />
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-red-500 to-pink-600 p-5 text-white shrink-0 shadow-md">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm shadow-inner">
+                <Trash2 className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold leading-tight">Confirmar Eliminación</h3>
+                <p className="text-red-100 text-xs font-medium">Esta acción no se puede deshacer</p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-xl font-bold text-gray-800">Confirmar Eliminación</h3>
-              <p className="text-gray-600">Esta acción no se puede deshacer</p>
-            </div>
+            <button
+              onClick={onClose}
+              className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
+            >
+              <X className="w-5 h-5 text-white" />
+            </button>
           </div>
+        </div>
 
-          <div className="mb-6">
-            <p className="text-gray-700 mb-4">
-              ¿Estás segura de que quieres eliminar el servicio <strong>{service.name}</strong>?
+        <div className="p-8">
+          <div className="text-center mb-8">
+            <div className="w-20 h-20 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-red-100 rotate-3">
+              <AlertCircle className="w-10 h-10 text-red-500 -rotate-3" />
+            </div>
+            <h4 className="text-lg font-bold text-gray-800 mb-2">
+              ¿Eliminar servicio "{service.name}"?
+            </h4>
+            <p className="text-sm text-gray-500 leading-relaxed mb-6">
+              Estás a punto de eliminar este servicio de forma permanente. 
+              Esta acción afectará los registros históricos y la disponibilidad del servicio.
             </p>
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-              <div className="space-y-2">
-                <div className="font-semibold text-gray-800">{service.name}</div>
-                <div className="text-sm text-gray-600">Duración: {service.duration} minutos</div>
-                <div className="text-sm text-gray-600">Precio: ${service.price.toLocaleString()}</div>
-                <div className="text-sm text-gray-600">Citas realizadas: {service.appointments}</div>
+            
+            <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 flex items-center space-x-4">
+              <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center">
+                <Scissors className="w-6 h-6 text-pink-500" />
+              </div>
+              <div className="text-left">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Servicio a eliminar</p>
+                <p className="font-bold text-gray-700 line-clamp-1">{service.name}</p>
+                <p className="text-[10px] text-gray-400 uppercase">Duración: {service.duration} min | ${service.price.toLocaleString()}</p>
               </div>
             </div>
           </div>
@@ -1091,15 +1182,16 @@ function DeleteConfirmationModal({ service, onClose, onConfirm }) {
           <div className="flex space-x-3">
             <button
               onClick={onClose}
-              className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
+              className="flex-1 px-6 py-3 rounded-xl font-black text-gray-500 hover:bg-gray-100 transition-all text-[10px] uppercase tracking-widest"
             >
               Cancelar
             </button>
             <button
               onClick={onConfirm}
-              className="flex-1 bg-gradient-to-r from-red-400 to-red-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all"
+              className="flex-1 bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center justify-center space-x-2"
             >
-              Eliminar
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Eliminar</span>
             </button>
           </div>
         </div>

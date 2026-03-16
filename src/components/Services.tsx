@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
   Scissors, Droplets, Sparkles, Heart, Clock, Search,
-  Eye, ChevronLeft, ChevronRight, Filter, Calendar, X
+  Eye, ChevronLeft, ChevronRight, Filter, Calendar, X,
+  Star, FileText, CheckCircle, DollarSign
 } from 'lucide-react';
 
 import { toast } from 'sonner';
@@ -215,9 +216,16 @@ export function Services({ onBookAppointment }: ServicesProps) {
     try {
       const data = await serviceService.getServices();
       console.log('Raw API Data:', data);
-      console.log('Services API Data (Public):', data);
 
-      const servicesArray = Array.isArray(data) ? data : (data as any).data || [];
+      // Handle both standard array, { data: [] } and { $values: [] } formats
+      let servicesArray = [];
+      if (Array.isArray(data)) {
+        servicesArray = data;
+      } else if (data && typeof data === 'object') {
+        servicesArray = (data as any).data || (data as any).$values || [];
+      }
+      
+      console.log('Services API Data (Processed):', servicesArray);
       setServices(servicesArray.map(mapAPIServiceToUI));
     } catch (error) {
       console.error('Error fetching services:', error);
@@ -236,7 +244,16 @@ export function Services({ onBookAppointment }: ServicesProps) {
     const matchesSearch = service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       service.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = filterCategory === 'Todos' || service.category === filterCategory;
-    return matchesSearch && matchesCategory && service.isActive;
+    
+    // Robust isActive check
+    const isActive = service.isActive === true || 
+                     service.isActive === 1 || 
+                     service.isActive === '1' || 
+                     service.isActive === 'Activo' || 
+                     service.isActive === 'activo' ||
+                     service.isActive === undefined; // If undefined, assume active for now
+                     
+    return matchesSearch && matchesCategory && isActive;
   });
 
   const handleServiceBooking = (service: any) => {
@@ -272,74 +289,111 @@ export function Services({ onBookAppointment }: ServicesProps) {
 
         {/* Services Grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
-          {filteredServices.map((service) => {
-            const Icon = service.icon;
-            return (
-              <div
-                key={service.id}
-                className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2"
-              >
-                {/* Service Image */}
-                <div className="relative h-48 overflow-hidden">
-                  <img
-                    src={service.image}
-                    alt={service.name}
-                    className="w-full h-full object-cover"
-                    onError={handleImageError}
-                  />
-                  <div className={`absolute inset-0 bg-gradient-to-t ${service.color} opacity-60`}></div>
-                  <div className="absolute top-4 right-4">
-                    <div className="w-12 h-12 bg-white/90 rounded-full flex items-center justify-center">
-                      <Icon className="w-6 h-6 text-pink-500" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Service Content */}
+          {isLoading ? (
+            // Loading skeleton or spinner
+            Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="bg-white rounded-2xl shadow-lg overflow-hidden animate-pulse">
+                <div className="h-48 bg-gray-200"></div>
                 <div className="p-6">
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <h3 className="font-bold text-gray-800 mb-1">{service.name}</h3>
-                      <span className="text-xs px-2 py-1 bg-purple-100 text-purple-800 rounded-full">
-                        {service.category}
-                      </span>
-                    </div>
-                  </div>
-
-                  <p className="text-gray-600 text-sm mb-4 line-clamp-2">
-                    {service.description}
-                  </p>
-
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center space-x-1 text-gray-600">
-                      <Clock className="w-4 h-4" />
-                      <span className="text-sm">{service.duration} min</span>
-                    </div>
-                    <div className="font-bold text-pink-600">
-                      ${service.price.toLocaleString()}
-                    </div>
-                  </div>
-
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => handleViewDetails(service)}
-                      className="flex-1 px-4 py-2 border-2 border-pink-300 text-pink-600 rounded-lg font-semibold hover:bg-pink-50 transition-all flex items-center justify-center space-x-2"
-                    >
-                      <Eye className="w-4 h-4" />
-                      <span>Ver Más</span>
-                    </button>
-                    <button
-                      onClick={() => handleServiceBooking(service)}
-                      className={`flex-1 px-4 py-2 bg-gradient-to-r ${service.color} text-white rounded-lg font-semibold hover:shadow-lg transition-all flex items-center justify-center space-x-2`}
-                    >
-                      <Calendar className="w-4 h-4" />
-                      <span>Agendar</span>
-                    </button>
-                  </div>
+                  <div className="h-6 bg-gray-200 rounded w-3/4 mb-4"></div>
+                  <div className="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
+                  <div className="h-10 bg-gray-200 rounded w-full"></div>
                 </div>
               </div>
-            );
-          })}
+            ))
+          ) : filteredServices.length > 0 ? (
+            filteredServices.map((service) => {
+              const Icon = service.icon;
+              return (
+                <div
+                  key={service.id}
+                  className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2"
+                >
+                  {/* Service Image */}
+                  <div className="relative h-48 overflow-hidden">
+                    <img
+                      src={service.image}
+                      alt={service.name}
+                      className="w-full h-full object-cover"
+                      onError={handleImageError}
+                    />
+                    <div className={`absolute inset-0 bg-gradient-to-t ${service.color} opacity-60`}></div>
+                    <div className="absolute top-4 right-4">
+                      <div className="w-12 h-12 bg-white/90 rounded-full flex items-center justify-center">
+                        <Icon className="w-6 h-6 text-pink-500" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Service Content */}
+                  <div className="p-6">
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <h3 className="font-bold text-gray-800 mb-1">{service.name}</h3>
+                        <span className="text-xs px-2 py-1 bg-purple-100 text-purple-800 rounded-full">
+                          {service.category}
+                        </span>
+                      </div>
+                    </div>
+
+                    <p className="text-gray-600 text-sm mb-4 line-clamp-2">
+                      {service.description}
+                    </p>
+
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center space-x-1 text-gray-600">
+                        <Clock className="w-4 h-4" />
+                        <span className="text-sm">{service.duration} min</span>
+                      </div>
+                      <div className="font-bold text-pink-600">
+                        ${service.price.toLocaleString()}
+                      </div>
+                    </div>
+
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => handleViewDetails(service)}
+                        className="flex-1 px-4 py-2 border-2 border-pink-300 text-pink-600 rounded-lg font-semibold hover:bg-pink-50 transition-all flex items-center justify-center space-x-2"
+                      >
+                        <Eye className="w-4 h-4" />
+                        <span>Ver Más</span>
+                      </button>
+                      <button
+                        onClick={() => handleServiceBooking(service)}
+                        className={`flex-1 px-4 py-2 bg-gradient-to-r ${service.color} text-white rounded-lg font-semibold hover:shadow-lg transition-all flex items-center justify-center space-x-2`}
+                      >
+                        <Calendar className="w-4 h-4" />
+                        <span>Agendar</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div className="col-span-full text-center py-20">
+              <div className="bg-white/50 backdrop-blur-sm rounded-3xl p-12 border border-pink-100">
+                <div className="w-20 h-20 bg-pink-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <Scissors className="w-10 h-10 text-pink-500" />
+                </div>
+                <h3 className="text-2xl font-bold text-gray-800 mb-4">
+                  No se encontraron servicios
+                </h3>
+                <p className="text-gray-600 mb-8 max-w-md mx-auto">
+                  Actualmente no hay servicios disponibles en esta categoría o que coincidan con tu búsqueda.
+                </p>
+                <button
+                  onClick={() => {
+                    setSearchTerm('');
+                    setFilterCategory('Todos');
+                  }}
+                  className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-8 py-3 rounded-xl font-semibold hover:shadow-lg transition-all"
+                >
+                  Ver Todos los Servicios
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* CTA Section */}
@@ -385,98 +439,140 @@ interface ServiceDetailModalProps {
   onBookAppointment: (service: any) => void;
 }
 
-function ServiceDetailModal({ service, onClose, onBookAppointment }: ServiceDetailModalProps) {
-  const Icon = service.icon;
-
+function ServiceDetailModal({ service, onClose, onBookAppointment }: any) {
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        {/* Modal Header */}
-        <div className={`bg-gradient-to-r ${service.color} p-6 text-white rounded-t-3xl`}>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+        {/* Header - Fixed at top */}
+        <div className={`bg-gradient-to-r ${service.color} p-5 text-white shrink-0 shadow-md z-20`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
-                <Icon className="w-8 h-8 text-white" />
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                {React.createElement(service.icon, { className: "w-6 h-6 text-white" })}
               </div>
               <div>
-                <h3 className="text-2xl font-bold">{service.name}</h3>
-                <p className="text-white/80">{service.category}</p>
+                <h3 className="text-xl font-bold leading-tight">Detalle del Servicio</h3>
+                <p className="text-white/80 text-sm">{service.name}</p>
               </div>
             </div>
             <button
               onClick={onClose}
-              className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
+              className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        <div className="p-6">
-          {/* Service Image */}
-          <div className="mb-6">
-            <img
-              src={service.image}
-              alt={service.name}
-              className="w-full h-48 object-cover rounded-xl shadow-lg"
-              onError={handleImageError}
-            />
-          </div>
+        {/* Scrollable Body */}
+        <div className="flex-1 overflow-y-auto p-6 lg:p-8 bg-gray-50/30 no-scrollbar">
+          <style>{`
+            .no-scrollbar::-webkit-scrollbar { display: none; }
+            .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+          `}</style>
 
-          {/* Service Info */}
-          <div className="grid md:grid-cols-2 gap-6 mb-6">
-            <div>
-              <h4 className="font-bold text-gray-800 mb-4">Información del Servicio</h4>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Duración:</span>
-                  <span className="font-semibold text-gray-800 flex items-center space-x-1">
-                    <Clock className="w-4 h-4" />
-                    <span>{service.duration} minutos</span>
-                  </span>
+          <div className="max-w-4xl mx-auto space-y-6">
+            {/* Info Cards Row */}
+            <div className="grid md:grid-cols-3 gap-4">
+              {/* Service Info Card */}
+              <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+                <div className="flex items-center space-x-2 text-purple-500 mb-3">
+                  <Scissors className="w-4 h-4" />
+                  <h4 className="font-bold uppercase text-[10px] tracking-widest">Información del Servicio</h4>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Precio:</span>
-                  <span className="text-2xl font-bold text-pink-600">
-                    ${service.price.toLocaleString()}
-                  </span>
+                <div className="mb-1">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Nombre:</span>
+                  <p className="font-bold text-gray-800 text-lg mb-1 truncate">{service.name}</p>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Categoría:</span>
-                  <span className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-semibold">
-                    {service.category}
-                  </span>
+                <div className="flex items-center space-x-2 text-gray-500">
+                  <span className="text-xs font-mono bg-gray-100 px-2 py-0.5 rounded-md">{service.category}</span>
                 </div>
+              </div>
+
+              {/* Pricing Card */}
+              <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+                <div className="flex items-center space-x-2 text-pink-500 mb-3">
+                  <Search className="w-4 h-4" />
+                  <h4 className="font-bold uppercase text-[10px] tracking-widest">Inversión y Tiempo</h4>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Precio:</span>
+                    <span className="font-bold text-green-600 text-lg">${service.price.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-400">Duración:</span>
+                    <span className="font-bold text-blue-600">{service.duration}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Status/Rating Card */}
+              <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm flex flex-col items-center justify-center">
+                <div className="flex items-center space-x-1 mb-2">
+                  <Sparkles className="w-4 h-4 text-yellow-400" />
+                  <Sparkles className="w-4 h-4 text-yellow-400" />
+                  <Sparkles className="w-4 h-4 text-yellow-400" />
+                  <Sparkles className="w-4 h-4 text-yellow-400" />
+                  <Sparkles className="w-4 h-4 text-gray-200" />
+                </div>
+                <span className="font-black uppercase text-[10px] tracking-[0.2em] text-gray-500">
+                  Popularidad: Alta
+                </span>
               </div>
             </div>
 
-            <div>
-              <h4 className="font-bold text-gray-800 mb-4">Descripción</h4>
-              <p className="text-gray-600 leading-relaxed">
-                {service.description}
-              </p>
+            {/* Description Section */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100">
+                <h4 className="font-bold text-gray-700 text-sm flex items-center space-x-2">
+                  <Scissors className="w-4 h-4 text-purple-400" />
+                  <span>Descripción del Servicio</span>
+                </h4>
+              </div>
+              <div className="p-6">
+                <p className="text-gray-700 italic leading-relaxed">
+                  "{service.description}"
+                </p>
+              </div>
+            </div>
+
+            {/* Benefits Section */}
+            <div className="bg-gradient-to-r from-pink-50 to-purple-50 rounded-2xl p-6 border border-pink-100 shadow-sm">
+              <h4 className="font-bold text-gray-800 mb-4 flex items-center text-sm">
+                <Heart className="w-4 h-4 mr-2 text-pink-500" />
+                ¿Qué incluye este servicio?
+              </h4>
+              <ul className="grid md:grid-cols-2 gap-3">
+                {['Atención personalizada', 'Productos de alta calidad', 'Ambiente relajante', 'Garantía de satisfacción'].map((benefit, i) => (
+                  <li key={i} className="flex items-center space-x-2 text-sm text-gray-600">
+                    <Sparkles className="w-4 h-4 text-green-500" />
+                    <span>{benefit}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
+        </div>
 
-          {/* Action Buttons */}
-          <div className="flex space-x-4 justify-end">
-            <button
-              onClick={onClose}
-              className="px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
-            >
-              Cerrar
-            </button>
-            <button
-              onClick={() => {
-                onBookAppointment(service);
-                onClose();
-              }}
-              className={`px-6 py-3 bg-gradient-to-r ${service.color} text-white rounded-xl font-semibold hover:shadow-lg transition-all flex items-center space-x-2`}
-            >
-              <Calendar className="w-5 h-5" />
-              <span>Agendar Servicio</span>
-            </button>
-          </div>
+        {/* Footer - Fixed at bottom */}
+        <div className="p-5 bg-white border-t border-gray-100 flex flex-wrap gap-3 justify-end shrink-0 z-20">
+          <button
+            onClick={onClose}
+            className="px-8 py-2.5 rounded-xl font-black text-gray-500 hover:bg-gray-200 hover:text-gray-800 active:scale-95 transition-all text-sm uppercase tracking-widest shadow-sm"
+          >
+            Cerrar
+          </button>
+          <button
+            onClick={() => {
+              onBookAppointment(service);
+              onClose();
+            }}
+            className={`px-8 py-2.5 bg-gradient-to-r ${service.color} text-white rounded-xl font-black hover:shadow-lg hover:scale-105 active:scale-95 transition-all text-sm uppercase tracking-widest flex items-center space-x-2 shadow-sm`}
+          >
+            <Calendar className="w-5 h-5" />
+            <span>Agendar Ahora</span>
+          </button>
         </div>
       </div>
     </div>

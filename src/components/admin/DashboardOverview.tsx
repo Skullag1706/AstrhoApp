@@ -89,12 +89,22 @@ function getMonthStart(): Date {
 
 function isInPeriod(dateStr: string, period: Period): boolean {
   if (!dateStr) return false;
+  // Handle "YYYY-MM-DD" or ISO strings. Ensure local time comparison.
   const date = new Date(dateStr + (dateStr.includes("T") ? "" : "T00:00:00"));
   date.setHours(0, 0, 0, 0);
-  const todayStr = toLocalDateStr(new Date());
-  if (period === "today") return dateStr.startsWith(todayStr);
-  if (period === "week") return date >= getWeekStart();
-  if (period === "month") return date >= getMonthStart();
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  if (period === "today") {
+    return date.getTime() === today.getTime();
+  }
+  if (period === "week") {
+    return date >= getWeekStart();
+  }
+  if (period === "month") {
+    return date >= getMonthStart();
+  }
   return false;
 }
 
@@ -176,7 +186,6 @@ function groupAgendaByWeek(items: AgendaItem[]): ChartPoint[] {
     if (map[label] !== undefined) map[label] += 1;
   });
   return Object.entries(map)
-    .filter(([, v]) => v > 0)
     .map(([name, value]) => ({ name, value }));
 }
 
@@ -229,7 +238,6 @@ function groupSalesByWeek(sales: SaleView[]): ChartPoint[] {
     if (map[label] !== undefined) map[label] += s.total;
   });
   return Object.entries(map)
-    .filter(([, v]) => v > 0)
     .map(([name, value]) => ({ name, value }));
 }
 
@@ -342,9 +350,27 @@ export function DashboardOverview({
     isInPeriod(s.date, selectedPeriod) && s.status === "completed",
   );
 
+  // ── Charts ──
+
+  // Revenue chart
+  const incomeChartData: ChartPoint[] =
+    selectedPeriod === "today"
+      ? groupSalesByHour(periodSales)
+      : selectedPeriod === "week"
+        ? groupSalesByDay(periodSales)
+        : groupSalesByWeek(periodSales);
+
+  // Appointments chart
+  const appointmentsChartData: ChartPoint[] =
+    selectedPeriod === "today"
+      ? groupAgendaByHour(periodAgenda)
+      : selectedPeriod === "week"
+        ? groupAgendaByDay(periodAgenda)
+        : groupAgendaByWeek(periodAgenda);
+
   // ── Compute Stats ──
-  const appointmentsCount = periodAgenda.length;
-  const totalIncome = periodSales.reduce((sum, s) => sum + s.total, 0);
+  const appointmentsCount = appointmentsChartData.reduce((sum, p) => sum + p.value, 0);
+  const totalIncome = incomeChartData.reduce((sum, p) => sum + p.value, 0);
 
   const uniqueClientIds = new Set(
     periodAgenda.map((a) => a.documentoCliente).filter(Boolean),
@@ -372,24 +398,6 @@ export function DashboardOverview({
     new_clients: newClientsCount,
     total_income: totalIncome,
   };
-
-  // ── Charts ──
-
-  // Revenue chart
-  const incomeChartData: ChartPoint[] =
-    selectedPeriod === "today"
-      ? groupSalesByHour(periodSales)
-      : selectedPeriod === "week"
-        ? groupSalesByDay(periodSales)
-        : groupSalesByWeek(periodSales);
-
-  // Appointments chart
-  const appointmentsChartData: ChartPoint[] =
-    selectedPeriod === "today"
-      ? groupAgendaByHour(periodAgenda)
-      : selectedPeriod === "week"
-        ? groupAgendaByDay(periodAgenda)
-        : groupAgendaByWeek(periodAgenda);
 
   const todayAgenda = allAgenda.filter((a) => isInPeriod(a.fechaCita, "today"));
   const upcomingAppointments = todayAgenda
@@ -529,8 +537,6 @@ export function DashboardOverview({
           </h3>
           {isLoading ? (
             <div className="h-[400px] bg-gray-100 animate-pulse rounded-xl" />
-          ) : incomeChartData.every((d) => d.value === 0) ? (
-            <EmptyChart label="Sin ingresos registrados en este período" />
           ) : (
             <ResponsiveContainer width="100%" height={400}>
               <LineChart data={incomeChartData}>
@@ -565,8 +571,6 @@ export function DashboardOverview({
             </h3>
             {isLoading ? (
               <div className="h-[400px] bg-gray-100 animate-pulse rounded-xl" />
-            ) : appointmentsChartData.every((d) => d.value === 0) ? (
-              <EmptyChart label="Sin citas registradas en este período" />
             ) : (
               <ResponsiveContainer width="100%" height={400}>
                 <LineChart data={appointmentsChartData}>
