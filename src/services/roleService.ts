@@ -61,7 +61,6 @@ export const roleService = {
             { id: 2, key: 'module_users', name: 'Usuarios', module: 'users' },
             { id: 3, key: 'module_appointments', name: 'Citas', module: 'appointments' },
             { id: 4, key: 'module_services', name: 'Servicios', module: 'services' },
-            { id: 5, key: 'module_inventory', name: 'Inventario', module: 'inventory' },
             { id: 6, key: 'module_sales', name: 'Ventas', module: 'sales' },
             { id: 7, key: 'module_purchases', name: 'Compras', module: 'purchases' },
             { id: 8, key: 'module_suppliers', name: 'Proveedores', module: 'suppliers' },
@@ -71,7 +70,7 @@ export const roleService = {
             { id: 12, key: 'module_schedules', name: 'Horarios', module: 'schedules' },
             { id: 13, key: 'module_supplies', name: 'Insumos', module: 'supplies' },
             { id: 14, key: 'module_deliveries', name: 'Entregas', module: 'deliveries' },
-            { id: 15, key: 'module_reports', name: 'Reportes', module: 'reports' }
+            { id: 16, key: 'module_roles', name: 'Roles', module: 'roles' }
         ];
     }
 };

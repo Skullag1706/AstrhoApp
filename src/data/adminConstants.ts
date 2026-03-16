@@ -36,7 +36,7 @@ export const ADMIN_MENU_ITEMS: MenuItem[] = [
     id: 'roles',
     label: 'Roles',
     icon: Settings,
-    permission: 'manage_roles',
+    permission: 'module_roles',
     category: 'CONFIGURACIÓN'
   },
   // AGENDA

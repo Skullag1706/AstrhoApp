@@ -69,7 +69,6 @@ function App() {
         "module_users",
         "module_appointments",
         "module_services",
-        "module_inventory",
         "module_sales",
         "module_purchases",
         "module_suppliers",
@@ -79,14 +78,13 @@ function App() {
         "module_schedules",
         "module_supplies",
         "module_deliveries",
-        "module_reports",
+        "module_roles",
         // Legacy permissions for compatibility
         "view_dashboard",
         "manage_users",
         "manage_roles",
         "manage_appointments",
         "manage_services",
-        "manage_inventory",
         "manage_sales",
         "manage_purchases",
         "manage_suppliers",
@@ -95,8 +93,7 @@ function App() {
         "manage_categories",
         "manage_schedules",
         "manage_supplies",
-        "manage_deliveries",
-        "view_reports"
+        "manage_deliveries"
       ],
       asistente: [
         "module_dashboard",

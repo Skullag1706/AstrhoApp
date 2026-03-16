@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import {
   Shield, Users, Edit, Save, X, Plus, AlertCircle,
   CheckCircle, UserCheck, UserX, Settings, Eye, Trash2, Search,
-  LayoutDashboard, Calendar, Scissors, Package, ShoppingCart,
+  LayoutDashboard, Calendar, Scissors, ShoppingCart,
   ShoppingBag, Truck, Box, UsersRound, Tag, Clock, Boxes,
-  PackageCheck, FileText, Loader2
+  PackageCheck, Loader2
 } from 'lucide-react';
 import { mockRoles, mockPermissions } from '../../data/management';
 import { roleService, RolListDto, RolResponseDto } from '../../services/roleService';
@@ -56,7 +56,6 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
     'module_users': 2,
     'module_appointments': 3,
     'module_services': 4,
-    'module_inventory': 5,
     'module_sales': 6,
     'module_purchases': 7,
     'module_suppliers': 8,
@@ -66,7 +65,7 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
     'module_schedules': 12,
     'module_supplies': 13,
     'module_deliveries': 14,
-    'module_reports': 15
+    'module_roles': 16
   };
 
   const REVERSE_PERMISSION_MAP = Object.fromEntries(
@@ -108,6 +107,24 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
     permissions: []
   });
 
+  // Módulos permitidos para gestionar roles
+  const ALLOWED_MODULES = [
+    'dashboard',      // Dashboard
+    'users',          // Usuarios (incluye gestión de roles)
+    'appointments',   // Agendamiento
+    'schedules',      // Horarios
+    'sales',          // Ventas
+    'services',       // Servicios
+    'clients',        // Clientes
+    'purchases',      // Compras
+    'supplies',       // Insumos
+    'categories',     // Categoría de Insumos
+    'suppliers',      // Proveedores
+    'deliveries',     // Entrega de Insumos
+    'roles',          // Roles
+    'products'        // Productos
+  ];
+
   // Auto-hide success alert after 4 seconds
   useEffect(() => {
     if (showSuccessAlert) {
@@ -134,9 +151,9 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
   const moduleNames = {
     dashboard: 'Dashboard',
     users: 'Usuarios',
+    roles: 'Roles',
     appointments: 'Agendamiento',
     services: 'Servicios',
-    inventory: 'Inventario',
     sales: 'Ventas',
     purchases: 'Compras',
     suppliers: 'Proveedores',
@@ -146,17 +163,16 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
     schedules: 'Horarios',
     supplies: 'Insumos',
     deliveries: 'Entrega de Insumos',
-    orders: 'Pedidos',
-    reports: 'Reportes'
+    orders: 'Pedidos'
   };
 
   // Iconos para cada módulo
   const moduleIcons = {
     dashboard: LayoutDashboard,
     users: Users,
+    roles: Settings,
     appointments: Calendar,
     services: Scissors,
-    inventory: Package,
     sales: ShoppingCart,
     purchases: ShoppingBag,
     suppliers: Truck,
@@ -166,8 +182,7 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
     schedules: Clock,
     supplies: Boxes,
     deliveries: PackageCheck,
-    orders: ShoppingBag,
-    reports: FileText
+    orders: ShoppingBag
   };
 
   const getModuleIcon = (module: string) => {
@@ -410,7 +425,7 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
           </p>
         </div>
 
-        {hasPermission('manage_roles') && (
+        {hasPermission('module_roles') && (
           <button
             onClick={() => setShowCreateModal(true)}
             className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all flex items-center space-x-2"
@@ -522,7 +537,7 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
                           <Eye className="w-4 h-4" />
                         </button>
 
-                        {hasPermission('manage_roles') && (
+                        {hasPermission('module_roles') && (
                           <>
                             <button
                               onClick={() => handleEditRole(role)}
@@ -593,22 +608,6 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
 
       {/* Create Role Modal */}
       {showCreateModal && (() => {
-        // Módulos permitidos para crear roles
-        const allowedModules = [
-          'dashboard',      // Dashboard
-          'users',          // Usuarios (incluye gestión de roles)
-          'appointments',   // Agendamiento
-          'schedules',      // Horarios
-          'sales',          // Ventas
-          'services',       // Servicios
-          'clients',        // Clientes
-          'purchases',      // Compras
-          'supplies',       // Insumos
-          'categories',     // Categoría de Insumos
-          'suppliers',      // Proveedores
-          'deliveries'      // Entrega de Insumos
-        ];
-
         return (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -660,7 +659,7 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
                   </label>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto p-4 border border-gray-200 rounded-xl">
                     {Object.keys(permissionsByModule)
-                      .filter(module => allowedModules.includes(module))
+                      .filter(module => ALLOWED_MODULES.includes(module))
                       .sort()
                       .map(module => {
                         const ModuleIcon = getModuleIcon(module);
@@ -922,6 +921,7 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
                   </label>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-96 overflow-y-auto p-4 border border-gray-200 rounded-xl">
                     {Object.keys(permissionsByModule)
+                      .filter(module => ALLOWED_MODULES.includes(module))
                       .sort()
                       .map(module => {
                         const ModuleIcon = getModuleIcon(module);

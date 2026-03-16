@@ -533,10 +533,10 @@ export const mockRoles: Role[] = [
 
 export const mockPermissions: Permission[] = [
   { id: 'module_dashboard', name: 'Dashboard', description: 'Acceso completo al panel de control interactivo', module: 'dashboard' },
-  { id: 'module_users', name: 'Usuarios', description: 'Gestión de usuarios, roles y permisos del sistema', module: 'users' },
+  { id: 'module_users', name: 'Usuarios', description: 'Gestión de usuarios y perfiles del sistema', module: 'users' },
+  { id: 'module_roles', name: 'Roles', description: 'Gestión de roles y permisos del sistema', module: 'roles' },
   { id: 'module_appointments', name: 'Citas', description: 'Gestión integral de agendamiento y Google Calendar', module: 'appointments' },
   { id: 'module_services', name: 'Servicios', description: 'Administración de catálogo de servicios y precios', module: 'services' },
-  { id: 'module_inventory', name: 'Inventario', description: 'Control de existencias de productos e insumos', module: 'inventory' },
   { id: 'module_sales', name: 'Ventas', description: 'Registro de ventas de productos y servicios agendados', module: 'sales' },
   { id: 'module_purchases', name: 'Compras', description: 'Gestión de órdenes de compra y abastecimiento', module: 'purchases' },
   { id: 'module_suppliers', name: 'Proveedores', description: 'Directorio y gestión de proveedores del salón', module: 'suppliers' },
@@ -545,8 +545,7 @@ export const mockPermissions: Permission[] = [
   { id: 'module_categories', name: 'Categorías', description: 'Organización de servicios y productos por categorías', module: 'categories' },
   { id: 'module_schedules', name: 'Horarios', description: 'Administración de jornadas laborales y excepciones', module: 'schedules' },
   { id: 'module_supplies', name: 'Insumos', description: 'Control detallado de insumos de uso interno', module: 'supplies' },
-  { id: 'module_deliveries', name: 'Entregas', description: 'Registro de entregas de insumos al personal', module: 'deliveries' },
-  { id: 'module_reports', name: 'Reportes', description: 'Generación de informes y analítica de datos', module: 'reports' }
+  { id: 'module_deliveries', name: 'Entregas', description: 'Registro de entregas de insumos al personal', module: 'deliveries' }
 ];
 
 export const mockServices = [
