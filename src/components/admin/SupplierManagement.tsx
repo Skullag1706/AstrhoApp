@@ -502,11 +502,11 @@ function SupplierDetailModal({ supplier, onClose }) {
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
         {/* Modal Header */}
-        <div className="bg-gradient-to-r from-blue-400 to-purple-500 p-6 text-white rounded-t-3xl">
+        <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-6 text-white rounded-t-3xl">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-3xl font-bold">{supplier.name}</h3>
-              <p className="text-blue-100 text-lg">{supplier.supplierType === 'juridica' ? supplier.contactPerson : supplier.taxId}</p>
+              <p className="text-pink-100 text-lg">{supplier.supplierType === 'juridica' ? supplier.contactPerson : supplier.taxId}</p>
               <div className="mt-2">
                 <span className={`px-3 py-1 rounded-full text-sm font-semibold ${supplier.status === 'active'
                   ? 'bg-green-400 text-white'
@@ -568,10 +568,6 @@ function SupplierDetailModal({ supplier, onClose }) {
                 <div className="flex justify-between">
                   <span className="text-gray-600">Departamento:</span>
                   <span className="text-gray-800">{supplier.department || 'N/A'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Total Órdenes:</span>
-                  <span className="text-gray-800">{supplier.totalOrders}</span>
                 </div>
               </div>
             </div>
