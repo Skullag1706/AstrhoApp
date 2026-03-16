@@ -651,13 +651,13 @@ function CategoryDetailModal({ category, onClose, getProductsByCategory }) {
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[1000] flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
         {/* Modal Header */}
-        <div className="bg-gradient-to-r from-gray-100 to-gray-200 p-6 text-gray-800 rounded-t-3xl shrink-0">
+        <div className="bg-gradient-to-r from-pink-400 to-purple-500 p-6 text-white rounded-t-3xl shrink-0">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-2xl font-bold">
                 Detalles de la Categoría
               </h3>
-              <p className="text-gray-600">
+              <p className="text-pink-100">
                 {category.name}
               </p>
             </div>
@@ -690,45 +690,6 @@ function CategoryDetailModal({ category, onClose, getProductsByCategory }) {
                 <p className="text-sm text-gray-600">Descripción:</p>
                 <p className="text-lg font-bold">{category.description}</p>
               </div>
-              <div>
-                <p className="text-sm text-gray-600">Creado:</p>
-                <p className="text-lg font-bold">{category.createdAt}</p>
-              </div>
-              {category.updatedAt && (
-                <div>
-                  <p className="text-sm text-gray-600">Actualizado:</p>
-                  <p className="text-lg font-bold">{category.updatedAt}</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div>
-            <h4 className="font-semibold text-gray-800 mb-2">
-              Insumos en Categoría ({products.length})
-            </h4>
-            <div className="space-y-2 max-h-32 overflow-y-auto">
-              {products.slice(0, 5).map((product) => (
-                <div key={product.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
-                  <span className="text-sm text-gray-700">{product.name}</span>
-                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${product.stock <= product.minStock
-                    ? 'bg-red-100 text-red-800'
-                    : 'bg-green-100 text-green-800'
-                    }`}>
-                    Stock: {product.stock}
-                  </span>
-                </div>
-              ))}
-              {products.length > 5 && (
-                <div className="text-center text-xs text-gray-500">
-                  +{products.length - 5} insumos más
-                </div>
-              )}
-              {products.length === 0 && (
-                <div className="text-center text-gray-500 py-4">
-                  No hay insumos en esta categoría
-                </div>
-              )}
             </div>
           </div>
         </div>
