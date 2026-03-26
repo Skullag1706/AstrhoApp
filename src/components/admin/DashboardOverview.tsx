@@ -305,27 +305,31 @@ export function DashboardOverview({
     try {
       const [agenda, sales, clients, supplies, services] =
         await Promise.allSettled([
-          agendaService.getAll(),
-          salesService.getAll(),
-          personService.getPersons("client"),
-          supplyService.getSupplies(),
-          serviceService.getServices(),
+          agendaService.getAll({ pageSize: 1000 }), // Fetch a large number for stats
+          salesService.getAll({ pageSize: 1000 }),
+          personService.getPersons("client", { pageSize: 1000 }),
+          supplyService.getSupplies({ pageSize: 1000 }),
+          serviceService.getServices({ pageSize: 1000 }),
         ]);
 
-      if (agenda.status === "fulfilled") setAllAgenda(agenda.value);
-      if (sales.status === "fulfilled") setAllSales(sales.value);
-      if (clients.status === "fulfilled")
+      if (agenda.status === "fulfilled") setAllAgenda(agenda.value.data || []);
+      if (sales.status === "fulfilled") setAllSales(sales.value.data || []);
+      if (clients.status === "fulfilled") {
+        const clientsData = clients.value.data || [];
         setTotalClients(
-          clients.value.filter((c) => c.status === "active").length,
+          clientsData.filter((c) => c.status === "active").length,
         );
+      }
       if (supplies.status === "fulfilled") {
+        const suppliesData = supplies.value.data || [];
         setLowStockCount(
-          supplies.value.filter((s) => s.estado && s.stock <= 5).length,
+          suppliesData.filter((s) => s.estado && s.stock <= 5).length,
         );
       }
       if (services.status === "fulfilled") {
         const map = new Map<string, Service>();
-        services.value.forEach((s) => map.set(s.nombre, s));
+        const servicesData = services.value.data || [];
+        servicesData.forEach((s) => map.set(s.nombre, s));
         setServicesMap(map);
       }
 
@@ -342,11 +346,15 @@ export function DashboardOverview({
     loadData();
   }, [loadData]);
 
+  // Period filter logic (safely handle non-array state)
+  const safeAgenda = Array.isArray(allAgenda) ? allAgenda : [];
+  const safeSales = Array.isArray(allSales) ? allSales : [];
+
   // ── Filter by period ──
-  const periodAgenda = allAgenda.filter((a) =>
+  const periodAgenda = safeAgenda.filter((a) =>
     isInPeriod(a.fechaCita, selectedPeriod),
   );
-  const periodSales = allSales.filter((s) =>
+  const periodSales = safeSales.filter((s) =>
     isInPeriod(s.date, selectedPeriod) && s.status === "completed",
   );
 
@@ -377,7 +385,7 @@ export function DashboardOverview({
   );
   const clientsCount = uniqueClientIds.size;
 
-  const allPriorAgenda = allAgenda.filter(
+  const allPriorAgenda = safeAgenda.filter(
     (a) => !isInPeriod(a.fechaCita, selectedPeriod),
   );
   const priorClientIds = new Set(
@@ -399,7 +407,7 @@ export function DashboardOverview({
     total_income: totalIncome,
   };
 
-  const todayAgenda = allAgenda.filter((a) => isInPeriod(a.fechaCita, "today"));
+  const todayAgenda = safeAgenda.filter((a) => isInPeriod(a.fechaCita, "today"));
   const upcomingAppointments = todayAgenda
     .filter((a) => ["pendiente", "confirmado"].includes(a.estado.toLowerCase()))
     .sort((a, b) => (a.horaInicio || "").localeCompare(b.horaInicio || ""))

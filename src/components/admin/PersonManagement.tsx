@@ -35,22 +35,32 @@ export function PersonManagement({ hasPermission, initialType = 'client' }: Pers
     const [filterStatus, setFilterStatus] = useState('all');
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage] = useState(5);
+    const [totalCount, setTotalCount] = useState(0);
+    const [totalPages, setTotalPages] = useState(0);
 
     const [showSuccessAlert, setShowSuccessAlert] = useState(false);
     const [alertMessage, setAlertMessage] = useState('');
 
-    // Fetch data when personType changes
+    // Fetch data when personType, page or search changes
     useEffect(() => {
         fetchPersons();
+    }, [personType, currentPage, searchTerm]);
+
+    useEffect(() => {
         fetchRoles();
-        setCurrentPage(1); // Reset page on tab change
-    }, [personType]);
+    }, []);
 
     const fetchPersons = async () => {
         try {
             setLoading(true);
-            const data = await personService.getPersons(personType);
-            setPersons(data);
+            const response = await personService.getPersons(personType, {
+                page: currentPage,
+                pageSize: itemsPerPage,
+                search: searchTerm
+            });
+            setPersons(response.data || []);
+            setTotalCount(response.totalCount || 0);
+            setTotalPages(response.totalPages || 0);
         } catch (error) {
             console.error('Error fetching persons:', error);
             // Fallback to empty list or handle error UI
@@ -63,7 +73,7 @@ export function PersonManagement({ hasPermission, initialType = 'client' }: Pers
     const fetchRoles = async () => {
         try {
             const data = await roleService.getRoles();
-            setRoles(data);
+            setRoles(data.data || data || []);
         } catch (error) {
             console.error('Error fetching roles:', error);
         }
@@ -79,27 +89,13 @@ export function PersonManagement({ hasPermission, initialType = 'client' }: Pers
         }
     }, [showSuccessAlert]);
 
-    // Filter persons
-    const filteredPersons = persons.filter(person => {
-        const matchesSearch = person.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            person.documentId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            person.phone.includes(searchTerm);
-        const matchesStatus = filterStatus === 'all' || person.status === filterStatus;
+    // Reset page when search changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, personType]);
 
-        return matchesSearch && matchesStatus;
-    }).sort((a, b) => {
-        // Super admin always first
-        if (a.documentId === '8729451090') return -1;
-        if (b.documentId === '8729451090') return 1;
-        return 0;
-    });
-
-    // Pagination
-    const totalPages = Math.max(1, Math.ceil(filteredPersons.length / itemsPerPage));
-    const paginatedPersons = filteredPersons.slice(
-        (currentPage - 1) * itemsPerPage,
-        currentPage * itemsPerPage
-    );
+    // Ya no filtramos en el cliente, usamos lo que viene de la API
+    const paginatedPersons = persons;
 
     const goToPage = (page: number) => {
         setCurrentPage(page);
@@ -109,9 +105,20 @@ export function PersonManagement({ hasPermission, initialType = 'client' }: Pers
         return person.documentType || 'CC';
     };
 
-    const handleViewPerson = (person: Person) => {
-        setSelectedPerson(person);
-        setShowPersonModal(true);
+    const handleViewPerson = async (person: Person) => {
+        try {
+            setLoading(true);
+            const fullPerson = await personService.getPersonByDocument(person.documentId, person.type);
+            setSelectedPerson(fullPerson);
+            setShowPersonModal(true);
+        } catch (error) {
+            console.error('Error fetching person detail:', error);
+            // Fallback
+            setSelectedPerson(person);
+            setShowPersonModal(true);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleEditPerson = (person: Person) => {
@@ -372,7 +379,7 @@ export function PersonManagement({ hasPermission, initialType = 'client' }: Pers
                         Lista de {personType === 'client' ? 'Clientes' : 'Empleados'}
                     </h3>
                     <p className="text-gray-600">
-                        {filteredPersons.length} registro{filteredPersons.length !== 1 ? 's' : ''} encontrado{filteredPersons.length !== 1 ? 's' : ''}
+                        {totalCount} registro{totalCount !== 1 ? 's' : ''} encontrado{totalCount !== 1 ? 's' : ''}
                     </p>
                 </div>
 
@@ -490,15 +497,14 @@ export function PersonManagement({ hasPermission, initialType = 'client' }: Pers
                 </div>
 
                 {/* Pagination */}
-                {filteredPersons.length > 0 && (
-                    <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-gray-50/50">
-                        <div className="text-sm text-gray-600">
-                            Mostrando {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredPersons.length)} de {filteredPersons.length} registros
-                        </div>
+                {totalCount > 0 && (
+                    <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50">
                         <SimplePagination
                             totalPages={totalPages}
                             currentPage={currentPage}
                             onPageChange={goToPage}
+                            totalRecords={totalCount}
+                            recordsPerPage={itemsPerPage}
                         />
                     </div>
                 )}

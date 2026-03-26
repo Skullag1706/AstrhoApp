@@ -313,19 +313,13 @@ export function SupplyManagement({ hasPermission }: SupplyManagementProps) {
           </div>
 
           {/* Footer */}
-          <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
-            <div className="text-sm text-gray-600">
-              Mostrando {filteredSupplies.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0}
-              {' - '}
-              {Math.min(currentPage * itemsPerPage, filteredSupplies.length)}
-              {' de '}
-              {filteredSupplies.length} registros
-            </div>
-
+          <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50">
             <SimplePagination
               totalPages={totalPages}
               currentPage={currentPage}
               onPageChange={goToPage}
+              totalRecords={filteredSupplies.length}
+              recordsPerPage={itemsPerPage}
             />
           </div>
         </div>

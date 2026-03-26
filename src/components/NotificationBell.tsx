@@ -55,7 +55,8 @@ export function NotificationBell({ currentUser }: NotificationBellProps) {
       const newAlerts: Alert[] = [];
 
       // 1. Check Low Stock
-      const supplies = await supplyService.getSupplies();
+      const suppliesRes = await supplyService.getSupplies();
+      const supplies = suppliesRes.data || [];
       const lowStockItems = supplies.filter((s: any) => s.estado && s.stock <= 5);
       
       if (lowStockItems.length > 0) {
@@ -73,7 +74,8 @@ export function NotificationBell({ currentUser }: NotificationBellProps) {
 
       // 2. Check Completed Appointments Today
       const today = new Date().toISOString().split('T')[0];
-      const agenda = await agendaService.getAll();
+      const agendaRes = await agendaService.getAll();
+      const agenda = agendaRes.data || [];
       const completedToday = agenda.filter(a => 
         a.fechaCita === today && 
         a.estado.toLowerCase() === 'completado'

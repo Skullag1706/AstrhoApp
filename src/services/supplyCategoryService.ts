@@ -1,4 +1,4 @@
-import { apiClient } from './apiClient';
+import { apiClient, PaginatedResponse } from './apiClient';
 
 export interface Category {
     categoriaId: number;
@@ -11,8 +11,29 @@ export interface Category {
 }
 
 export const supplyCategoryService = {
-    async getCategories(): Promise<Category[]> {
-        return apiClient.get('/Categorias');
+    async getCategories(params?: { page?: number; pageSize?: number; search?: string }): Promise<PaginatedResponse<Category>> {
+        const response = await apiClient.get<any>('/Categorias', params);
+        
+        if (response && response.data && Array.isArray(response.data)) {
+            return response;
+        }
+
+        // Fallback
+        if (Array.isArray(response)) {
+            return {
+                data: response,
+                totalCount: response.length,
+                page: params?.page || 1,
+                pageSize: params?.pageSize || response.length,
+                totalPages: 1
+            };
+        }
+
+        return { data: [], totalCount: 0, page: 1, pageSize: 10, totalPages: 0 };
+    },
+
+    async getCategoryById(id: number): Promise<Category> {
+        return apiClient.get(`/Categorias/${id}`);
     },
 
     async createCategory(category: Omit<Category, 'categoriaId' | 'cantidadProductos'>): Promise<Category> {

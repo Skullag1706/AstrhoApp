@@ -1,10 +1,10 @@
-import { apiClient } from './apiClient';
+import { apiClient, PaginatedResponse } from './apiClient';
 
 export interface Supply {
     insumoId: number;
     sku: string;
     nombre: string;
-    descripcion?: string;
+    descripcion: string;
     categoriaId: number;
     categoriaNombre?: string;
     estado: boolean;
@@ -12,8 +12,15 @@ export interface Supply {
 }
 
 export const supplyService = {
-    async getSupplies(): Promise<Supply[]> {
-        return apiClient.get('/Insumo');
+    async getSupplies(params?: { page?: number; pageSize?: number; search?: string }): Promise<PaginatedResponse<Supply>> {
+        return apiClient.get('/Insumo', params);
+    },
+
+    async getSupplyById(id: number): Promise<Supply> {
+        const raw = await apiClient.get(`/Insumo/${id}`);
+        // Unwrap $values if the API returns a wrapped object
+        if (raw && raw.$values) return raw.$values;
+        return raw;
     },
 
     async createSupply(supply: Omit<Supply, 'insumoId'>): Promise<Supply> {
@@ -33,13 +40,6 @@ export const supplyService = {
         return apiClient.delete(`/Insumo/${id}`);
     },
 
-    async getSupplyById(id: number): Promise<Supply> {
-        const raw = await apiClient.get(`/Insumo/${id}`);
-        // Unwrap $values if the API returns a wrapped object
-        if (raw && raw.$values) return raw.$values;
-        return raw;
-    },
-
     async updateStock(insumoId: number, delta: number): Promise<Supply> {
         // 1. Fetch the full current supply
         const supply = await supplyService.getSupplyById(insumoId);
@@ -56,7 +56,7 @@ export const supplyService = {
             stock: newStock,
         };
 
-        const result = await apiClient.put(`/Insumo/${insumoId}`, updatePayload);
+        const result = await apiClient.put(`/Insumos/${insumoId}`, updatePayload);
         if (!result) {
             return { ...supply, stock: newStock };
         }

@@ -1,4 +1,4 @@
-import { apiClient } from './apiClient';
+import { apiClient, PaginatedResponse } from './apiClient';
 
 export interface SupplierAPI {
     proveedorId?: number;
@@ -17,8 +17,8 @@ export interface SupplierAPI {
 }
 
 export const supplierService = {
-    getAll: async (): Promise<SupplierAPI[]> => {
-        return apiClient.get('/Proveedores');
+    getAll: async (params?: { page?: number; pageSize?: number; search?: string }): Promise<PaginatedResponse<SupplierAPI>> => {
+        return apiClient.get<PaginatedResponse<SupplierAPI>>('/Proveedores', params);
     },
 
     getById: async (id: number): Promise<SupplierAPI> => {

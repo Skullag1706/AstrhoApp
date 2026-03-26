@@ -1,4 +1,4 @@
-import { apiClient } from './apiClient';
+import { apiClient, PaginatedResponse } from './apiClient';
 
 export interface DeliveryDetail {
     insumoId: number;
@@ -88,14 +88,29 @@ const mapBackendToDelivery = (data: any): Delivery => {
 
 export const deliveryService = {
     // GET ALL
-    async getDeliveries(): Promise<Delivery[]> {
-        const response: any = await apiClient.get('/Entregas');
+    async getDeliveries(params?: { page?: number; pageSize?: number; search?: string }): Promise<PaginatedResponse<Delivery>> {
+        const response: any = await apiClient.get('/Entregas', params);
         
-        // Unwrap $values for top level
+        if (response && response.data && Array.isArray(response.data)) {
+            return {
+                ...response,
+                data: response.data.map(mapBackendToDelivery)
+            };
+        }
+
+        // Fallback
         const data = response?.$values || response;
-        if (!Array.isArray(data)) return [];
+        if (Array.isArray(data)) {
+            return {
+                data: data.map(mapBackendToDelivery),
+                totalCount: data.length,
+                page: params?.page || 1,
+                pageSize: params?.pageSize || data.length,
+                totalPages: 1
+            };
+        }
         
-        return data.map(mapBackendToDelivery);
+        return { data: [], totalCount: 0, page: 1, pageSize: 10, totalPages: 0 };
     },
 
     // GET ONE

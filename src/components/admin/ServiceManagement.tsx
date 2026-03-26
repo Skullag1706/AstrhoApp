@@ -63,6 +63,8 @@ export function ServiceManagement({ hasPermission }: ServiceManagementProps) {
   const [filterStatus, setFilterStatus] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(5);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
   const [showErrorModal, setShowErrorModal] = useState(false);
@@ -211,12 +213,18 @@ export function ServiceManagement({ hasPermission }: ServiceManagementProps) {
   const fetchServices = async () => {
     setIsLoading(true);
     try {
-      const data = await serviceService.getServices();
-      console.log('Services API Data Raw:', data);
+      const response = await serviceService.getServices({
+        page: currentPage,
+        pageSize: itemsPerPage,
+        search: searchTerm
+      });
 
-      // Handle array or object with data property
-      const servicesArray = Array.isArray(data) ? data : (data as any).data || [];
-      console.log('Processed Services Array:', servicesArray);
+      console.log('Services API Data Raw:', response);
+
+      // El backend ahora devuelve un objeto PaginatedResponse
+      const servicesArray = response.data || [];
+      setTotalCount(response.totalCount || 0);
+      setTotalPages(response.totalPages || 0);
 
       setServices(servicesArray.map(mapServiceToUI));
     } catch (error) {
@@ -230,7 +238,12 @@ export function ServiceManagement({ hasPermission }: ServiceManagementProps) {
 
   useEffect(() => {
     fetchServices();
-  }, []);
+  }, [currentPage, searchTerm]); // Se ejecuta cuando cambia la página o el término de búsqueda
+
+  // Reset page when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
   // Auto-hide success alert after 4 seconds
   useEffect(() => {
@@ -242,20 +255,8 @@ export function ServiceManagement({ hasPermission }: ServiceManagementProps) {
     }
   }, [showSuccessAlert]);
 
-  const filteredServices = services.filter(service => {
-    const matchesSearch = service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      service.description.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = filterStatus === 'all' || service.status === filterStatus;
-
-    return matchesSearch && matchesStatus;
-  });
-
-  // Pagination calculations
-  const totalPages = Math.ceil(filteredServices.length / itemsPerPage);
-  const paginatedServices = filteredServices.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  // Ya no filtramos en el cliente, usamos lo que viene de la API
+  const paginatedServices = services;
 
   const goToPreviousPage = () => {
     setCurrentPage(prev => Math.max(prev - 1, 1));
@@ -265,9 +266,18 @@ export function ServiceManagement({ hasPermission }: ServiceManagementProps) {
     setCurrentPage(prev => Math.min(prev + 1, totalPages));
   };
 
-  const handleViewDetail = (service: any) => {
-    setSelectedService(service);
-    setShowDetailModal(true);
+  const handleViewDetail = async (service: any) => {
+    try {
+      setIsLoading(true);
+      const fullService = await serviceService.getServiceById(service.id);
+      setSelectedService(mapServiceToUI(fullService));
+      setShowDetailModal(true);
+    } catch (error) {
+      console.error('Error fetching service detail:', error);
+      toast.error('No se pudo cargar el detalle del servicio');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleEditService = (service: any) => {
@@ -472,6 +482,12 @@ export function ServiceManagement({ hasPermission }: ServiceManagementProps) {
 
         {/* Services Table */}
         <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+          <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-6 border-b border-gray-100">
+            <h3 className="text-xl font-bold text-gray-800">Lista de Servicios</h3>
+            <p className="text-gray-600">
+              {totalCount} servicio{totalCount !== 1 ? 's' : ''} encontrado{totalCount !== 1 ? 's' : ''}
+            </p>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50">
@@ -561,14 +577,13 @@ export function ServiceManagement({ hasPermission }: ServiceManagementProps) {
           </div>
 
           {/* Pagination */}
-          <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
-            <div className="text-sm text-gray-600">
-              Mostrando {filteredServices.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} - {Math.min(currentPage * itemsPerPage, filteredServices.length)} de {filteredServices.length} registros
-            </div>
+          <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50">
             <SimplePagination
               totalPages={totalPages}
               currentPage={currentPage}
               onPageChange={setCurrentPage}
+              totalRecords={totalCount}
+              recordsPerPage={itemsPerPage}
             />
           </div>
         </div>

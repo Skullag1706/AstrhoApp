@@ -1,15 +1,22 @@
-import React, { useEffect, useState  } from 'react';
-import { CheckCircle, 
+import React, { useEffect, useState, useRef } from 'react';
+import { 
+  CheckCircle, 
   DollarSign, Plus, Search, Filter, Eye, X, Calendar,
-  CreditCard, TrendingUp, Users,
+  CreditCard, TrendingUp, Users, User,
   Ban, FileText, Scissors,
-  AlertCircle, Save, Clock, ShoppingBag, Phone, Loader2
+  AlertCircle, Save, Clock, ShoppingBag, Phone, Loader2,
+  Check, ChevronsUpDown, Trash2, Briefcase
 } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { salesService, SaleView } from '../../services/salesService';
 import { userService } from '../../services/userService';
-import { personService } from '../../services/personService';
+import { personService, Person } from '../../services/personService';
+import { serviceService, Service } from '../../services/serviceService';
+import { supplyService, Supply } from '../../services/supplyService';
+import { metodoPagoService, MetodoPago } from '../../services/agendaService';
 import { SimplePagination } from '../ui/simple-pagination';
+import { cn } from '../ui/utils';
+import { Button } from '../ui/button';
 
 interface SalesManagementProps {
   hasPermission: (permission: string) => boolean;
@@ -21,49 +28,49 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
   const [selectedSale, setSelectedSale] = useState<SaleView | null>(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showCancelModal, setCancelModal] = useState(false);
+  const [showNewSaleModal, setShowNewSaleModal] = useState(false);
   const [saleToCancel, setSaleToCancel] = useState<SaleView | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(5);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await salesService.getAll({
+        page: currentPage,
+        pageSize: itemsPerPage,
+        search: searchTerm
+      });
+      setSales(response.data || []);
+      setTotalCount(response.totalCount || 0);
+      setTotalPages(response.totalPages || 0);
+    } catch (err) {
+      console.error('Error loading sales:', err);
+      setError('Error al cargar ventas');
+      toast.error('Error al cargar ventas');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await salesService.getAll();
-        setSales(data);
-      } catch (err) {
-        console.error('Error loading sales:', err);
-        setError('Error al cargar ventas');
-        toast.error('Error al cargar ventas');
-      } finally {
-        setLoading(false);
-      }
-    };
     load();
-  }, []);
+  }, [currentPage, searchTerm]);
 
-  // Filter sales based on search and filters
-  const filteredSales = sales.filter(sale => {
-    const matchesSearch =
-      sale.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (sale.customerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (String(sale.customerId || '')).toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = filterStatus === 'all' || sale.status === filterStatus;
-    
-    return matchesSearch && matchesStatus;
-  });
+  // Reset page when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
-  // Pagination
-  const totalPages = Math.ceil(filteredSales.length / itemsPerPage);
-  const paginatedSales = filteredSales.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  // Ya no filtramos en el cliente, usamos lo que viene de la API
+  const paginatedSales = sales;
 
   const goToPage = (page: number) => {
     setCurrentPage(page);
@@ -149,17 +156,23 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
     }
   };
 
-  const handleCreateSale = (saleData) => {
-    // Creando nueva venta
-    const newSale = {
-      id: `VNT-${String(Math.max(...sales.map(s => parseInt(s.id.split('-')[1])), 0) + 1).padStart(3, '0')}`,
-      ...saleData,
-      createdAt: new Date().toISOString().split('T')[0],
-      updatedAt: new Date().toISOString().split('T')[0]
-    };
-    setSales([...sales, newSale]);
-    toast.success(`Venta ${newSale.id} registrada correctamente`);
-    // setShowNewSaleModal(false); // Esta función no parece estar definida en el scope actual, pero la mantengo si existiera
+  const handleCreateSale = async (saleData: any) => {
+    try {
+      setLoading(true);
+      const createdSale = await salesService.create(saleData);
+      if (createdSale) {
+        setSales([createdSale, ...sales]);
+        toast.success(`Venta ${createdSale.id} registrada correctamente`);
+        setShowNewSaleModal(false);
+      } else {
+        throw new Error('No se pudo registrar la venta');
+      }
+    } catch (err) {
+      console.error('Error creating sale:', err);
+      toast.error('Error al registrar la venta. Verifique los datos.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handlePrintReceipt = (sale) => {
@@ -262,6 +275,15 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
             Registro y seguimiento de todas las ventas del salón
           </p>
         </div>
+        {hasPermission('manage_sales') && (
+          <button
+            onClick={() => setShowNewSaleModal(true)}
+            className="flex items-center space-x-2 bg-pink-500 hover:bg-pink-600 text-white px-6 py-3 rounded-xl transition-all shadow-lg hover:shadow-pink-200 active:scale-95 font-bold"
+          >
+            <Plus className="w-5 h-5" />
+            <span>Registrar Venta</span>
+          </button>
+        )}
       </div>
 
       {/* Search and Filters */}
@@ -331,7 +353,7 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
                       
                       <td className="px-6 py-4">
                         <div className="font-bold text-green-600">
-                          ${sale.total.toLocaleString()}
+                          ${(sale.total || 0).toLocaleString()}
                         </div>
                       </td>
                       
@@ -383,14 +405,13 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
         </div>
 
         {/* Updated Pagination */}
-        <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
-          <div className="text-sm text-gray-600">
-            Mostrando {filteredSales.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} - {Math.min(currentPage * itemsPerPage, filteredSales.length)} de {filteredSales.length} registros
-          </div>
+        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50">
           <SimplePagination
             totalPages={totalPages}
             currentPage={currentPage}
             onPageChange={goToPage}
+            totalRecords={totalCount}
+            recordsPerPage={itemsPerPage}
           />
         </div>
       </div>
@@ -418,6 +439,342 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
           hasPermission={hasPermission}
         />
       )}
+
+      {/* New Sale Modal */}
+      {showNewSaleModal && (
+        <NewSaleModal
+          onClose={() => setShowNewSaleModal(false)}
+          onSubmit={handleCreateSale}
+          currentUser={currentUser}
+        />
+      )}
+    </div>
+  );
+}
+
+// New Sale Modal Component
+function NewSaleModal({ onClose, onSubmit, currentUser }: {
+  onClose: () => void;
+  onSubmit: (data: any) => void;
+  currentUser: any;
+}) {
+  const [submitting, setSubmitting] = useState(false);
+  
+  // Form state
+  const [selectedClientId, setSelectedClientId] = useState('');
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
+  const [selectedServices, setSelectedServices] = useState<any[]>([]);
+  const [paymentMethodId, setPaymentMethodId] = useState<number>(0);
+  const [availablePaymentMethods, setAvailablePaymentMethods] = useState<MetodoPago[]>([]);
+  const [notes, setNotes] = useState('');
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Fetch payment methods
+  useEffect(() => {
+    const fetchMethods = async () => {
+      try {
+        const methods = await metodoPagoService.getAll();
+        setAvailablePaymentMethods(Array.isArray(methods) ? methods : []);
+        if (methods && methods.length > 0) {
+          setPaymentMethodId(methods[0].metodopagoId);
+        }
+      } catch (err) {
+        console.error('Error fetching payment methods:', err);
+      }
+    };
+    fetchMethods();
+  }, []);
+
+  // Set default employee if currentUser is an employee
+  useEffect(() => {
+    if (currentUser?.documento) {
+      setSelectedEmployeeId(currentUser.documento);
+    }
+  }, [currentUser]);
+
+  const addService = (service: any) => {
+    // Permite servicios duplicados en ventas si se desea, 
+    // pero para consistencia con Agenda podríamos validarlo.
+    // En ventas es común repetir ítems, así que lo dejamos libre.
+    setSelectedServices([...selectedServices, {
+      serviceId: service.servicioId,
+      name: service.nombre,
+      price: Number(service.precio) || 0,
+      totalPrice: Number(service.precio) || 0
+    }]);
+  };
+
+  const removeService = (index: number) => {
+    setSelectedServices(selectedServices.filter((_, i) => i !== index));
+  };
+
+  const total = selectedServices.reduce((sum, s) => sum + (Number(s.totalPrice) || 0), 0);
+
+  const handleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const newErrors: Record<string, string> = {};
+    if (!selectedClientId) newErrors.cliente = 'Selecciona un cliente';
+    if (!selectedEmployeeId) newErrors.empleado = 'Selecciona un profesional';
+    if (selectedServices.length === 0) newErrors.servicios = 'Agrega al menos un servicio';
+    if (!paymentMethodId) newErrors.metodoPago = 'Selecciona un método de pago';
+    
+    setErrors(newErrors);
+    if (Object.keys(newErrors).length > 0) return;
+
+    setSubmitting(true);
+    const saleData = {
+      clienteId: selectedClientId,
+      empleadoId: selectedEmployeeId,
+      metodoPagoId: paymentMethodId,
+      items: selectedServices.map(s => ({
+        tipo: 'service',
+        id: s.serviceId,
+        cantidad: 1,
+        precioUnitario: s.price,
+        total: s.totalPrice
+      })),
+      subtotal: total,
+      descuento: 0,
+      total,
+      observaciones: notes || 'Sin observaciones',
+      estado: true
+    };
+
+    try {
+      await onSubmit(saleData);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+        {/* Header - Fixed at top */}
+        <div className="bg-gradient-to-r from-pink-500 to-purple-600 p-5 text-white shrink-0 shadow-md z-20">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm shadow-inner">
+                <ShoppingBag className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold leading-tight">Registrar Nueva Venta</h3>
+                <p className="text-pink-100 text-sm">Registra servicios realizados y procesa el pago</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={handleFormSubmit}
+                disabled={submitting}
+                className="flex items-center space-x-2 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-xl transition-all font-bold text-xs uppercase tracking-widest backdrop-blur-sm shadow-sm"
+              >
+                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                <span>{submitting ? 'Guardando...' : 'Finalizar'}</span>
+              </button>
+              <button
+                onClick={onClose}
+                className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Scrollable Body */}
+        <div className="flex-1 overflow-y-auto p-6 lg:p-8 bg-gray-50/30 no-scrollbar">
+          <style>{`
+            .no-scrollbar::-webkit-scrollbar { display: none; }
+            .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+          `}</style>
+
+          <form onSubmit={handleFormSubmit} className="max-w-4xl mx-auto space-y-6">
+            {/* Form Alert */}
+            {Object.keys(errors).length > 0 && (
+              <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-xl flex items-center space-x-3 animate-in slide-in-from-left-2 duration-200">
+                <AlertCircle className="w-5 h-5 text-red-500" />
+                <p className="text-sm text-red-700">Por favor, completa los campos obligatorios.</p>
+              </div>
+            )}
+
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Client Info Card */}
+              <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-5">
+                <div className="flex items-center space-x-2 text-pink-500">
+                  <Users className="w-4 h-4" />
+                  <h4 className="font-bold uppercase text-[10px] tracking-widest">Información del Cliente</h4>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="bg-pink-50/30 p-4 rounded-2xl border border-pink-100">
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Buscar Cliente *</label>
+                    <ClientSearchSelect
+                      selectedDocument={selectedClientId}
+                      onSelect={(cli: any) => setSelectedClientId(cli.documentoCliente)}
+                      error={!!errors.cliente}
+                    />
+                    {errors.cliente && (
+                      <p className="text-[10px] text-red-500 mt-1 ml-1">{errors.cliente}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Método de Pago *</label>
+                    <div className="relative">
+                      <select
+                        value={paymentMethodId}
+                        onChange={(e) => setPaymentMethodId(parseInt(e.target.value))}
+                        className={cn(
+                          "w-full px-4 py-3 bg-gray-50/50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all font-medium text-gray-700 appearance-none shadow-sm",
+                          errors.metodoPago ? 'border-red-300' : 'border-gray-200'
+                        )}
+                      >
+                        <option value={0}>Seleccionar método...</option>
+                        {availablePaymentMethods.map(method => (
+                          <option key={method.metodopagoId} value={method.metodopagoId}>
+                            {method.nombre}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none">
+                        <CreditCard className="w-4 h-4 text-pink-400" />
+                      </div>
+                    </div>
+                    {errors.metodoPago && (
+                      <p className="text-[10px] text-red-500 mt-1 ml-1">{errors.metodoPago}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Employee Card */}
+              <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm space-y-5">
+                <div className="flex items-center space-x-2 text-purple-500">
+                  <Briefcase className="w-4 h-4" />
+                  <h4 className="font-bold uppercase text-[10px] tracking-widest">Profesional Asignado</h4>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="relative">
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Atendido por *</label>
+                    <ProfessionalSearchSelect
+                      selectedDocument={selectedEmployeeId}
+                      onSelect={(emp: any) => setSelectedEmployeeId(emp.documentoEmpleado)}
+                      checkEmployeeOccupied={() => false} // No validamos ocupación en ventas directas
+                      checkEmployeeHasSchedule={() => true} // Siempre permitimos vender
+                      error={!!errors.empleado}
+                    />
+                    {errors.empleado && <p className="text-[10px] text-red-500 mt-1 ml-1">{errors.empleado}</p>}
+                  </div>
+
+                  <div className="bg-purple-50/30 p-4 rounded-2xl border border-purple-100 min-h-[100px]">
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Observaciones</label>
+                    <textarea
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      className="w-full bg-transparent border-none focus:ring-0 text-sm text-gray-700 resize-none p-0"
+                      rows={3}
+                      placeholder="Detalles adicionales de la venta..."
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Services Selection Section */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100 flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Scissors className="w-4 h-4 text-pink-400" />
+                  <h4 className="font-bold text-gray-700 text-sm">Servicios Prestados</h4>
+                </div>
+                <div className="w-64">
+                  <ServiceSearchSelect
+                    selectedServiceId={0}
+                    onSelect={(s: any) => addService(s)}
+                    allSelectedIds={[]} // Permitimos duplicados en ventas
+                  />
+                </div>
+              </div>
+
+              <div className="p-6">
+                {selectedServices.length > 0 ? (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {selectedServices.map((s, index) => (
+                      <div key={index} className="flex items-center gap-4 bg-gray-50/50 p-4 rounded-2xl border border-gray-100 group hover:border-pink-200 transition-all">
+                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center border border-gray-100 group-hover:bg-pink-50 group-hover:text-pink-500 transition-colors">
+                          <Scissors className="w-4 h-4 text-gray-400" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-bold text-gray-800">{s.name}</p>
+                          <p className="text-xs font-black text-pink-500">${s.price.toLocaleString()}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeService(index)}
+                          className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-10 border-2 border-dashed border-gray-100 rounded-3xl">
+                    <Plus className="w-10 h-10 text-gray-200 mx-auto mb-2" />
+                    <p className="text-sm text-gray-400 font-medium">No has agregado ningún servicio aún</p>
+                  </div>
+                )}
+                {errors.servicios && <p className="text-red-500 text-[10px] mt-2 text-center font-black uppercase tracking-widest">{errors.servicios}</p>}
+              </div>
+
+              {/* Totals Summary */}
+              {selectedServices.length > 0 && (
+                <div className="px-8 py-6 bg-gray-900 text-white border-t border-gray-100 flex flex-wrap justify-between items-center gap-4">
+                  <div className="flex items-center space-x-8">
+                    <div>
+                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Items</span>
+                      <span className="text-xl font-bold text-purple-400">{selectedServices.length}</span>
+                    </div>
+                    <div className="w-px h-10 bg-gray-700 hidden md:block"></div>
+                    <div>
+                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Subtotal</span>
+                      <span className="text-xl font-bold text-gray-300">${total.toLocaleString()}</span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] font-black text-purple-400 uppercase tracking-[0.2em] block mb-1">Total a Pagar</span>
+                    <span className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-purple-500">
+                      ${total.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </form>
+        </div>
+
+        {/* Footer - Fixed at bottom */}
+        <div className="p-5 bg-white border-t border-gray-100 flex flex-wrap gap-3 justify-end shrink-0 z-20">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-8 py-2.5 rounded-xl font-black text-gray-500 hover:bg-gray-200 hover:text-gray-800 active:scale-95 transition-all text-sm uppercase tracking-widest shadow-sm"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleFormSubmit}
+            disabled={submitting || selectedServices.length === 0}
+            className="px-8 py-2.5 bg-gradient-to-r from-pink-400 to-purple-500 text-white rounded-xl font-black hover:shadow-lg active:scale-95 transition-all text-sm uppercase tracking-widest shadow-md flex items-center space-x-2"
+          >
+            {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            <span>{submitting ? 'Procesando...' : 'Finalizar Venta'}</span>
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -509,6 +866,498 @@ function CancelSaleModal({ sale, isConfirming, onClose, onConfirm }: {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════
+// Reusable Search Select Components (Styled like Agenda)
+// ══════════════════════════════════════════
+
+function ClientSearchSelect({ onSelect, selectedDocument, error, disabled }: any) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedClient, setSelectedClient] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchSelected = async () => {
+      if (selectedDocument && !selectedClient) {
+        try {
+          const client = await personService.getPersonByDocument(selectedDocument, 'client');
+          const mapped = {
+            documentoCliente: client.documentId,
+            nombre: client.name,
+            telefono: client.phone
+          };
+          setSelectedClient(mapped);
+        } catch (e) {
+          console.warn('Error fetching selected client:', e);
+        }
+      }
+    };
+    fetchSelected();
+  }, [selectedDocument, selectedClient]);
+
+  useEffect(() => {
+    const fetchClients = async () => {
+      if (!searchTerm.trim()) {
+        setSearchResults([]);
+        return;
+      }
+      setLoading(true);
+      try {
+        const res = await personService.getPersons('client', { search: searchTerm, pageSize: 20 });
+        const mapped = res.data.map(p => ({
+          documentoCliente: p.documentId,
+          nombre: p.name,
+          telefono: p.phone
+        }));
+        setSearchResults(mapped);
+      } catch (err) {
+        console.error('Error searching clients:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const timer = setTimeout(fetchClients, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+        setSearchTerm('');
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div className={`relative ${isOpen ? 'z-50' : ''}`} ref={dropdownRef}>
+      <div
+        className={cn(
+          "w-full px-4 py-3 min-h-[48px] border rounded-xl flex items-center justify-between cursor-pointer bg-white transition-all",
+          error ? 'border-red-300' : 'border-gray-300',
+          disabled && 'bg-gray-100 cursor-not-allowed opacity-100'
+        )}
+        onClick={() => !disabled && setIsOpen(true)}
+      >
+        {!isOpen && !selectedClient ? (
+          <div className="flex items-center gap-2">
+            <User className="w-4 h-4 text-pink-400" />
+            <span className="text-gray-500 text-sm">Seleccionar cliente...</span>
+          </div>
+        ) : !isOpen && selectedClient ? (
+          <div className="flex items-center gap-2">
+            <User className="w-4 h-4 text-pink-400" />
+            <span className="text-gray-800 font-medium text-sm">{selectedClient.nombre}</span>
+          </div>
+        ) : (
+          <div className="flex-1 flex items-center">
+            {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin text-pink-400" /> : <Search className="text-gray-400 w-4 h-4 mr-2" />}
+            <input
+              type="text"
+              className="w-full bg-transparent text-sm focus:outline-none"
+              placeholder="Buscar por nombre o documento..."
+              value={searchTerm}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+              autoFocus
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            />
+          </div>
+        )}
+        <ChevronsUpDown className={cn(
+          "w-4 h-4 text-gray-500 transition-transform",
+          isOpen && 'rotate-180'
+        )} />
+      </div>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200">
+          <div className="max-h-60 overflow-y-auto py-1">
+            {loading && searchResults.length === 0 ? (
+               <div className="p-4 text-sm text-gray-500 text-center">Buscando...</div>
+            ) : searchResults.length === 0 ? (
+              <div className="p-4 text-sm text-gray-500 text-center">
+                {searchTerm ? 'No se encontraron clientes' : 'Escribe para buscar...'}
+              </div>
+            ) : (
+              searchResults.map((client: any) => (
+                <div
+                  key={client.documentoCliente}
+                  className={cn(
+                    "px-4 py-3 hover:bg-pink-50 cursor-pointer text-sm flex justify-between items-center transition-colors",
+                    client.documentoCliente === selectedDocument ? 'bg-pink-100 text-pink-700 font-semibold' : 'text-gray-800'
+                  )}
+                  onClick={(e: React.MouseEvent) => {
+                    e.stopPropagation();
+                    onSelect(client);
+                    setSelectedClient(client);
+                    setIsOpen(false);
+                    setSearchTerm('');
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <Check
+                      className={cn(
+                        "h-4 w-4 text-pink-500",
+                        client.documentoCliente === selectedDocument ? "opacity-100" : "opacity-0"
+                      )}
+                    />
+                    <div className="flex flex-col">
+                      <span className="font-medium">{client.nombre}</span>
+                      <span className="text-xs text-gray-500">{client.documentoCliente}</span>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProfessionalSearchSelect({
+  selectedDocument,
+  onSelect,
+  checkEmployeeOccupied,
+  checkEmployeeHasSchedule,
+  disabled,
+  error
+}: any) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const fetchSelected = async () => {
+      if (selectedDocument && !selectedEmployee) {
+        try {
+          const emp = await personService.getPersonByDocument(selectedDocument, 'employee');
+          const mapped = {
+            documentoEmpleado: emp.documentId,
+            nombre: emp.name,
+            telefono: emp.phone
+          };
+          setSelectedEmployee(mapped);
+        } catch (e) {
+          console.warn('Error fetching selected employee:', e);
+        }
+      }
+    };
+    fetchSelected();
+  }, [selectedDocument, selectedEmployee]);
+
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      if (!searchTerm.trim()) {
+        setSearchResults([]);
+        return;
+      }
+      setLoading(true);
+      try {
+        const res = await personService.getPersons('employee', { search: searchTerm, pageSize: 20 });
+        const mapped = res.data.map(p => ({
+          documentoEmpleado: p.documentId,
+          nombre: p.name,
+          telefono: p.phone
+        }));
+        setSearchResults(mapped);
+      } catch (err) {
+        console.error('Error searching employees:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const timer = setTimeout(fetchEmployees, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+        setSearchTerm('');
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  return (
+    <div className="relative w-full" ref={containerRef}>
+      <div
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        className={cn(
+          "flex items-center justify-between w-full px-4 py-3 border rounded-xl transition-all cursor-pointer bg-white",
+          error ? "border-red-300 ring-red-100" : "border-gray-300 ring-pink-100",
+          !disabled && "hover:border-pink-300 focus-within:ring-2",
+          disabled && "bg-gray-100 cursor-not-allowed opacity-75"
+        )}
+      >
+        {!isOpen && !selectedEmployee ? (
+          <div className="flex items-center gap-2">
+            <User className="w-4 h-4 text-pink-400" />
+            <span className="text-gray-500 text-sm">Seleccionar profesional...</span>
+          </div>
+        ) : !isOpen && selectedEmployee ? (
+          <div className="flex items-center gap-2">
+            <User className="w-4 h-4 text-pink-400" />
+            <span className="text-gray-800 font-medium text-sm">{selectedEmployee.nombre}</span>
+          </div>
+        ) : (
+          <div className="flex-1 flex items-center">
+            {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin text-pink-400" /> : <Search className="text-gray-400 w-4 h-4 mr-2" />}
+            <input
+              type="text"
+              className="w-full bg-transparent text-sm focus:outline-none"
+              placeholder="Buscar profesional..."
+              value={searchTerm}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+              autoFocus
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            />
+          </div>
+        )}
+        <ChevronsUpDown className={cn(
+          "w-4 h-4 text-gray-500 transition-transform",
+          isOpen && 'rotate-180'
+        )} />
+      </div>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200">
+          <div className="max-h-[280px] overflow-y-auto py-1">
+            {loading && searchResults.length === 0 ? (
+               <div className="p-4 text-sm text-gray-500 text-center">Buscando...</div>
+            ) : searchResults.length === 0 ? (
+              <div className="p-4 text-sm text-gray-500 text-center">
+                {searchTerm ? 'No se encontraron profesionales' : 'Escribe para buscar...'}
+              </div>
+            ) : (
+              searchResults.map((emp: any) => {
+                const occupied = checkEmployeeOccupied(emp.documentoEmpleado);
+                const isWithinSchedule = checkEmployeeHasSchedule(emp.documentoEmpleado);
+                const isDisabled = occupied || !isWithinSchedule;
+                const statusText = occupied
+                  ? 'Ocupado'
+                  : !isWithinSchedule
+                  ? 'Fuera de horario'
+                  : '';
+
+                return (
+                  <div
+                    key={emp.documentoEmpleado}
+                    className={cn(
+                      "px-4 py-3 text-sm flex justify-between items-center transition-colors",
+                      emp.documentoEmpleado === selectedDocument ? 'bg-pink-100 text-pink-700 font-semibold' : 'text-gray-800',
+                      isDisabled ? "opacity-50 cursor-not-allowed bg-gray-50" : "hover:bg-pink-50 cursor-pointer"
+                    )}
+                    onClick={(e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      if (isDisabled) return;
+                      onSelect(emp);
+                      setSelectedEmployee(emp);
+                      setIsOpen(false);
+                      setSearchTerm('');
+                    }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Check
+                        className={cn(
+                          "h-4 w-4 text-pink-500",
+                          emp.documentoEmpleado === selectedDocument ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      <div className="flex flex-col">
+                        <span className="font-medium">{emp.nombre}</span>
+                        {statusText && (
+                          <span className="text-[10px] uppercase tracking-wider font-bold text-gray-400">
+                            {statusText}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ServiceSearchSelect({
+  selectedServiceId,
+  onSelect,
+  disabled,
+  allSelectedIds
+}: any) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedService, setSelectedService] = useState<any | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const fetchSelected = async () => {
+      if (selectedServiceId > 0 && (!selectedService || selectedService.servicioId !== selectedServiceId)) {
+        try {
+          const svc = await serviceService.getServiceById(selectedServiceId);
+          setSelectedService(svc);
+        } catch (e) {
+          console.warn('Error fetching selected service:', e);
+        }
+      } else if (selectedServiceId === 0) {
+        setSelectedService(null);
+      }
+    };
+    fetchSelected();
+  }, [selectedServiceId, selectedService]);
+
+  useEffect(() => {
+    const fetchServices = async () => {
+      if (!searchTerm.trim()) {
+        setSearchResults([]);
+        return;
+      }
+      setLoading(true);
+      try {
+        const res = await serviceService.getServices({ search: searchTerm, pageSize: 20 });
+        setSearchResults(res.data);
+      } catch (err) {
+        console.error('Error searching services:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const timer = setTimeout(fetchServices, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+        setSearchTerm('');
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  return (
+    <div className="relative w-full" ref={containerRef}>
+      <div
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        className={cn(
+          "flex items-center justify-between w-full px-4 py-2 border rounded-xl transition-all cursor-pointer bg-white hover:border-pink-300",
+          disabled && "cursor-not-allowed opacity-75"
+        )}
+      >
+        {!isOpen && !selectedService ? (
+          <div className="flex items-center gap-2">
+            <Plus className="w-3 h-3 text-pink-500" />
+            <span className="text-gray-500 text-xs font-bold uppercase tracking-widest">Añadir Servicio</span>
+          </div>
+        ) : !isOpen && selectedService ? (
+          <div className="flex items-center gap-2">
+            <span className="text-gray-800 font-bold text-xs">{selectedService.nombre}</span>
+          </div>
+        ) : (
+          <div className="flex-1 flex items-center">
+            {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin text-pink-400" /> : <Search className="text-gray-400 w-4 h-4 mr-2" />}
+            <input
+              type="text"
+              className="w-full bg-transparent text-xs focus:outline-none font-bold uppercase tracking-widest"
+              placeholder="Buscar servicio..."
+              value={searchTerm}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+              autoFocus
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            />
+          </div>
+        )}
+        <ChevronsUpDown className={cn(
+          "w-4 h-4 text-gray-500 transition-transform",
+          isOpen && 'rotate-180'
+        )} />
+      </div>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200">
+          <div className="max-h-[250px] overflow-y-auto py-1">
+            {loading && searchResults.length === 0 ? (
+               <div className="p-4 text-sm text-gray-500 text-center">Buscando...</div>
+            ) : searchResults.length === 0 ? (
+              <div className="p-4 text-sm text-gray-500 text-center">
+                {searchTerm ? 'No se encontraron servicios' : 'Escribe para buscar...'}
+              </div>
+            ) : (
+              searchResults.map((svc) => {
+                const isSelected = svc.servicioId === selectedServiceId;
+                const isAlreadyAdded = allSelectedIds.includes(svc.servicioId) && !isSelected;
+                
+                return (
+                  <div
+                    key={svc.servicioId}
+                    className={cn(
+                      "px-4 py-3 text-sm flex justify-between items-center transition-colors",
+                      isSelected ? 'bg-pink-100 text-pink-700 font-semibold' : 'text-gray-800',
+                      isAlreadyAdded ? "opacity-50 cursor-not-allowed bg-gray-50" : "hover:bg-pink-50 cursor-pointer"
+                    )}
+                    onClick={(e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      if (isAlreadyAdded) return;
+                      onSelect(svc);
+                      setSelectedService(svc);
+                      setIsOpen(false);
+                      setSearchTerm('');
+                    }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Check
+                        className={cn(
+                          "h-4 w-4 text-pink-500",
+                          isSelected ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      <div className="flex flex-col">
+                        <span className="font-medium">{svc.nombre}</span>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[10px] text-gray-400">{svc.duracion} min</span>
+                          <span className="text-[10px] text-gray-400">•</span>
+                          <span className="text-[10px] text-gray-400">${svc.precio.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

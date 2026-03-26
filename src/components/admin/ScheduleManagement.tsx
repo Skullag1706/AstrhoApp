@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { CheckCircle,
   Calendar, Clock, Users, Plus,
   AlertCircle, Edit, Eye, Trash2,
-  Save, X, Loader2, RefreshCw, Copy, UserPlus, UserMinus, FileText
+  Save, X, Loader2, RefreshCw, Copy, UserPlus, UserMinus, FileText, Search, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { SimplePagination } from '../ui/simple-pagination';
 import {
@@ -21,25 +21,28 @@ const DIAS_SEMANA_OPTIONS = [
   'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'
 ];
 
+const normalizeDay = (day: string | null | undefined): string => {
+  if (!day) return '';
+  return day.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+};
+
+const extractArray = (data: any): any[] => {
+  if (!data) return [];
+  if (Array.isArray(data)) return data;
+  if (data.$values && Array.isArray(data.$values)) return data.$values;
+  if (data.data && Array.isArray(data.data)) return data.data;
+  // If it's an object with days/horarioDias, try to extract them
+  if (data.dias) return extractArray(data.dias);
+  if (data.horarioDias) return extractArray(data.horarioDias);
+  return [];
+};
+
 const DIAS_SHORT: Record<string, string> = {
   'Lunes': 'Lun', 'Martes': 'Mar', 'Miércoles': 'Mié',
   'Jueves': 'Jue', 'Viernes': 'Vie', 'Sábado': 'Sáb', 'Domingo': 'Dom'
 };
 
 export function ScheduleManagement({ hasPermission }: ScheduleManagementProps) {
-  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
-  const [alertMessage, setAlertMessage] = useState('');
-
-  // Auto-hide success alert after 4 seconds
-  useEffect(() => {
-    if (showSuccessAlert) {
-      const timer = setTimeout(() => {
-        setShowSuccessAlert(false);
-      }, 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [showSuccessAlert]);
-
   // Data states
   const [horarios, setHorarios] = useState<Horario[]>([]);
   const [horarioEmpleados, setHorarioEmpleados] = useState<HorarioEmpleado[]>([]);
@@ -68,48 +71,45 @@ export function ScheduleManagement({ hasPermission }: ScheduleManagementProps) {
       const [horariosData, asignacionesData, empleadosData] = await Promise.all([
         horarioService.getAll(),
         horarioEmpleadoService.getAll(),
-        empleadoService.getAll()
+        empleadoService.getAll(1, 1000) // Fetch up to 1000 employees to handle frontend search/pagination
       ]);
-      const extract = (data: any) => {
-        if (!data) return [];
-        if (Array.isArray(data)) return data;
-        if (Array.isArray(data.data)) return data.data;
-        if (Array.isArray(data.$values)) return data.$values;
-        return [];
-      };
 
-      const hData = extract(horariosData);
+      const hData = extractArray(horariosData);
       setHorarios(hData);
-      setHorarioEmpleados(extract(asignacionesData));
-      setEmpleados(extract(empleadosData));
+      setHorarioEmpleados(extractArray(asignacionesData));
+      setEmpleados(extractArray(empleadosData));
 
-      // Load groups from localStorage and reconcile with API data
+      // 1. Transform API Horarios into frontend Groups automatically
+      // Each Horario object from the new API is essentially a "Group" because it has a name and days.
+      const apiGroups: ScheduleGroup[] = hData.map((h: Horario) => ({
+        id: `api-${h.horarioId}`,
+        nombre: h.nombre || 'Horario sin nombre',
+        horarioIds: [h.horarioId],
+        estado: h.estado
+      }));
+
+      // 2. Load legacy groups from localStorage for backward compatibility
       const savedGroups = scheduleGroupService.getAll();
-      const apiHorarios = hData;
-
-      // Filter out horarioIds that no longer exist in API
-      const validIds = new Set(apiHorarios.map(h => h.horarioId));
-      const reconciledGroups = savedGroups.map(g => ({
+      const validIds = new Set(hData.map((h: Horario) => h.horarioId));
+      
+      const reconciledLegacyGroups = savedGroups.map(g => ({
         ...g,
         horarioIds: g.horarioIds.filter(id => validIds.has(id))
       })).filter(g => g.horarioIds.length > 0);
 
-      // Check for orphan horarios (exist in API but not in any group)
-      const groupedIds = new Set(reconciledGroups.flatMap(g => g.horarioIds));
-      const orphans = apiHorarios.filter(h => !groupedIds.has(h.horarioId) && h.estado === true);
-
-      // Group ALL orphans into a single "Horario General" block instead of one per day
-      if (orphans.length > 0) {
-        reconciledGroups.push({
-          id: scheduleGroupService.generateId(),
-          nombre: 'Horario General',
-          horarioIds: orphans.map(o => o.horarioId),
-          estado: true
-        });
+      // 3. Merge API groups with legacy groups, avoiding duplicates by name
+      const finalGroups = [...apiGroups];
+      for (const legacy of reconciledLegacyGroups) {
+        // If there's already an API group with this name, don't add the legacy one
+        // (Assuming the API group is the "new" version of the legacy group)
+        if (!finalGroups.some(ag => ag.nombre === legacy.nombre)) {
+          finalGroups.push(legacy);
+        }
       }
 
-      scheduleGroupService.save(reconciledGroups);
-      setGroups(reconciledGroups);
+      // Update localStorage with the latest reconciled view
+      scheduleGroupService.save(finalGroups);
+      setGroups(finalGroups);
     } catch (error) {
       console.error('Error loading schedule data:', error);
       showAlert('error', 'Error al cargar los datos de horarios');
@@ -165,10 +165,14 @@ export function ScheduleManagement({ hasPermission }: ScheduleManagementProps) {
       for (const h of groupHorarios) {
         try {
           await horarioService.update(h.horarioId, {
-            diaSemana: h.diaSemana,
-            horaInicio: h.horaInicio,
-            horaFin: h.horaFin,
-            estado: false
+            nombre: h.nombre,
+            estado: false,
+            dias: extractArray(h.dias).map(d => ({
+              horarioDiaId: d.horarioDiaId || 0,
+              diaSemana: d.diaSemana,
+              horaInicio: d.horaInicio,
+              horaFin: d.horaFin
+            }))
           });
         } catch (err) {
           console.warn(`Could not deactivate horario ${h.horarioId}:`, err);
@@ -195,21 +199,15 @@ export function ScheduleManagement({ hasPermission }: ScheduleManagementProps) {
 
   const handleToggleStatus = async (group: ScheduleGroup) => {
     try {
-      const newEstado = !group.estado;
-      const groupHorarios = horarios.filter(h => group.horarioIds.includes(h.horarioId));
-      await Promise.all(
-        groupHorarios.map(h => {
-          const updatedData: CreateHorarioData = {
-            diaSemana: h.diaSemana,
-            horaInicio: h.horaInicio,
-            horaFin: h.horaFin,
-            estado: newEstado
-          };
-          return horarioService.update(h.horarioId, updatedData);
-        })
-      );
+      const primaryId = group.horarioIds[0];
+      if (!primaryId) return;
+      
+      await horarioService.toggle(primaryId);
+      
       // Update group in localStorage
+      const newEstado = !group.estado;
       scheduleGroupService.upsert({ ...group, estado: newEstado });
+      
       showAlert(
         newEstado ? 'success' : 'info',
         `Horario "${group.nombre}" ${newEstado ? 'activado' : 'inactivado'} correctamente`
@@ -236,69 +234,68 @@ export function ScheduleManagement({ hasPermission }: ScheduleManagementProps) {
         ? horarios.filter(h => existingGroup.horarioIds.includes(h.horarioId))
         : [];
 
-      // 1. Delete removed days first (existed before but not in enabledDays now)
-      if (existingGroup) {
-        const enabledDayNames = enabledDays.map(d => d.dia);
-        const toDelete = existingHorarios.filter(h => !enabledDayNames.includes(h.diaSemana));
-        for (const h of toDelete) {
-          try {
-            await horarioService.delete(h.horarioId);
-          } catch (err) {
-            console.warn(`Could not delete horario ${h.horarioId}:`, err);
-          }
-        }
-      }
-
-      // 2. Create or update each enabled day
-      const knownIds: number[] = [];
-      const createdDayNames: string[] = [];
-
-      for (const day of enabledDays) {
-        const existing = existingHorarios.find(h => h.diaSemana === day.dia);
-        const payload = {
+      // 1. Prepare the payload with the new structure
+      const payload: CreateHorarioData = {
+        nombre: nombre,
+        estado: existingGroup?.estado ?? true,
+        dias: enabledDays.map(day => ({
+          horarioDiaId: day.horarioDiaId || 0,
           diaSemana: day.dia,
           horaInicio: day.horaInicio,
-          horaFin: day.horaFin,
-          estado: existingGroup?.estado ?? true
-        };
+          horaFin: day.horaFin
+        }))
+      };
 
-        try {
-          if (existing) {
-            await horarioService.update(existing.horarioId, payload);
-            knownIds.push(existing.horarioId);
+      let finalIds: number[] = [];
+
+      // 2. Send the single request to create/update the entire schedule
+      let savedHorario: Horario | null = null;
+      try {
+        if (existingGroup && existingGroup.horarioIds.length > 0) {
+          // Si es una edición, usamos el primer ID del grupo (en el nuevo sistema un grupo = un Horario ID)
+          const primaryId = existingGroup.horarioIds[0];
+          savedHorario = await horarioService.update(primaryId, payload);
+          if (savedHorario) {
+            finalIds = [savedHorario.horarioId];
           } else {
-            const created = await horarioService.create(payload);
-            if (created?.horarioId) {
-              knownIds.push(created.horarioId);
-            } else {
-              // API returned null — we'll resolve IDs after refresh
-              createdDayNames.push(day.dia);
-            }
+            // Si el PUT no devuelve el objeto, mantenemos el ID original
+            finalIds = [primaryId];
           }
-        } catch (err) {
-          console.error(`Error saving day ${day.dia}:`, err);
-          // If the API rejects (e.g. duplicate day), still try remaining days
-          createdDayNames.push(day.dia);
+        } else {
+          // Si es un registro nuevo
+          savedHorario = await horarioService.create(payload);
+          if (savedHorario && savedHorario.horarioId) {
+            finalIds = [savedHorario.horarioId];
+          }
         }
+      } catch (err) {
+        console.error(`Error saving schedule:`, err);
+        throw err;
       }
 
-      // 3. If any creates didn't return an ID, fetch all horarios and match by diaSemana
-      let finalIds = [...knownIds];
-      if (createdDayNames.length > 0) {
+      // 3. Resolve the full object with its day IDs (horarioDiaId)
+      // The API might not return the object on PUT/POST, so we fetch it to be sure
+      const resolvedId = finalIds[0] || savedHorario?.horarioId;
+      if (resolvedId) {
         try {
-          const allHorarios: any[] = await horarioService.getAll();
-          if (Array.isArray(allHorarios)) {
-            for (const dayName of createdDayNames) {
-              const match = allHorarios.find(
-                (h: any) => h.diaSemana === dayName && !finalIds.includes(h.horarioId)
-              );
-              if (match) {
-                finalIds.push(match.horarioId);
-              }
-            }
+          // Fetch the full object directly by ID to get the latest state of its days
+          savedHorario = await horarioService.getById(resolvedId);
+          if (savedHorario) {
+            finalIds = [savedHorario.horarioId];
           }
-        } catch {
-          console.warn('Could not refresh horarios to resolve IDs');
+        } catch (fetchErr) {
+          console.warn(`Could not fetch horario ${resolvedId} directly, trying fallback by name...`);
+          // Fallback: search by name if ID fetch fails
+          try {
+            const allHorariosData: any = await horarioService.getAll();
+            const hData = extractArray(allHorariosData);
+            savedHorario = hData.find((h: Horario) => h.nombre === nombre) || null;
+            if (savedHorario) {
+              finalIds = [savedHorario.horarioId];
+            }
+          } catch {
+            console.error('Final fallback to resolve IDs failed');
+          }
         }
       }
 
@@ -312,19 +309,73 @@ export function ScheduleManagement({ hasPermission }: ScheduleManagementProps) {
       scheduleGroupService.upsert(group);
 
       // 5. Process pending employee assignments and deletions
-      for (const assignmentId of assignmentsToDelete) {
-        try {
-          await horarioEmpleadoService.delete(assignmentId);
-        } catch (err) {
-          console.error('Error deleting assignment:', err);
-        }
-      }
+      // We need to map the pending assignments to the correct horarioDiaId
+      const savedDays = savedHorario ? extractArray(savedHorario) : [];
+      
+      if (savedHorario && savedDays.length > 0) {
+        // Group assignments by the new IDs from server
+        const assignmentsByDay: Record<number, string[]> = {};
 
-      for (const data of assignmentsToCreate) {
-        try {
-          await horarioEmpleadoService.create(data);
-        } catch (err) {
-          console.error('Error creating assignment:', err);
+        for (const pending of assignmentsToCreate) {
+          let dayNameToUse = pending.diaSemana || "";
+          
+          if (!dayNameToUse) {
+            const oldDayRecord = horarios.flatMap(h => extractArray(h.dias)).find(d => d.horarioDiaId === pending.horarioId);
+            if (oldDayRecord) {
+              dayNameToUse = oldDayRecord.diaSemana || "";
+            } else {
+              const stateDay = days.find(d => d.horarioDiaId === pending.horarioId);
+              if (stateDay) {
+                dayNameToUse = stateDay.dia;
+              }
+            }
+          }
+
+          if (dayNameToUse) {
+            const normalizedTarget = normalizeDay(dayNameToUse);
+            const newDayRecord = savedDays.find(d => normalizeDay(d.diaSemana) === normalizedTarget);
+            
+            if (newDayRecord && newDayRecord.horarioDiaId) {
+              if (!assignmentsByDay[newDayRecord.horarioDiaId]) {
+                assignmentsByDay[newDayRecord.horarioDiaId] = [];
+              }
+              if (pending.documentoEmpleado) {
+                assignmentsByDay[newDayRecord.horarioDiaId].push(pending.documentoEmpleado);
+              }
+            } else {
+              console.warn(`[ScheduleManagement] No se encontró el día ${dayNameToUse} en el objeto guardado para asignar el empleado.`);
+            }
+          }
+        }
+
+        // Send deletions first
+        for (const assignmentId of assignmentsToDelete) {
+          try {
+            await horarioEmpleadoService.delete(assignmentId);
+          } catch (err) {
+            console.error('[ScheduleManagement] Error deleting assignment:', err);
+          }
+        }
+
+        // Send assignments in bulk
+        const bulkData = {
+          dias: Object.entries(assignmentsByDay).map(([horarioDiaId, empleados]) => ({
+            horarioDiaId: parseInt(horarioDiaId),
+            empleados
+          }))
+        };
+
+        if (bulkData.dias.length > 0) {
+          console.log('[ScheduleManagement] Enviando asignaciones bulk:', JSON.stringify(bulkData, null, 2));
+          await horarioEmpleadoService.createBulk(bulkData);
+        }
+      } else {
+        const errorMsg = 'No se pudo mapear las asignaciones de empleados porque no se obtuvieron los detalles de los días del servidor.';
+        console.error(`[ScheduleManagement] ${errorMsg}`);
+        if (assignmentsToCreate.length > 0) {
+          showAlert('error', 'El horario se guardó, pero no se pudieron asignar los empleados automáticamente. Intenta asignarlos nuevamente editando el horario.');
+          setSaving(false);
+          return; // Stop flow if mapping fails and we have assignments
         }
       }
 
@@ -343,16 +394,31 @@ export function ScheduleManagement({ hasPermission }: ScheduleManagementProps) {
     }
   };
 
-  const handleSaveAssignment = async (data: CreateHorarioEmpleadoData) => {
+  const handleSaveAssignment = async (horarioDiaId: number, documentosEmpleado: string[]) => {
     setSaving(true);
     try {
-      await horarioEmpleadoService.create(data);
-      showAlert('success', 'Empleado asignado correctamente');
+      if (!horarioDiaId || horarioDiaId === 0) {
+        throw new Error("ID de día de horario no válido (0 o undefined)");
+      }
+
+      const bulkData = {
+        dias: [
+          {
+            horarioDiaId,
+            empleados: documentosEmpleado
+          }
+        ]
+      };
+
+      console.log('[ScheduleManagement] Enviando asignación individual bulk:', JSON.stringify(bulkData, null, 2));
+      await horarioEmpleadoService.createBulk(bulkData);
+      
+      showAlert('success', `${documentosEmpleado.length} empleado(s) asignado(s) correctamente`);
       setShowAssignModal(false);
       await loadData();
     } catch (error) {
-      console.error('Error assigning employee:', error);
-      showAlert('error', 'Error al asignar el empleado');
+      console.error('[ScheduleManagement] Error assigning employees:', error);
+      showAlert('error', error instanceof Error ? error.message : 'Error al asignar el personal');
     } finally {
       setSaving(false);
     }
@@ -378,10 +444,11 @@ export function ScheduleManagement({ hasPermission }: ScheduleManagementProps) {
     fin: string, 
     excludeScheduleId?: number
   ) => {
+    const normalizedDia = normalizeDay(dia);
     // Find any assignment for this employee on the same day that overlaps
     return horarioEmpleados.some(he => {
       // Must be same employee and same day
-      if (he.documentoEmpleado !== doc || he.diaSemana !== dia) return false;
+      if (he.documentoEmpleado !== doc || normalizeDay(he.diaSemana) !== normalizedDia) return false;
       
       // If we're editing/re-assigning, exclude the current assignment
       if (excludeScheduleId && he.horarioId === excludeScheduleId) return false;
@@ -400,7 +467,8 @@ export function ScheduleManagement({ hasPermission }: ScheduleManagementProps) {
   };
 
   // Pagination
-  const totalPages = Math.ceil(groups.length / itemsPerPage);
+  const totalCount = groups.length;
+  const totalPages = Math.ceil(totalCount / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedGroups = groups.slice(startIndex, startIndex + itemsPerPage);
 
@@ -413,28 +481,6 @@ export function ScheduleManagement({ hasPermission }: ScheduleManagementProps) {
           <Loader2 className="w-12 h-12 text-purple-500 animate-spin mx-auto mb-4" />
           <p className="text-gray-600 text-lg">Cargando horarios...</p>
         </div>
-
-      {/* Success Alert */}
-      {showSuccessAlert && (
-        <div className="fixed top-4 right-4 z-[9999] animate-in slide-in-from-top-5 duration-300">
-          <div className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center space-x-4 min-w-[320px]">
-            <div className="flex-shrink-0">
-              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                <CheckCircle className="w-6 h-6 text-white" />
-              </div>
-            </div>
-            <div className="flex-1">
-              <p className="font-semibold">{alertMessage}</p>
-            </div>
-            <button
-              onClick={() => setShowSuccessAlert(false)}
-              className="flex-shrink-0 w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      )}
       </div>
     );
   }
@@ -528,19 +574,22 @@ export function ScheduleManagement({ hasPermission }: ScheduleManagementProps) {
                               🔁 Recurrente — aplica todo el año
                             </span>
                             <span className="text-xs text-gray-500">
-                              {groupHorarios.length} día{groupHorarios.length !== 1 ? 's' : ''} por semana
+                              {groupHorarios.reduce((acc, h) => acc + (extractArray(h).length), 0)} día{groupHorarios.reduce((acc, h) => acc + (extractArray(h).length), 0) !== 1 ? 's' : ''} por semana
                             </span>
                           </div>
                         </div>
                       </div>
 
-                      {/* Days chips */}
-                      <div className="flex flex-wrap gap-2 mb-3">
+                      <div className="flex flex-wrap gap-2 mb-4">
                         {groupHorarios.map(h => (
-                          <div key={h.horarioId} className="flex items-center space-x-1.5 px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg text-sm">
-                            <Calendar className="w-3.5 h-3.5" />
-                            <span className="font-semibold">{DIAS_SHORT[h.diaSemana] || h.diaSemana}</span>
-                          </div>
+                          <React.Fragment key={h.horarioId}>
+                            {extractArray(h).map((d, idx) => (
+                              <div key={`${h.horarioId}-${idx}`} className="flex items-center space-x-1.5 px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg text-sm">
+                                <Calendar className="w-3.5 h-3.5" />
+                                <span className="font-semibold">{DIAS_SHORT[d.diaSemana || ''] || d.diaSemana}</span>
+                              </div>
+                            ))}
+                          </React.Fragment>
                         ))}
                       </div>
 
@@ -637,11 +686,13 @@ export function ScheduleManagement({ hasPermission }: ScheduleManagementProps) {
 
           {/* Pagination */}
           {groups.length > 0 && (
-            <div className="mt-8 pt-6 border-t border-gray-200">
+            <div className="mt-8 pt-6 border-t border-gray-200 bg-gray-50/50 p-4 rounded-xl">
               <SimplePagination
                 currentPage={currentPage}
                 totalPages={Math.max(1, totalPages)}
                 onPageChange={setCurrentPage}
+                totalRecords={totalCount}
+                recordsPerPage={itemsPerPage}
               />
             </div>
           )}
@@ -719,12 +770,26 @@ function ScheduleModal({ group, horarios, empleados, existingAssignments, onClos
   // Build initial days state
   const buildInitialDays = (): DaySchedule[] => {
     return DIAS_SEMANA_OPTIONS.map(dia => {
-      const existing = horarios.find(h => h.diaSemana === dia);
+      // Encontrar el día dentro de la lista de horarios del grupo
+      let foundDay: HorarioDia | undefined;
+      const normalizedTarget = normalizeDay(dia);
+      
+      for (const h of horarios) {
+        const hDays = extractArray(h);
+        foundDay = hDays.find(d => normalizeDay(d.diaSemana) === normalizedTarget);
+        if (foundDay) break;
+      }
+
+      // También verificar si hay asignaciones para este día, incluso si no se encontró en foundDay
+      // (aunque técnicamente no debería haber asignaciones sin un día de horario)
+      const hasAssignments = existingAssignments.some(a => normalizeDay(a.diaSemana) === normalizedTarget);
+
       return {
+        horarioDiaId: foundDay?.horarioDiaId || 0,
         dia,
-        horaInicio: existing?.horaInicio || '08:00',
-        horaFin: existing?.horaFin || '18:00',
-        enabled: !!existing
+        horaInicio: foundDay?.horaInicio || '08:00',
+        horaFin: foundDay?.horaFin || '18:00',
+        enabled: !!foundDay || hasAssignments
       };
     });
   };
@@ -733,11 +798,52 @@ function ScheduleModal({ group, horarios, empleados, existingAssignments, onClos
   const [validationError, setValidationError] = useState<string | null>(null);
 
   // Employee assignment state
-  const [selectedDayForAssign, setSelectedDayForAssign] = useState<number>(horarios[0]?.horarioId || 0);
+  // Prioritize the first enabled day for the initial selection
+  const [selectedDayForAssign, setSelectedDayForAssign] = useState<string>(
+    days.find(d => d.enabled)?.dia || DIAS_SEMANA_OPTIONS[0]
+  );
 
   // Local pending assignments
-  const [pendingCreates, setPendingCreates] = useState<CreateHorarioEmpleadoData[]>([]);
+  // We'll store the day name instead of ID to make mapping easier and safer
+  const [pendingCreates, setPendingCreates] = useState<{ documentoEmpleado: string; diaSemana: string }[]>([]);
   const [pendingDeletes, setPendingDeletes] = useState<number[]>([]);
+
+  // Available employees search and pagination
+  const [availableEmpleadosFromApi, setAvailableEmpleadosFromApi] = useState<Empleado[]>([]);
+  const [totalAvailableRecords, setTotalAvailableRecords] = useState(0);
+  const [loadingAvailable, setLoadingAvailable] = useState(false);
+  const [searchTermAvailable, setSearchTermAvailable] = useState('');
+  const [availablePage, setAvailablePage] = useState(1);
+  const itemsPerPageAvailable = 5;
+
+  // Fetch available employees from API when search or page changes
+  useEffect(() => {
+    const fetchAvailable = async () => {
+      setLoadingAvailable(true);
+      try {
+        const response = await empleadoService.getAll(availablePage, itemsPerPageAvailable, searchTermAvailable);
+        
+        setAvailableEmpleadosFromApi(extractArray(response));
+        const total = (data: any) => {
+          if (data && typeof data.totalCount === 'number') return data.totalCount;
+          if (data && typeof data.totalRecords === 'number') return data.totalRecords;
+          return Array.isArray(data) ? data.length : 0;
+        };
+        setTotalAvailableRecords(total(response));
+      } catch (error) {
+        console.error("Error fetching available employees:", error);
+      } finally {
+        setLoadingAvailable(false);
+      }
+    };
+
+    fetchAvailable();
+  }, [availablePage, searchTermAvailable]);
+
+  // Reset page when search changes
+  useEffect(() => {
+    setAvailablePage(1);
+  }, [searchTermAvailable]);
 
   const toggleDay = (dia: string) => {
     setDays(prev => prev.map(d =>
@@ -759,25 +865,27 @@ function ScheduleModal({ group, horarios, empleados, existingAssignments, onClos
     ));
   };
 
-  const handleLocalAssign = (data: CreateHorarioEmpleadoData) => {
-    const day = days.find(d => d.enabled && horarios.find(h => h.horarioId === data.horarioId)?.diaSemana === d.dia);
-    const h = horarios.find(h => h.horarioId === data.horarioId);
+  const handleLocalAssign = (documentoEmpleado: string) => {
+    const foundDay = days.find(d => d.dia === selectedDayForAssign);
     
-    if (h && checkOverlap(data.documentoEmpleado, h.diaSemana, h.horaInicio, h.horaFin)) {
-      setValidationError(`El empleado ya tiene un horario asignado que se cruza con el de este día (${h.diaSemana} ${h.horaInicio}-${h.horaFin})`);
+    if (foundDay && checkOverlap(documentoEmpleado, foundDay.dia, foundDay.horaInicio, foundDay.horaFin)) {
+      setValidationError(`El empleado ya tiene un horario asignado que se cruza con este día (${foundDay.dia} ${foundDay.horaInicio}-${foundDay.horaFin})`);
       return;
     }
     
-    setPendingCreates(prev => [...prev, data]);
+    setPendingCreates(prev => [...prev, { documentoEmpleado, diaSemana: selectedDayForAssign }]);
     setValidationError(null);
   };
 
   const handleLocalRemove = (assignmentId: number) => {
-    setPendingDeletes(prev => [...prev, assignmentId]);
+    // If it's an existing assignment, mark for deletion
+    if (existingAssignments.some(a => a.horarioEmpleadoId === assignmentId)) {
+      setPendingDeletes(prev => [...prev, assignmentId]);
+    }
   };
 
-  const handleLocalRemovePendingCreate = (doc: string, horarioId: number) => {
-    setPendingCreates(prev => prev.filter(p => !(p.documentoEmpleado === doc && p.horarioId === horarioId)));
+  const handleLocalRemovePendingCreate = (doc: string, dia: string) => {
+    setPendingCreates(prev => prev.filter(p => !(p.documentoEmpleado === doc && p.diaSemana === dia)));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -806,7 +914,18 @@ function ScheduleModal({ group, horarios, empleados, existingAssignments, onClos
       }
     }
 
-    onSave(nombre.trim(), days, pendingCreates, pendingDeletes, group?.id);
+    // Convert pendingCreates from {doc, dia} to CreateHorarioEmpleadoData format
+    const finalPendingCreates: CreateHorarioEmpleadoData[] = pendingCreates.map(p => {
+      // Find the current ID (might be 0, which handleSaveSchedule will fix)
+      const currentDayId = days.find(d => d.dia === p.diaSemana)?.horarioDiaId || 0;
+      return {
+        horarioId: currentDayId,
+        documentoEmpleado: p.documentoEmpleado,
+        diaSemana: p.diaSemana
+      };
+    });
+
+    onSave(nombre.trim(), days, finalPendingCreates, pendingDeletes, group?.id);
   };
 
   const enabledCount = days.filter(d => d.enabled).length;
@@ -816,21 +935,29 @@ function ScheduleModal({ group, horarios, empleados, existingAssignments, onClos
   // Existing assignments not locally deleted
   const activeExistingAssignments = existingAssignments.filter(a => !pendingDeletes.includes(a.horarioEmpleadoId));
 
+  // Find the day name for the current selection
+  const normalizedSelected = normalizeDay(selectedDayForAssign);
+  const selectedDayRecord = horarios.flatMap(h => extractArray(h)).find(d => normalizeDay(d.diaSemana) === normalizedSelected);
+  const selectedDayName = normalizeDay(selectedDayRecord?.diaSemana || selectedDayForAssign);
+
+  const existingAssignmentsForDay = activeExistingAssignments.filter(a => normalizeDay(a.diaSemana) === selectedDayName);
+  const pendingAssignmentsForDay = pendingCreates.filter(p => p.diaSemana === selectedDayForAssign);
+
   const assignedDocsForDay = [
-    ...activeExistingAssignments
-      .filter(a => a.horarioId === selectedDayForAssign)
-      .map(a => a.documentoEmpleado),
-    ...pendingCreates
-      .filter(p => p.horarioId === selectedDayForAssign)
-      .map(p => p.documentoEmpleado)
+    ...existingAssignmentsForDay.map(a => a.documentoEmpleado),
+    ...pendingAssignmentsForDay.map(p => p.documentoEmpleado)
   ];
 
-  const availableEmpleados = empleados.filter(
+  const availableEmpleados = availableEmpleadosFromApi.filter(
     e => e.estado && !assignedDocsForDay.includes(e.documentoEmpleado)
   );
 
-  const existingAssignmentsForDay = activeExistingAssignments.filter(a => a.horarioId === selectedDayForAssign);
-  const pendingAssignmentsForDay = pendingCreates.filter(p => p.horarioId === selectedDayForAssign);
+  const totalAvailablePages = Math.ceil(totalAvailableRecords / itemsPerPageAvailable);
+  const paginatedAvailable = availableEmpleados; // Already paginated from API
+
+  useEffect(() => {
+    setAvailablePage(1);
+  }, [searchTermAvailable, selectedDayForAssign]);
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -1007,18 +1134,18 @@ function ScheduleModal({ group, horarios, empleados, existingAssignments, onClos
                         <div className="mb-4">
                           <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Ver personal por día:</label>
                           <div className="flex flex-wrap gap-1.5">
-                            {horarios.map(h => (
+                            {days.filter(d => d.enabled).map(d => (
                               <button
-                                key={h.horarioId}
+                                key={d.dia}
                                 type="button"
-                                onClick={() => setSelectedDayForAssign(h.horarioId)}
+                                onClick={() => setSelectedDayForAssign(d.dia)}
                                 className={`px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all border ${
-                                  selectedDayForAssign === h.horarioId
+                                  selectedDayForAssign === d.dia
                                     ? 'bg-blue-500 border-blue-500 text-white shadow-sm'
                                     : 'bg-white border-gray-100 text-gray-400 hover:border-blue-200'
                                 }`}
                               >
-                                {h.diaSemana.substring(0, 3)}
+                                {d.dia.substring(0, 3)}
                               </button>
                             ))}
                           </div>
@@ -1043,11 +1170,11 @@ function ScheduleModal({ group, horarios, empleados, existingAssignments, onClos
                             {pendingAssignmentsForDay.map(p => {
                               const empName = empleados.find(e => e.documentoEmpleado === p.documentoEmpleado)?.nombre || p.documentoEmpleado;
                               return (
-                                <div key={`pending-${p.documentoEmpleado}`} className="flex items-center space-x-2 px-2 py-1 bg-green-50 text-green-700 rounded-lg border border-green-100 animate-pulse">
+                                <div key={`pending-${p.documentoEmpleado}-${p.diaSemana}`} className="flex items-center space-x-2 px-2 py-1 bg-green-50 text-green-700 rounded-lg border border-green-100 animate-pulse">
                                   <span className="text-[10px] font-bold">{empName} (NUEVO)</span>
                                   <button
                                     type="button"
-                                    onClick={() => handleLocalRemovePendingCreate(p.documentoEmpleado, p.horarioId)}
+                                    onClick={() => handleLocalRemovePendingCreate(p.documentoEmpleado, p.diaSemana)}
                                     className="text-green-300 hover:text-red-500 transition-colors"
                                   >
                                     <UserMinus className="w-3 h-3" />
@@ -1060,12 +1187,34 @@ function ScheduleModal({ group, horarios, empleados, existingAssignments, onClos
 
                         {/* Available personnel list */}
                         <div className="flex-1 overflow-hidden flex flex-col">
-                          <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Personal Disponible</label>
-                          <div className="space-y-2 overflow-y-auto max-h-[300px] pr-2 no-scrollbar">
-                            {availableEmpleados.length > 0 ? (
-                              availableEmpleados.map(emp => {
-                                const h = horarios.find(hor => hor.horarioId === selectedDayForAssign);
-                                const isOverlapping = h ? checkOverlap(emp.documentoEmpleado, h.diaSemana, h.horaInicio, h.horaFin) : false;
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest">Personal Disponible ({totalAvailableRecords})</label>
+                            <div className="relative">
+                              <Search className="w-3 h-3 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                              <input
+                                type="text"
+                                value={searchTermAvailable}
+                                onChange={(e) => setSearchTermAvailable(e.target.value)}
+                                placeholder="Buscar..."
+                                className="pl-8 pr-3 py-1.5 bg-white border border-gray-100 rounded-lg text-[9px] font-bold focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none w-40 transition-all"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="space-y-2 overflow-y-auto max-h-[300px] pr-2 no-scrollbar flex-1">
+                            {loadingAvailable ? (
+                              <div className="flex items-center justify-center py-8">
+                                <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+                              </div>
+                            ) : paginatedAvailable.length > 0 ? (
+                              paginatedAvailable.map(emp => {
+                                const currentDay = days.find(d => d.dia === selectedDayForAssign);
+                                const isOverlapping = currentDay ? checkOverlap(
+                                  emp.documentoEmpleado, 
+                                  currentDay.dia, 
+                                  currentDay.horaInicio, 
+                                  currentDay.horaFin
+                                ) : false;
 
                                 return (
                                   <div
@@ -1080,7 +1229,7 @@ function ScheduleModal({ group, horarios, empleados, existingAssignments, onClos
                                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-white text-xs ${
                                         isOverlapping ? 'bg-red-400' : 'bg-gradient-to-br from-blue-400 to-indigo-500'
                                       }`}>
-                                        {emp.nombre.charAt(0)}
+                                        {(emp.nombre || 'E').charAt(0)}
                                       </div>
                                       <div>
                                         <p className="text-[11px] font-bold text-gray-700 leading-none">{emp.nombre}</p>
@@ -1092,7 +1241,7 @@ function ScheduleModal({ group, horarios, empleados, existingAssignments, onClos
                                     {!isOverlapping && (
                                       <button
                                         type="button"
-                                        onClick={() => handleLocalAssign({ horarioId: selectedDayForAssign, documentoEmpleado: emp.documentoEmpleado })}
+                                        onClick={() => handleLocalAssign(emp.documentoEmpleado)}
                                         className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
                                       >
                                         <UserPlus className="w-4 h-4" />
@@ -1104,10 +1253,39 @@ function ScheduleModal({ group, horarios, empleados, existingAssignments, onClos
                             ) : (
                               <div className="text-center py-8">
                                 <Users className="w-8 h-8 text-gray-100 mx-auto mb-2" />
-                                <p className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">Sin personal disponible</p>
+                                <p className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">
+                                  {searchTermAvailable ? 'No se encontraron resultados' : 'Sin personal disponible'}
+                                </p>
                               </div>
                             )}
                           </div>
+
+                          {/* Mini Pagination for Available Personnel */}
+                          {totalAvailablePages > 1 && (
+                            <div className="flex items-center justify-between mt-4 px-1">
+                              <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">
+                                Página {availablePage} de {totalAvailablePages}
+                              </p>
+                              <div className="flex items-center space-x-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setAvailablePage(p => Math.max(1, p - 1))}
+                                  disabled={availablePage === 1}
+                                  className="p-1.5 bg-white border border-gray-100 rounded-lg text-gray-400 hover:bg-gray-50 disabled:opacity-30 transition-all"
+                                >
+                                  <ChevronLeft className="w-3 h-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setAvailablePage(p => Math.min(totalAvailablePages, p + 1))}
+                                  disabled={availablePage === totalAvailablePages}
+                                  className="p-1.5 bg-white border border-gray-100 rounded-lg text-gray-400 hover:bg-gray-50 disabled:opacity-30 transition-all"
+                                >
+                                  <ChevronRight className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </>
                     )}
@@ -1212,7 +1390,9 @@ function ScheduleDetailModal({ group, horarios, assignments, onClose }: Schedule
                 </div>
                 <div>
                   <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Días Configurados:</span>
-                  <p className="font-bold text-gray-800 text-lg">{horarios.length} días</p>
+                  <p className="font-bold text-gray-800 text-lg">
+                    {horarios.reduce((acc, h) => acc + (extractArray(h).length), 0)} días
+                  </p>
                 </div>
               </div>
             </div>
@@ -1238,24 +1418,28 @@ function ScheduleDetailModal({ group, horarios, assignments, onClose }: Schedule
                   </thead>
                   <tbody className="divide-y divide-gray-50">
                     {horarios.map((h) => (
-                      <tr key={h.horarioId} className="hover:bg-gray-50/50 transition-colors">
-                        <td className="px-6 py-4 font-bold text-gray-700">{h.diaSemana}</td>
-                        <td className="px-6 py-4 text-center">
-                          <span className="inline-flex items-center px-3 py-1 rounded-lg bg-blue-50 text-blue-700 font-bold text-sm">
-                            {h.horaInicio.substring(0, 5)}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <span className="inline-flex items-center px-3 py-1 rounded-lg bg-pink-50 text-pink-700 font-bold text-sm">
-                            {h.horaFin.substring(0, 5)}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${h.estado ? 'text-green-600 bg-green-50' : 'text-red-600 bg-red-50'}`}>
-                            {h.estado ? 'Activo' : 'Inactivo'}
-                          </span>
-                        </td>
-                      </tr>
+                      <React.Fragment key={h.horarioId}>
+                        {extractArray(h).map((d, idx) => (
+                          <tr key={`${h.horarioId}-${idx}`} className="hover:bg-gray-50/50 transition-colors">
+                            <td className="px-6 py-4 font-bold text-gray-700">{d.diaSemana || '---'}</td>
+                            <td className="px-6 py-4 text-center">
+                              <span className="inline-flex items-center px-3 py-1 rounded-lg bg-blue-50 text-blue-700 font-bold text-sm">
+                                {d.horaInicio?.substring(0, 5) || '--:--'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <span className="inline-flex items-center px-3 py-1 rounded-lg bg-pink-50 text-pink-700 font-bold text-sm">
+                                {d.horaFin?.substring(0, 5) || '--:--'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${h.estado ? 'text-green-600 bg-green-50' : 'text-red-600 bg-red-50'}`}>
+                                {h.estado ? 'Activo' : 'Inactivo'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </React.Fragment>
                     ))}
                   </tbody>
                 </table>
@@ -1267,23 +1451,40 @@ function ScheduleDetailModal({ group, horarios, assignments, onClose }: Schedule
               <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100">
                 <h4 className="font-bold text-gray-700 text-sm flex items-center space-x-2">
                   <Users className="w-4 h-4 text-blue-400" />
-                  <span>Personal Asignado a este Horario</span>
+                  <span>Personal Asignado por Día</span>
                 </h4>
               </div>
               <div className="p-6">
                 {assignments.length > 0 ? (
-                  <div className="grid md:grid-cols-2 gap-4">
-                    {assignments.map((a) => (
-                      <div key={a.horarioEmpleadoId} className="flex items-center space-x-4 p-4 bg-gray-50 rounded-2xl border border-gray-100 hover:bg-gray-100 transition-colors">
-                        <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center text-blue-500 font-bold text-xl">
-                          {(a.empleadoNombre || 'E').charAt(0)}
+                  <div className="space-y-6">
+                    {horarios.flatMap(h => extractArray(h)).map(d => {
+                      const dayAssignments = assignments.filter(a => normalizeDay(a.diaSemana) === normalizeDay(d.diaSemana));
+                      if (dayAssignments.length === 0) return null;
+
+                      return (
+                        <div key={d.horarioDiaId} className="space-y-3">
+                          <div className="flex items-center space-x-2 text-purple-600 border-b border-purple-50 pb-2">
+                            <Calendar className="w-4 h-4" />
+                            <h5 className="font-bold text-xs uppercase tracking-widest">
+                              {d.diaSemana} ({d.horaInicio?.substring(0, 5)} - {d.horaFin?.substring(0, 5)})
+                            </h5>
+                          </div>
+                          <div className="grid md:grid-cols-2 gap-4">
+                            {dayAssignments.map((a) => (
+                              <div key={a.horarioEmpleadoId} className="flex items-center space-x-4 p-4 bg-gray-50 rounded-2xl border border-gray-100 hover:bg-gray-100 transition-colors">
+                                <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center text-blue-500 font-bold text-xl">
+                                  {(a.empleadoNombre || 'E').charAt(0)}
+                                </div>
+                                <div>
+                                  <p className="font-bold text-gray-800">{a.empleadoNombre || 'Empleado'}</p>
+                                  <p className="text-xs text-gray-500 font-mono">Doc: {a.documentoEmpleado}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-bold text-gray-800">{a.empleadoNombre || 'Empleado'}</p>
-                          <p className="text-xs text-gray-500 font-mono">Doc: {a.documentoEmpleado}</p>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="text-center py-8">
@@ -1356,7 +1557,7 @@ function DeleteScheduleModal({ group, horarios, onClose, onConfirm, saving }: De
               ¿Eliminar horario "{group.nombre}"?
             </h4>
             <p className="text-sm text-gray-500 leading-relaxed">
-              Se eliminarán <span className="font-bold text-gray-700">{horarios.length} día{horarios.length !== 1 ? 's' : ''}</span> configurado{horarios.length !== 1 ? 's' : ''} ({horarios.map(h => DIAS_SHORT[h.diaSemana] || h.diaSemana).join(', ')}). 
+              Se eliminarán <span className="font-bold text-gray-700">{horarios.reduce((acc, h) => acc + (extractArray(h).length), 0)} día(s)</span> configurado(s). 
               Los empleados asignados no serán eliminados del sistema.
             </p>
           </div>
@@ -1398,38 +1599,90 @@ interface AssignEmployeeModalProps {
   empleados: Empleado[];
   existingAssignments: HorarioEmpleado[];
   onClose: () => void;
-  onSave: (data: CreateHorarioEmpleadoData) => void;
+  onSave: (horarioId: number, documentosEmpleado: string[]) => void;
   saving: boolean;
   checkOverlap: (doc: string, dia: string, inicio: string, fin: string, excludeScheduleId?: number) => boolean;
 }
 
 function AssignEmployeeModal({ group, horarios, empleados, existingAssignments, onClose, onSave, saving, checkOverlap }: AssignEmployeeModalProps) {
-  const [selectedEmpleado, setSelectedEmpleado] = useState<string>('');
-  const [selectedHorarioId, setSelectedHorarioId] = useState<number>(horarios[0]?.horarioId || 0);
-
-  // Filter out already-assigned employees for the selected horarioId
-  const assignedDocs = existingAssignments
-    .filter(a => a.horarioId === selectedHorarioId)
-    .map(a => a.documentoEmpleado);
-  const availableEmpleados = empleados.filter(
-    e => e.estado && !assignedDocs.includes(e.documentoEmpleado)
+  const [selectedDayId, setSelectedDayId] = useState<number>(
+    horarios.flatMap(h => extractArray(h))[0]?.horarioDiaId || 0
   );
+  const [selectedEmpleados, setSelectedEmpleados] = useState<string[]>([]);
+
+  // Available employees search and pagination from API
+  const [availableEmpleadosFromApi, setAvailableEmpleadosFromApi] = useState<Empleado[]>([]);
+  const [totalAvailableRecords, setTotalAvailableRecords] = useState(0);
+  const [loadingAvailable, setLoadingAvailable] = useState(false);
+  const [searchTermAvailable, setSearchTermAvailable] = useState('');
+  const [availablePage, setAvailablePage] = useState(1);
+  const itemsPerPageAvailable = 5;
+
+  // Fetch available employees from API when search or page changes
+  useEffect(() => {
+    const fetchAvailable = async () => {
+      setLoadingAvailable(true);
+      try {
+        const response = await empleadoService.getAll(availablePage, itemsPerPageAvailable, searchTermAvailable);
+        const extract = (data: any) => {
+          if (!data) return [];
+          if (Array.isArray(data)) return data;
+          if (data && Array.isArray(data.data)) return data.data;
+          return [];
+        };
+        const total = (data: any) => {
+          if (data && typeof data.totalCount === 'number') return data.totalCount;
+          if (data && typeof data.totalRecords === 'number') return data.totalRecords;
+          return Array.isArray(data) ? data.length : 0;
+        };
+        
+        setAvailableEmpleadosFromApi(extract(response));
+        setTotalAvailableRecords(total(response));
+      } catch (error) {
+        console.error("Error fetching available employees:", error);
+      } finally {
+        setLoadingAvailable(false);
+      }
+    };
+
+    fetchAvailable();
+  }, [availablePage, searchTermAvailable]);
+
+  // Reset page when search changes
+  useEffect(() => {
+    setAvailablePage(1);
+  }, [searchTermAvailable]);
+
+  const toggleEmpleado = (doc: string) => {
+    setSelectedEmpleados(prev => 
+      prev.includes(doc) ? prev.filter(d => d !== doc) : [...prev, doc]
+    );
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedEmpleado || !selectedHorarioId) return;
+    if (selectedEmpleados.length === 0 || !selectedDayId) return;
 
-    const h = horarios.find(hor => hor.horarioId === selectedHorarioId);
-    if (h && checkOverlap(selectedEmpleado, h.diaSemana, h.horaInicio, h.horaFin)) {
-      // Although UI should filter, prevent submit just in case
-      return;
-    }
-
-    onSave({
-      horarioId: selectedHorarioId,
-      documentoEmpleado: selectedEmpleado
-    });
+    onSave(selectedDayId, selectedEmpleados);
   };
+
+  const selectedDayRecord = horarios.flatMap(h => extractArray(h.dias)).find(d => d.horarioDiaId === selectedDayId);
+  const selectedDayName = normalizeDay(selectedDayRecord?.diaSemana);
+
+  const assignedDocsForDay = existingAssignments
+    .filter(a => normalizeDay(a.diaSemana) === selectedDayName)
+    .map(a => a.documentoEmpleado);
+
+  const availableEmpleados = availableEmpleadosFromApi.filter(
+    e => e.estado && !assignedDocsForDay.includes(e.documentoEmpleado)
+  );
+
+  const totalAvailablePages = Math.ceil(totalAvailableRecords / itemsPerPageAvailable);
+  const paginatedAvailable = availableEmpleados; // Already paginated from API
+
+  useEffect(() => {
+    setAvailablePage(1);
+  }, [searchTermAvailable, selectedDayId]);
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -1442,7 +1695,7 @@ function AssignEmployeeModal({ group, horarios, empleados, existingAssignments, 
                 <UserPlus className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h3 className="text-xl font-bold leading-tight">Asignar Empleado</h3>
+                <h3 className="text-xl font-bold leading-tight">Asignar Personal</h3>
                 <p className="text-purple-100 text-xs font-medium">Horario: {group.nombre}</p>
               </div>
             </div>
@@ -1457,42 +1710,63 @@ function AssignEmployeeModal({ group, horarios, empleados, existingAssignments, 
 
         <form onSubmit={handleSubmit} className="p-8 space-y-6">
           {/* Day selector for assignment */}
-          {horarios.length > 1 && (
-            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-              <div className="flex items-center space-x-2 text-purple-500 mb-4">
-                <Calendar className="w-4 h-4" />
-                <h4 className="font-bold uppercase text-[10px] tracking-widest">Seleccionar Día</h4>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {horarios.map(h => (
-                  <button
-                    key={h.horarioId}
-                    type="button"
-                    onClick={() => { setSelectedHorarioId(h.horarioId); setSelectedEmpleado(''); }}
-                    className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${
-                      selectedHorarioId === h.horarioId
-                        ? 'bg-purple-600 border-purple-600 text-white shadow-sm'
-                        : 'bg-white border-gray-100 text-gray-400 hover:border-purple-200'
-                    }`}
-                  >
-                    {h.diaSemana.substring(0, 3)} ({h.horaInicio.substring(0, 5)} - {h.horaFin.substring(0, 5)})
-                  </button>
-                ))}
-              </div>
+          <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+            <div className="flex items-center space-x-2 text-purple-500 mb-4">
+              <Calendar className="w-4 h-4" />
+              <h4 className="font-bold uppercase text-[10px] tracking-widest">Seleccionar Día</h4>
             </div>
-          )}
+            <div className="flex flex-wrap gap-2">
+              {horarios.flatMap(h => extractArray(h).map(d => (
+                <button
+                  key={d.horarioDiaId}
+                  type="button"
+                  onClick={() => { setSelectedDayId(d.horarioDiaId!); setSelectedEmpleados([]); }}
+                  className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${
+                    selectedDayId === d.horarioDiaId
+                      ? 'bg-purple-600 border-purple-600 text-white shadow-sm'
+                      : 'bg-white border-gray-100 text-gray-400 hover:border-purple-200'
+                  }`}
+                >
+                  {d.diaSemana?.substring(0, 3) || '---'}
+                </button>
+              )))}
+            </div>
+          </div>
 
           <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-            <div className="flex items-center space-x-2 text-blue-500 mb-4">
-              <Users className="w-4 h-4" />
-              <h4 className="font-bold uppercase text-[10px] tracking-widest">Seleccionar Empleado</h4>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-2 text-blue-500">
+                <Users className="w-4 h-4" />
+                <h4 className="font-bold uppercase text-[10px] tracking-widest">Seleccionar Personal ({totalAvailableRecords})</h4>
+              </div>
+              <div className="relative">
+                <Search className="w-3 h-3 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  value={searchTermAvailable}
+                  onChange={(e) => setSearchTermAvailable(e.target.value)}
+                  placeholder="Buscar..."
+                  className="pl-8 pr-3 py-1.5 bg-gray-50 border border-gray-100 rounded-lg text-[9px] font-bold focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none w-40 transition-all"
+                />
+              </div>
             </div>
 
-            {availableEmpleados.length > 0 ? (
+            {loadingAvailable ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
+              </div>
+            ) : paginatedAvailable.length > 0 ? (
               <div className="space-y-2 max-h-60 overflow-y-auto pr-2 no-scrollbar">
-                {availableEmpleados.map(emp => {
-                  const h = horarios.find(hor => hor.horarioId === selectedHorarioId);
-                  const isOverlapping = h ? checkOverlap(emp.documentoEmpleado, h.diaSemana, h.horaInicio, h.horaFin) : false;
+                {paginatedAvailable.map(emp => {
+                  // Find the specific day for overlap check
+                  let foundDay: HorarioDia | undefined;
+                  for (const h of horarios) {
+                    const days = extractArray(h);
+                    foundDay = days.find(d => d.horarioDiaId === selectedDayId);
+                    if (foundDay) break;
+                  }
+
+                  const isOverlapping = foundDay ? checkOverlap(emp.documentoEmpleado, foundDay.diaSemana || '', foundDay.horaInicio || '', foundDay.horaFin || '') : false;
 
                   return (
                     <label
@@ -1500,28 +1774,28 @@ function AssignEmployeeModal({ group, horarios, empleados, existingAssignments, 
                       className={`flex items-center space-x-3 p-3 rounded-xl border transition-all cursor-pointer group ${
                         isOverlapping 
                           ? 'opacity-50 cursor-not-allowed bg-red-50 border-red-100' 
-                          : selectedEmpleado === emp.documentoEmpleado
+                          : selectedEmpleados.includes(emp.documentoEmpleado)
                             ? 'border-purple-500 bg-purple-50 shadow-sm'
                             : 'border-gray-100 hover:border-purple-200 hover:bg-gray-50'
                       }`}
                     >
                       <div className="relative flex items-center justify-center">
                         <input
-                          type="radio"
+                          type="checkbox"
                           name="empleado"
                           value={emp.documentoEmpleado}
-                          checked={selectedEmpleado === emp.documentoEmpleado}
-                          onChange={(e) => !isOverlapping && setSelectedEmpleado(e.target.value)}
+                          checked={selectedEmpleados.includes(emp.documentoEmpleado)}
+                          onChange={() => !isOverlapping && toggleEmpleado(emp.documentoEmpleado)}
                           disabled={isOverlapping}
                           className="sr-only"
                         />
-                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
-                          selectedEmpleado === emp.documentoEmpleado
+                        <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
+                          selectedEmpleados.includes(emp.documentoEmpleado)
                             ? 'border-purple-600 bg-purple-600'
                             : 'border-gray-300'
                         }`}>
-                          {selectedEmpleado === emp.documentoEmpleado && (
-                            <div className="w-2 h-2 bg-white rounded-full" />
+                          {selectedEmpleados.includes(emp.documentoEmpleado) && (
+                            <CheckCircle className="w-3.5 h-3.5 text-white" />
                           )}
                         </div>
                       </div>
@@ -1529,7 +1803,7 @@ function AssignEmployeeModal({ group, horarios, empleados, existingAssignments, 
                       <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white text-sm ${
                         isOverlapping ? 'bg-red-400' : 'bg-gradient-to-br from-blue-400 to-indigo-500'
                       }`}>
-                        {emp.nombre.charAt(0)}
+                        {(emp.nombre || 'E').charAt(0)}
                       </div>
 
                       <div className="flex-1">
@@ -1553,8 +1827,35 @@ function AssignEmployeeModal({ group, horarios, empleados, existingAssignments, 
               <div className="text-center py-8">
                 <Users className="w-10 h-10 text-gray-100 mx-auto mb-2" />
                 <p className="text-[10px] font-bold text-gray-300 uppercase tracking-widest leading-relaxed">
-                  No hay empleados disponibles<br />para este día y hora
+                  {searchTermAvailable ? 'No se encontraron resultados' : 'No hay personal disponible para este horario'}
                 </p>
+              </div>
+            )}
+
+            {/* Mini Pagination for Available Personnel */}
+            {totalAvailablePages > 1 && (
+              <div className="flex items-center justify-between mt-4 px-1">
+                <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">
+                  Página {availablePage} de {totalAvailablePages}
+                </p>
+                <div className="flex items-center space-x-1">
+                  <button
+                    type="button"
+                    onClick={() => setAvailablePage(p => Math.max(1, p - 1))}
+                    disabled={availablePage === 1}
+                    className="p-1.5 bg-white border border-gray-100 rounded-lg text-gray-400 hover:bg-gray-50 disabled:opacity-30 transition-all"
+                  >
+                    <ChevronLeft className="w-3 h-3" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAvailablePage(p => Math.min(totalAvailablePages, p + 1))}
+                    disabled={availablePage === totalAvailablePages}
+                    className="p-1.5 bg-white border border-gray-100 rounded-lg text-gray-400 hover:bg-gray-50 disabled:opacity-30 transition-all"
+                  >
+                    <ChevronRight className="w-3 h-3" />
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -1571,7 +1872,7 @@ function AssignEmployeeModal({ group, horarios, empleados, existingAssignments, 
             {availableEmpleados.length > 0 && (
               <button
                 type="submit"
-                disabled={saving || !selectedEmpleado}
+                disabled={saving || selectedEmpleados.length === 0}
                 className="flex-1 bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:shadow-lg hover:scale-105 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center space-x-2"
               >
                 {saving ? (
@@ -1579,7 +1880,7 @@ function AssignEmployeeModal({ group, horarios, empleados, existingAssignments, 
                 ) : (
                   <UserPlus className="w-3.5 h-3.5" />
                 )}
-                <span>Asignar</span>
+                <span>Asignar {selectedEmpleados.length > 0 ? `(${selectedEmpleados.length})` : ''}</span>
               </button>
             )}
           </div>

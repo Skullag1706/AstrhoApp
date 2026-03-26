@@ -1,4 +1,4 @@
-import { apiClient } from './apiClient';
+import { apiClient, PaginatedResponse } from './apiClient';
 
 export interface Person {
     documentId: string;    // Maps to documentoCliente / documentoEmpleado
@@ -75,12 +75,29 @@ const mapPersonToBackend = (person: CreatePersonData | Person) => {
 
 export const personService = {
     // GET ALL
-    async getPersons(type: 'client' | 'employee'): Promise<Person[]> {
+    async getPersons(type: 'client' | 'employee', params?: { page?: number; pageSize?: number; search?: string }): Promise<PaginatedResponse<Person>> {
         const endpoint = type === 'client' ? '/Clientes' : '/Empleados';
-        const response = await apiClient.get(endpoint);
-        if (!Array.isArray(response)) return [];
+        const response = await apiClient.get<any>(endpoint, params);
+        
+        if (response && response.data && Array.isArray(response.data)) {
+            return {
+                ...response,
+                data: response.data.map(item => mapBackendToPerson(item, type))
+            };
+        }
 
-        return response.map(item => mapBackendToPerson(item, type));
+        // Fallback
+        if (Array.isArray(response)) {
+            return {
+                data: response.map(item => mapBackendToPerson(item, type)),
+                totalCount: response.length,
+                page: params?.page || 1,
+                pageSize: params?.pageSize || response.length,
+                totalPages: 1
+            };
+        }
+
+        return { data: [], totalCount: 0, page: 1, pageSize: 10, totalPages: 0 };
     },
 
     // GET ONE

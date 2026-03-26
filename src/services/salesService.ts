@@ -1,4 +1,4 @@
-import { apiClient } from './apiClient';
+import { apiClient, PaginatedResponse } from './apiClient';
 
 export interface SaleServiceItem {
   serviceId?: number | string;
@@ -155,27 +155,35 @@ function mapApiSaleToView(apiSale: any): SaleView {
 }
 
 export const salesService = {
-  async getAll(): Promise<SaleView[]> {
+  async getAll(params?: { page?: number; pageSize?: number; search?: string }): Promise<PaginatedResponse<SaleView>> {
     const endpoints = ['/Ventas', '/Venta', '/Sales'];
     for (const ep of endpoints) {
       try {
-        const res = await apiClient.get(ep);
-        if (Array.isArray(res)) {
-          return res.map(mapApiSaleToView);
+        const res = await apiClient.get<any>(ep, params);
+        
+        // Si el resultado ya tiene el formato PaginatedResponse
+        if (res && res.data && Array.isArray(res.data)) {
+          return {
+            ...res,
+            data: res.data.map(mapApiSaleToView)
+          };
         }
-        if (res && typeof res === 'object') {
-          const values = Object.values(res);
-          const arr = values.find((v: any) => Array.isArray(v)) as any[] | undefined;
-          if (arr && Array.isArray(arr)) {
-            return arr.map(mapApiSaleToView);
-          }
+
+        // Fallback para cuando la API devuelve un array directamente (aunque el usuario dijo que ya se actualizó)
+        if (Array.isArray(res)) {
+          return {
+            data: res.map(mapApiSaleToView),
+            totalCount: res.length,
+            page: params?.page || 1,
+            pageSize: params?.pageSize || res.length,
+            totalPages: 1
+          };
         }
       } catch (err) {
-        // try next endpoint
         continue;
       }
     }
-    return [];
+    return { data: [], totalCount: 0, page: 1, pageSize: 10, totalPages: 0 };
   },
 
   async getById(id: string | number): Promise<SaleView> {
@@ -212,8 +220,36 @@ export const salesService = {
   },
 
   async create(data: any): Promise<SaleView | null> {
-    const res = await apiClient.post('/Ventas', data);
-    if (!res) return null;
-    return mapApiSaleToView(res);
+    try {
+      // Normalizamos el payload para el backend .NET
+      const payload = {
+        documentoCliente: data.clienteId,
+        documentoEmpleado: data.empleadoId,
+        metodoPagoId: data.metodoPagoId,
+        subtotal: data.subtotal,
+        descuento: data.descuento,
+        total: data.total,
+        observaciones: data.observaciones,
+        estado: true,
+        // Los items deben enviarse con los nombres de campos que espera el backend (productoId, servicioId, etc.)
+        serviciosIds: data.items.filter(i => i.tipo === 'service').map(i => i.id),
+        // Si hay productos, el backend puede esperar algo diferente, 
+        // pero por ahora el usuario solo pidió servicios en el buscador.
+        detalles: data.items.map((item: any) => ({
+          productoId: item.tipo === 'product' ? item.id : null,
+          servicioId: item.tipo === 'service' ? item.id : null,
+          cantidad: item.cantidad,
+          precioUnitario: item.precioUnitario,
+          subtotal: item.total
+        }))
+      };
+
+      const res = await apiClient.post('/Ventas', payload);
+      if (!res) return null;
+      return mapApiSaleToView(res);
+    } catch (error) {
+      console.error('Error in salesService.create:', error);
+      throw error;
+    }
   }
 };

@@ -21,6 +21,8 @@ import {
   AgendaItem, MetodoPago, EmpleadoAPI, ClienteAPI, ServicioAPI, EstadoAgenda
 } from '../../services/agendaService';
 import { horarioEmpleadoService, horarioService, HorarioEmpleado } from '../../services/scheduleService';
+import { personService } from '../../services/personService';
+import { serviceService } from '../../services/serviceService';
 // processImageSource and handleImageError removed as they are no longer needed here
 
 interface AppointmentManagementProps {
@@ -47,7 +49,6 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
   // ── Data from API ──
   const [appointments, setAppointments] = useState<AgendaItem[]>([]);
   const [empleados, setEmpleados] = useState<EmpleadoAPI[]>([]);
-  const [clientes, setClientes] = useState<ClienteAPI[]>([]);
   const [servicios, setServicios] = useState<ServicioAPI[]>([]);
   const [metodosPago, setMetodosPago] = useState<MetodoPago[]>([]);
   const [horariosEmpleado, setHorariosEmpleado] = useState<HorarioEmpleado[]>([]);
@@ -73,6 +74,8 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(5);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
 
   // ── Auto-Cancellation Logic ──
   const autoCancelOverdue = useCallback(async (allAppointments: AgendaItem[], allServicios: ServicioAPI[], allMetodos: MetodoPago[]) => {
@@ -117,9 +120,12 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
     setLoading(true);
     try {
       const results = await Promise.allSettled([
-        agendaService.getAll(),
+        agendaService.getAll({
+          page: currentPage,
+          pageSize: itemsPerPage,
+          search: searchTerm
+        }),
         empleadoAgendaService.getAll(),
-        clienteService.getAll(),
         servicioAgendaService.getAll(),
         metodoPagoService.getAll(),
         horarioEmpleadoService.getAll(),
@@ -136,41 +142,36 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
         return [];
       };
 
-      const rawHorariosEmpleado: any[] = extract(results[5]);
-      const rawHorarios: any[]         = extract(results[6]);
+      const rawHorariosEmpleado: any[] = extract(results[4]);
+      const rawHorarios: any[]         = extract(results[5]);
 
-      // Build a quick lookup: horarioId → Horario
-      const horarioMap = new Map<number, any>();
-      rawHorarios.forEach((h: any) => horarioMap.set(h.horarioId, h));
+      // HorarioEmpleado now comes with diaSemana, horaInicio, and horaFin from the API
+      const enrichedHorariosEmpleado: HorarioEmpleado[] = rawHorariosEmpleado.map((he: any) => ({
+        horarioEmpleadoId: he.horarioEmpleadoId,
+        horarioId:         he.horarioId,
+        documentoEmpleado: he.documentoEmpleado,
+        empleadoNombre:    he.empleadoNombre || '',
+        diaSemana:         he.diaSemana || '',
+        horaInicio:        he.horaInicio || '',
+        horaFin:           he.horaFin || '',
+      }));
 
-      // Enrich each HorarioEmpleado with the day/time data from its parent Horario
-      const enrichedHorariosEmpleado: HorarioEmpleado[] = rawHorariosEmpleado.map((he: any) => {
-        const base = horarioMap.get(he.horarioId) || {};
-        return {
-          horarioEmpleadoId: he.horarioEmpleadoId,
-          horarioId:         he.horarioId,
-          documentoEmpleado: he.documentoEmpleado,
-          empleadoNombre:    he.empleadoNombre || '',
-          // Prefer fields already in the response; fall back to the joined Horario
-          diaSemana:  he.diaSemana  || base.diaSemana  || '',
-          horaInicio: he.horaInicio || base.horaInicio || '',
-          horaFin:    he.horaFin    || base.horaFin    || '',
-        };
-      });
+      const agendaResponse = results[0].status === 'fulfilled' ? results[0].value : { data: [], totalCount: 0, totalPages: 0 };
+      setAppointments(agendaResponse.data || []);
+      setTotalCount(agendaResponse.totalCount || 0);
+      setTotalPages(agendaResponse.totalPages || 0);
 
-      setAppointments(extract(results[0]));
       setEmpleados(extract(results[1]).filter((e: any) => e.estado));
-      setClientes(extract(results[2]).filter((c: any) => c.estado));
-      setServicios(extract(results[3]).filter((s: any) => s.estado));
-      setMetodosPago(extract(results[4]));
+      setServicios(extract(results[2]).filter((s: any) => s.estado));
+      setMetodosPago(extract(results[3]));
       setHorariosEmpleado(enrichedHorariosEmpleado);
       setBaseHorarios(rawHorarios.filter((h: any) => h.estado));
-      // Load real estados from API (results[7]), fall back to defaults if failed
-      const rawEstados = extract(results[7]).filter((e: any) => e.estadoId > 0 && e.nombre);
+      // Load real estados from API (results[6]), fall back to defaults if failed
+      const rawEstados = extract(results[6]).filter((e: any) => e.estadoId > 0 && e.nombre);
       if (rawEstados.length > 0) setEstadosAgenda(rawEstados);
 
       // Trigger auto-cancellation for overdue appointments
-      const currentAppointments = extract(results[0]);
+      const currentAppointments = agendaResponse.data || [];
       const currentServicios = extract(results[3]).filter((s: any) => s.estado);
       const currentMetodos = extract(results[4]);
       autoCancelOverdue(currentAppointments, currentServicios, currentMetodos);
@@ -186,11 +187,16 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentPage, searchTerm, autoCancelOverdue]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Reset page when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
   // ── Helpers ──
   const getStatusColor = (status: string) => {
@@ -236,31 +242,9 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
     return time ? time.substring(0, 5) : '';
   };
 
-  // ── Filters ──
-  const filteredAppointments = appointments.filter((apt) => {
-    const aptCliente = apt.cliente || '';
-    const aptServicios = apt.servicios || [];
-    const aptEstado = apt.estado || '';
+  // ── Ya no filtramos en el cliente, usamos lo que viene de la API ──
+  const paginatedAppointments = appointments;
 
-    const matchesSearch =
-      searchTerm === '' ||
-      aptCliente.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      aptServicios.some((s) => s.toLowerCase().includes(searchTerm.toLowerCase()));
-
-    const matchesStatus =
-      filterStatus === 'all' || aptEstado.toLowerCase() === filterStatus.toLowerCase();
-
-    const matchesEmployee =
-      filterEmployee === 'all' || apt.documentoEmpleado === filterEmployee;
-
-    return matchesSearch && matchesStatus && matchesEmployee;
-  });
-
-  const totalPages = Math.ceil((filteredAppointments.length || 0) / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedAppointments = filteredAppointments.slice(startIndex, startIndex + itemsPerPage);
-
-  // ── Handlers ──
   const handleCreateAppointment = () => {
     setSelectedAppointment(null);
     setShowCreateModal(true);
@@ -271,9 +255,21 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
     setShowCreateModal(true);
   };
 
-  const handleViewDetail = (apt: AgendaItem) => {
-    setSelectedAppointment(apt);
-    setShowDetailModal(true);
+  const handleViewDetail = async (apt: AgendaItem) => {
+    try {
+      setLoading(true);
+      // Fetch full details from the specific GET endpoint /api/Agenda/{id}
+      const fullApt = await agendaService.getById(apt.agendaId);
+      setSelectedAppointment(fullApt);
+      setShowDetailModal(true);
+    } catch (error) {
+      console.error('Error fetching appointment detail:', error);
+      // Fallback: show the item from the list if the specific fetch fails
+      setSelectedAppointment(apt);
+      setShowDetailModal(true);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDeleteAppointment = (apt: AgendaItem) => {
@@ -491,7 +487,7 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
         <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-6 border-b border-gray-100">
           <h3 className="text-xl font-bold text-gray-800">Lista de Citas</h3>
           <p className="text-gray-600">
-            {filteredAppointments.length} cita{filteredAppointments.length !== 1 ? 's' : ''} encontrada{filteredAppointments.length !== 1 ? 's' : ''}
+            {totalCount} cita{totalCount !== 1 ? 's' : ''} encontrada{totalCount !== 1 ? 's' : ''}
           </p>
         </div>
 
@@ -616,11 +612,13 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
         </div>
 
         {/* Pagination */}
-        <div className="p-6 border-t border-gray-100">
+        <div className="p-6 border-t border-gray-100 bg-gray-50/50">
           <SimplePagination
             currentPage={currentPage}
             totalPages={Math.max(1, totalPages)}
             onPageChange={setCurrentPage}
+            totalRecords={totalCount}
+            recordsPerPage={itemsPerPage}
           />
         </div>
       </div>
@@ -629,8 +627,6 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
       {showCreateModal && (
         <AppointmentModal
           appointment={selectedAppointment}
-          empleados={empleados}
-          clientes={clientes}
           serviciosAPI={servicios}
           metodosPago={metodosPago}
           horariosEmpleado={horariosEmpleado}
@@ -713,8 +709,6 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
 
 interface AppointmentModalProps {
   appointment: AgendaItem | null;
-  empleados: EmpleadoAPI[];
-  clientes: ClienteAPI[];
   serviciosAPI: ServicioAPI[];
   metodosPago: MetodoPago[];
   horariosEmpleado: HorarioEmpleado[];
@@ -735,8 +729,6 @@ function timeStrToMinutes(time: string): number {
 
 function AppointmentModal({
   appointment,
-  empleados,
-  clientes,
   serviciosAPI,
   metodosPago,
   horariosEmpleado,
@@ -779,7 +771,7 @@ function AppointmentModal({
     documentoCliente: appointment?.documentoCliente || '',
     documentoEmpleado: appointment?.documentoEmpleado || (initialEmployee !== 'all' ? initialEmployee : ''),
     fechaCita: appointment?.fechaCita || new Date().toISOString().split('T')[0],
-    horaInicio: appointment ? appointment.horaInicio.substring(0, 5) : '09:00',
+    horaInicio: appointment?.horaInicio ? appointment.horaInicio.substring(0, 5) : '09:00',
     metodoPagoId: getInitialMetodoPagoId(),
     observaciones: '',
     serviciosIds: getInitialServiceIds(),
@@ -951,7 +943,7 @@ function AppointmentModal({
       if (!availableSlots.includes(formData.horaInicio)) {
         // If editing, only reset if something affecting availability changed
         // For simplicity, we'll keep the value if it's the original one
-        const isOriginalTime = isEdit && appointment?.horaInicio.substring(0, 5) === formData.horaInicio;
+        const isOriginalTime = isEdit && appointment?.horaInicio?.substring(0, 5) === formData.horaInicio;
         if (!isOriginalTime) {
           // Do not auto-reset to index 0 immediately to avoid UX jump, but maybe show error
         }
@@ -1105,7 +1097,6 @@ function AppointmentModal({
                   <div className="bg-pink-50/30 p-4 rounded-2xl border border-pink-100">
                     <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Buscar Cliente *</label>
                     <ClientSearchSelect
-                      clients={clientes}
                       selectedDocument={formData.documentoCliente}
                       onSelect={(cli: ClienteAPI) => setFormData({ ...formData, documentoCliente: cli.documentoCliente })}
                       error={errors.documentoCliente}
@@ -1182,7 +1173,6 @@ function AppointmentModal({
                   <div className="relative">
                     <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Profesional Asignado *</label>
                     <ProfessionalSearchSelect
-                      empleados={empleados}
                       selectedDocument={formData.documentoEmpleado}
                       onSelect={(emp) => setFormData({ ...formData, documentoEmpleado: emp.documentoEmpleado })}
                       checkEmployeeOccupied={checkEmployeeOccupied}
@@ -1237,19 +1227,12 @@ function AppointmentModal({
                             <Scissors className="w-4 h-4 text-gray-400" />
                           </div>
                           <div className="flex-1">
-                            <select
-                              value={svcId}
-                              onChange={(e) => updateServiceSlot(index, parseInt(e.target.value))}
+                            <ServiceSearchSelect
+                              selectedServiceId={svcId}
+                              onSelect={(s: ServicioAPI) => updateServiceSlot(index, s.servicioId)}
                               disabled={isCompleted}
-                              className="w-full bg-transparent font-bold text-gray-800 border-none p-0 focus:ring-0 text-sm"
-                            >
-                              <option value={0}>Selecciona un servicio...</option>
-                              {serviciosAPI.map((s) => (
-                                <option key={s.servicioId} value={s.servicioId} disabled={formData.serviciosIds.some(id => id === s.servicioId && id !== svcId)}>
-                                  {s.nombre}
-                                </option>
-                              ))}
-                            </select>
+                              allSelectedIds={formData.serviciosIds}
+                            />
                           </div>
                           <div className="flex items-center gap-3">
                             <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">
@@ -1467,7 +1450,7 @@ function AppointmentDetailModal({ appointment, servicios, getStatusColor, onClos
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-400">Hora:</span>
-                    <span className="font-bold text-gray-700">{appointment.horaInicio.substring(0, 5)}</span>
+                    <span className="font-bold text-gray-700">{appointment.horaInicio?.substring(0, 5) || '--:--'}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-400">Duración:</span>
@@ -1547,11 +1530,11 @@ function AppointmentDetailModal({ appointment, servicios, getStatusColor, onClos
                 <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
                   <div className="flex items-center space-x-4">
                     <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-blue-500 font-bold text-xl">
-                      {appointment.empleado.charAt(0)}
+                      {(appointment.empleado || 'E').charAt(0)}
                     </div>
                     <div>
-                      <p className="font-bold text-gray-800">{appointment.empleado}</p>
-                      <p className="text-xs text-gray-500 font-mono">Doc: {appointment.documentoEmpleado}</p>
+                      <p className="font-bold text-gray-800">{appointment.empleado || 'Empleado'}</p>
+                      <p className="text-xs text-gray-500 font-mono">Doc: {appointment.documentoEmpleado || 'N/A'}</p>
                     </div>
                   </div>
                 </div>
@@ -1636,7 +1619,7 @@ function DeleteAppointmentModal({ appointment, serviciosMap, onClose, onConfirm 
             <div className="flex items-center justify-between text-sm">
               <span className="text-red-400 font-bold uppercase text-[10px] tracking-widest">Programación:</span>
               <span className="font-bold text-red-700">
-                {new Date(appointment.fechaCita + 'T00:00:00').toLocaleDateString('es-ES')} - {appointment.horaInicio.substring(0, 5)}
+                {new Date(appointment.fechaCita + 'T00:00:00').toLocaleDateString('es-ES')} - {appointment.horaInicio?.substring(0, 5) || '--:--'}
               </span>
             </div>
             <div className="flex items-center justify-between text-sm">
@@ -1676,25 +1659,71 @@ function DeleteAppointmentModal({ appointment, serviciosMap, onClose, onConfirm 
 }
 
 // Custom Client Search and Select Component (matches ProductSearchSelect style)
-function ClientSearchSelect({ clients, onSelect, selectedDocument, error, disabled }: any) {
+function ClientSearchSelect({ onSelect, selectedDocument, error, disabled }: any) {
   const [searchTerm, setSearchTerm] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedClient, setSelectedClient] = useState<any>(null);
 
-  const selectedClient = clients.find((c: any) => c.documentoCliente === selectedDocument);
+  // Load the currently selected client if available
+  useEffect(() => {
+    const fetchSelected = async () => {
+      if (selectedDocument && !selectedClient) {
+        try {
+          const client = await personService.getPersonByDocument(selectedDocument, 'client');
+          // map Backend Person to ClienteAPI structure (expected by onSelect/AppointmentModal)
+          const mapped = {
+            documentoCliente: client.documentId,
+            tipoDocumento: client.documentType,
+            nombre: client.name,
+            telefono: client.phone,
+            estado: client.status === 'active'
+          };
+          setSelectedClient(mapped);
+        } catch (e) {
+          console.warn('Error fetching selected client:', e);
+        }
+      }
+    };
+    fetchSelected();
+  }, [selectedDocument, selectedClient]);
 
-  const filteredClients = clients.filter((c: any) => {
-    if (!c) return false;
-    const nombre = (c.nombre || '').toLowerCase();
-    const doc = (c.documentoCliente || '').toLowerCase();
-    const search = searchTerm.toLowerCase();
-    return nombre.includes(search) || doc.includes(search);
-  });
+  // Handle Search with Debounce
+  useEffect(() => {
+    const fetchClients = async () => {
+      if (!searchTerm.trim()) {
+        setSearchResults([]);
+        return;
+      }
+      setLoading(true);
+      try {
+        const res = await personService.getPersons('client', { search: searchTerm, pageSize: 20 });
+        const mapped = res.data.map(p => ({
+          documentoCliente: p.documentId,
+          tipoDocumento: p.documentType,
+          nombre: p.name,
+          telefono: p.phone,
+          estado: p.status === 'active'
+        }));
+        setSearchResults(mapped);
+      } catch (err) {
+        console.error('Error searching clients:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const timer = setTimeout(fetchClients, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
+        setSearchTerm('');
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -1723,7 +1752,7 @@ function ClientSearchSelect({ clients, onSelect, selectedDocument, error, disabl
           </div>
         ) : (
           <div className="flex-1 flex items-center">
-            <Search className="text-gray-400 w-4 h-4 mr-2" />
+            {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin text-pink-400" /> : <Search className="text-gray-400 w-4 h-4 mr-2" />}
             <input
               type="text"
               className="w-full bg-transparent text-sm focus:outline-none"
@@ -1744,10 +1773,14 @@ function ClientSearchSelect({ clients, onSelect, selectedDocument, error, disabl
       {isOpen && (
         <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200">
           <div className="max-h-60 overflow-y-auto py-1">
-            {filteredClients.length === 0 ? (
-              <div className="p-4 text-sm text-gray-500 text-center">No se encontraron clientes</div>
+            {loading && searchResults.length === 0 ? (
+               <div className="p-4 text-sm text-gray-500 text-center">Buscando...</div>
+            ) : searchResults.length === 0 ? (
+              <div className="p-4 text-sm text-gray-500 text-center">
+                {searchTerm ? 'No se encontraron clientes' : 'Escribe para buscar...'}
+              </div>
             ) : (
-              filteredClients.map((client: any) => (
+              searchResults.map((client: any) => (
                 <div
                   key={client.documentoCliente}
                   className={cn(
@@ -1757,6 +1790,7 @@ function ClientSearchSelect({ clients, onSelect, selectedDocument, error, disabl
                   onClick={(e: React.MouseEvent) => {
                     e.stopPropagation();
                     onSelect(client);
+                    setSelectedClient(client);
                     setIsOpen(false);
                     setSearchTerm('');
                   }}
@@ -1784,7 +1818,6 @@ function ClientSearchSelect({ clients, onSelect, selectedDocument, error, disabl
 }
 
 interface ProfessionalSearchSelectProps {
-  empleados: any[];
   selectedDocument: string;
   onSelect: (emp: any) => void;
   checkEmployeeOccupied: (doc: string) => boolean;
@@ -1794,7 +1827,6 @@ interface ProfessionalSearchSelectProps {
 }
 
 function ProfessionalSearchSelect({
-  empleados,
   selectedDocument,
   onSelect,
   checkEmployeeOccupied,
@@ -1804,14 +1836,61 @@ function ProfessionalSearchSelect({
 }: ProfessionalSearchSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const selectedEmployee = empleados.find((e) => e.documentoEmpleado === selectedDocument);
+  // Load selected employee
+  useEffect(() => {
+    const fetchSelected = async () => {
+      if (selectedDocument && !selectedEmployee) {
+        try {
+          const emp = await personService.getPersonByDocument(selectedDocument, 'employee');
+          const mapped = {
+            documentoEmpleado: emp.documentId,
+            tipoDocumento: emp.documentType,
+            nombre: emp.name,
+            telefono: emp.phone,
+            estado: emp.status === 'active'
+          };
+          setSelectedEmployee(mapped);
+        } catch (e) {
+          console.warn('Error fetching selected employee:', e);
+        }
+      }
+    };
+    fetchSelected();
+  }, [selectedDocument, selectedEmployee]);
 
-  const filteredEmployees = empleados.filter((emp) =>
-    emp.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    emp.documentoEmpleado.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Search with Debounce
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      if (!searchTerm.trim()) {
+        setSearchResults([]);
+        return;
+      }
+      setLoading(true);
+      try {
+        const res = await personService.getPersons('employee', { search: searchTerm, pageSize: 20 });
+        const mapped = res.data.map(p => ({
+          documentoEmpleado: p.documentId,
+          tipoDocumento: p.documentType,
+          nombre: p.name,
+          telefono: p.phone,
+          estado: p.status === 'active'
+        }));
+        setSearchResults(mapped);
+      } catch (err) {
+        console.error('Error searching employees:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const timer = setTimeout(fetchEmployees, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -1849,7 +1928,7 @@ function ProfessionalSearchSelect({
           </div>
         ) : (
           <div className="flex-1 flex items-center">
-            <Search className="text-gray-400 w-4 h-4 mr-2" />
+            {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin text-pink-400" /> : <Search className="text-gray-400 w-4 h-4 mr-2" />}
             <input
               type="text"
               className="w-full bg-transparent text-sm focus:outline-none"
@@ -1870,10 +1949,14 @@ function ProfessionalSearchSelect({
       {isOpen && (
         <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200">
           <div className="max-h-[280px] overflow-y-auto py-1">
-            {filteredEmployees.length === 0 ? (
-              <div className="p-4 text-sm text-gray-500 text-center">No se encontraron profesionales</div>
+            {loading && searchResults.length === 0 ? (
+               <div className="p-4 text-sm text-gray-500 text-center">Buscando...</div>
+            ) : searchResults.length === 0 ? (
+              <div className="p-4 text-sm text-gray-500 text-center">
+                {searchTerm ? 'No se encontraron profesionales' : 'Escribe para buscar...'}
+              </div>
             ) : (
-              filteredEmployees.map((emp: any) => {
+              searchResults.map((emp: any) => {
                 const occupied = checkEmployeeOccupied(emp.documentoEmpleado);
                 const isWithinSchedule = checkEmployeeHasSchedule(emp.documentoEmpleado);
                 const isDisabled = occupied || !isWithinSchedule;
@@ -1895,6 +1978,7 @@ function ProfessionalSearchSelect({
                       e.stopPropagation();
                       if (isDisabled) return;
                       onSelect(emp);
+                      setSelectedEmployee(emp);
                       setIsOpen(false);
                       setSearchTerm('');
                     }}
@@ -1913,6 +1997,173 @@ function ProfessionalSearchSelect({
                             {statusText}
                           </span>
                         )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface ServiceSearchSelectProps {
+  selectedServiceId: number;
+  onSelect: (service: ServicioAPI) => void;
+  disabled?: boolean;
+  allSelectedIds: number[];
+}
+
+function ServiceSearchSelect({
+  selectedServiceId,
+  onSelect,
+  disabled,
+  allSelectedIds
+}: ServiceSearchSelectProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState<ServicioAPI[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedService, setSelectedService] = useState<ServicioAPI | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Load selected service
+  useEffect(() => {
+    const fetchSelected = async () => {
+      if (selectedServiceId > 0 && (!selectedService || selectedService.servicioId !== selectedServiceId)) {
+        try {
+          const svc = await serviceService.getServiceById(selectedServiceId);
+          setSelectedService(svc);
+        } catch (e) {
+          console.warn('Error fetching selected service:', e);
+        }
+      } else if (selectedServiceId === 0) {
+        setSelectedService(null);
+      }
+    };
+    fetchSelected();
+  }, [selectedServiceId, selectedService]);
+
+  // Search with Debounce
+  useEffect(() => {
+    const fetchServices = async () => {
+      if (!searchTerm.trim()) {
+        setSearchResults([]);
+        return;
+      }
+      setLoading(true);
+      try {
+        const res = await serviceService.getServices({ search: searchTerm, pageSize: 20 });
+        setSearchResults(res.data);
+      } catch (err) {
+        console.error('Error searching services:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const timer = setTimeout(fetchServices, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+        setSearchTerm('');
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  return (
+    <div className="relative w-full" ref={containerRef}>
+      <div
+        onClick={() => !disabled && setIsOpen(!isOpen)}
+        className={cn(
+          "flex items-center justify-between w-full transition-all cursor-pointer bg-transparent",
+          disabled && "cursor-not-allowed opacity-75"
+        )}
+      >
+        {!isOpen && !selectedService ? (
+          <div className="flex items-center gap-2">
+            <span className="text-gray-500 text-sm font-medium">Seleccionar servicio...</span>
+          </div>
+        ) : !isOpen && selectedService ? (
+          <div className="flex items-center gap-2">
+            <span className="text-gray-800 font-bold text-sm">{selectedService.nombre}</span>
+          </div>
+        ) : (
+          <div className="flex-1 flex items-center">
+            {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin text-pink-400" /> : <Search className="text-gray-400 w-4 h-4 mr-2" />}
+            <input
+              type="text"
+              className="w-full bg-transparent text-sm focus:outline-none font-medium"
+              placeholder="Buscar servicio..."
+              value={searchTerm}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+              autoFocus
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            />
+          </div>
+        )}
+        <ChevronsUpDown className={cn(
+          "w-4 h-4 text-gray-500 transition-transform",
+          isOpen && 'rotate-180'
+        )} />
+      </div>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200">
+          <div className="max-h-[250px] overflow-y-auto py-1">
+            {loading && searchResults.length === 0 ? (
+               <div className="p-4 text-sm text-gray-500 text-center">Buscando...</div>
+            ) : searchResults.length === 0 ? (
+              <div className="p-4 text-sm text-gray-500 text-center">
+                {searchTerm ? 'No se encontraron servicios' : 'Escribe para buscar...'}
+              </div>
+            ) : (
+              searchResults.map((svc) => {
+                const isSelected = svc.servicioId === selectedServiceId;
+                const isAlreadyAdded = allSelectedIds.includes(svc.servicioId) && !isSelected;
+                
+                return (
+                  <div
+                    key={svc.servicioId}
+                    className={cn(
+                      "px-4 py-3 text-sm flex justify-between items-center transition-colors",
+                      isSelected ? 'bg-pink-100 text-pink-700 font-semibold' : 'text-gray-800',
+                      isAlreadyAdded ? "opacity-50 cursor-not-allowed bg-gray-50" : "hover:bg-pink-50 cursor-pointer"
+                    )}
+                    onClick={(e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      if (isAlreadyAdded) return;
+                      onSelect(svc);
+                      setSelectedService(svc);
+                      setIsOpen(false);
+                      setSearchTerm('');
+                    }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Check
+                        className={cn(
+                          "h-4 w-4 text-pink-500",
+                          isSelected ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      <div className="flex flex-col">
+                        <span className="font-medium">{svc.nombre}</span>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[10px] text-gray-400">{svc.duracion} min</span>
+                          <span className="text-[10px] text-gray-400">•</span>
+                          <span className="text-[10px] text-gray-400">${svc.precio.toLocaleString()}</span>
+                        </div>
                       </div>
                     </div>
                   </div>

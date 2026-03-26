@@ -102,9 +102,9 @@ export function SimplePagination({
           {/* Next Button */}
           <button
             onClick={() => onPageChange(currentPage + 1)}
-            disabled={currentPage === totalPages}
+            disabled={currentPage >= totalPages}
             className={`w-8 h-8 flex items-center justify-center rounded-lg border transition-all ${
-              currentPage === totalPages
+              currentPage >= totalPages
                 ? 'border-gray-200 bg-gray-50 text-gray-300 cursor-not-allowed'
                 : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50 hover:border-gray-400'
             }`}
@@ -154,9 +154,9 @@ export function SimplePagination({
       {/* Next Button */}
       <button
         onClick={() => onPageChange(currentPage + 1)}
-        disabled={currentPage === totalPages}
+        disabled={currentPage >= totalPages}
         className={`w-8 h-8 flex items-center justify-center rounded-lg border transition-all ${
-          currentPage === totalPages
+          currentPage >= totalPages
             ? 'border-gray-200 bg-gray-50 text-gray-300 cursor-not-allowed'
             : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50 hover:border-gray-400'
         }`}

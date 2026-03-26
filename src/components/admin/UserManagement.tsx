@@ -34,13 +34,21 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
   const [filterStatus, setFilterStatus] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(5);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
 
   // Fetch users and roles from API
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const data = await userService.getAll();
-      setUsers(data);
+      const response = await userService.getAll({
+        page: currentPage,
+        pageSize: itemsPerPage,
+        search: searchTerm
+      });
+      setUsers(response.data || []);
+      setTotalCount(response.totalCount || 0);
+      setTotalPages(response.totalPages || 0);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast.error('Error al cargar los usuarios');
@@ -51,8 +59,8 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
 
   const fetchRoles = async () => {
     try {
-      const data = await roleService.getRoles();
-      setRoles(data);
+      const response = await roleService.getRoles();
+      setRoles(response.data || []);
     } catch (error) {
       console.error('Error fetching roles:', error);
     }
@@ -60,27 +68,19 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
 
   useEffect(() => {
     fetchUsers();
+  }, [currentPage, searchTerm]);
+
+  useEffect(() => {
     fetchRoles();
   }, []);
 
-  // Filter users based on search and filters
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (user.rolNombre || '').toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesRole = filterRole === 'all' || (user.rolNombre || '').toLowerCase() === filterRole.toLowerCase();
-    const matchesStatus = filterStatus === 'all' ||
-      (filterStatus === 'active' && user.estado === true) ||
-      (filterStatus === 'suspended' && user.estado === false);
+  // Reset page when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
-    return matchesSearch && matchesRole && matchesStatus;
-  });
-
-  // Pagination
-  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
-  const paginatedUsers = filteredUsers.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  // Ya no filtramos en el cliente, usamos lo que viene de la API
+  const paginatedUsers = users;
 
   const goToPage = (page: number) => {
     setCurrentPage(page);
@@ -112,12 +112,19 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
 
   const handleViewUser = async (user: UsuarioListItem) => {
     try {
+      // Show basic info from the list first to avoid empty screen
+      setSelectedUser({
+        ...user,
+        rol: { nombre: user.rolNombre }
+      });
+      setShowDetailModal(true);
+      
+      // Fetch full details
       const detail = await userService.getById(user.usuarioId);
       setSelectedUser(detail);
-      setShowDetailModal(true);
     } catch (error) {
       console.error('Error fetching user details:', error);
-      toast.error('Error al cargar los datos del usuario');
+      // Detail modal will still show basic info from 'user' param
     }
   };
 
@@ -384,7 +391,7 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
         <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-6 border-b border-gray-100">
           <h3 className="text-xl font-bold text-gray-800">Lista de Usuarios</h3>
           <p className="text-gray-600">
-            {filteredUsers.length} usuario{filteredUsers.length !== 1 ? 's' : ''} encontrado{filteredUsers.length !== 1 ? 's' : ''}
+            {totalCount} usuario{totalCount !== 1 ? 's' : ''} encontrado{totalCount !== 1 ? 's' : ''}
           </p>
         </div>
 
@@ -505,14 +512,13 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
         </div>
 
         {/* Pagination */}
-        <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
-          <div className="text-sm text-gray-600">
-            Mostrando {filteredUsers.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} - {Math.min(currentPage * itemsPerPage, filteredUsers.length)} de {filteredUsers.length} registros
-          </div>
+        <div className="px-6 py-4 border-t border-gray-100">
           <SimplePagination
             totalPages={totalPages}
             currentPage={currentPage}
             onPageChange={goToPage}
+            totalRecords={totalCount}
+            recordsPerPage={itemsPerPage}
           />
         </div>
       </div>
@@ -1209,7 +1215,7 @@ function UserDetailModal({ user, onClose }: { user: any; onClose: () => void }) 
   useEffect(() => {
     const fetchPerson = async () => {
       try {
-        const data = await userService.getPersonForUser(user.usuarioId);
+        const data = await userService.getPersonForUser(user);
         setPersonData(data);
       } catch (error) {
         console.error("Error fetching person for detail:", error);

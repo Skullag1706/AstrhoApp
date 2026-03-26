@@ -1,4 +1,4 @@
-import { apiClient } from "./apiClient";
+import { apiClient, PaginatedResponse } from "./apiClient";
 
 // ── Interfaces ──
 
@@ -29,6 +29,8 @@ export interface CreateAgendaData {
 export interface UpdateAgendaData extends CreateAgendaData {
   estadoId: number;
 }
+
+
 
 export interface MetodoPago {
   metodopagoId: number;
@@ -200,17 +202,32 @@ function normalizeAgendaItem(raw: any): AgendaItem {
 // ── Agenda Service ──
 
 export const agendaService = {
-  async getAll(): Promise<AgendaItem[]> {
-    const data = await apiClient.get("/Agenda");
-    // Unwrap common .NET JSON wrapper formats
-    const raw: any[] = Array.isArray(data)
-      ? data
-      : Array.isArray(data?.data)
-      ? data.data
-      : Array.isArray(data?.$values)
-      ? data.$values
-      : [];
-    return raw.map(normalizeAgendaItem);
+  async getAll(params?: { page?: number; pageSize?: number; search?: string }): Promise<PaginatedResponse<AgendaItem>> {
+    try {
+      const res = await apiClient.get<any>("/Agenda", params);
+      
+      if (res && res.data && Array.isArray(res.data)) {
+        return {
+          ...res,
+          data: res.data.map(normalizeAgendaItem)
+        };
+      }
+
+      if (Array.isArray(res)) {
+        return {
+          data: res.map(normalizeAgendaItem),
+          totalCount: res.length,
+          page: params?.page || 1,
+          pageSize: params?.pageSize || res.length,
+          totalPages: 1
+        };
+      }
+      
+      return { data: [], totalCount: 0, page: 1, pageSize: 10, totalPages: 0 };
+    } catch (error) {
+      console.error("Error fetching agenda:", error);
+      throw error;
+    }
   },
 
   async getMisCitas(): Promise<AgendaItem[]> {
@@ -225,12 +242,19 @@ export const agendaService = {
     return raw.map(normalizeAgendaItem);
   },
 
-  async create(data: CreateAgendaData): Promise<any> {
-    return apiClient.post("/Agenda", data);
+  async getById(id: number): Promise<AgendaItem> {
+    const res = await apiClient.get(`/Agenda/${id}`);
+    return normalizeAgendaItem(res);
   },
 
-  async update(id: number, data: UpdateAgendaData): Promise<any> {
-    return apiClient.put(`/Agenda/${id}`, data);
+  async create(data: CreateAgendaData): Promise<AgendaItem> {
+    const res = await apiClient.post("/Agenda", data);
+    return normalizeAgendaItem(res);
+  },
+
+  async update(id: number, data: UpdateAgendaData): Promise<AgendaItem> {
+    const res = await apiClient.put(`/Agenda/${id}`, data);
+    return normalizeAgendaItem(res);
   },
 
   async delete(id: number): Promise<void> {

@@ -4,32 +4,57 @@ import { apiClient } from "./apiClient";
 
 export interface Horario {
   horarioId: number;
+  nombre: string;
+  estado: boolean;
+  dias?: HorarioDia[];
+  horarioDias?: HorarioDia[];
+}
+
+export interface HorarioDia {
+  horarioDiaId: number;
   diaSemana: string;
   horaInicio: string;
   horaFin: string;
-  estado: boolean;
 }
 
 export interface CreateHorarioData {
-  diaSemana: string;
-  horaInicio: string;
-  horaFin: string;
+  nombre: string;
   estado: boolean;
+  dias: HorarioDia[];
+}
+
+export interface UpdateHorarioData {
+  nombre: string;
+  estado: boolean;
+  dias: HorarioDia[];
 }
 
 export interface HorarioEmpleado {
   horarioEmpleadoId: number;
   horarioId: number;
-  documentoEmpleado: string;
-  empleadoNombre: string;
-  diaSemana: string;
-  horaInicio: string;
-  horaFin: string;
+  documentoEmpleado: string | null;
+  empleadoNombre: string | null;
+  diaSemana: string | null;
+  horaInicio: string | null;
+  horaFin: string | null;
 }
 
 export interface CreateHorarioEmpleadoData {
   horarioId: number;
-  documentoEmpleado: string;
+  documentoEmpleado: string | null;
+  diaSemana?: string; // Para facilitar el mapeo al crear/editar horarios
+}
+
+export interface BulkHorarioEmpleadoData {
+  dias: {
+    horarioDiaId: number;
+    empleados: string[];
+  }[];
+}
+
+export interface UpdateHorarioEmpleadoData {
+  horarioId?: number | null;
+  documentoEmpleado?: string | null;
 }
 
 export interface Empleado {
@@ -44,6 +69,7 @@ export interface Empleado {
 // ── Schedule Group (frontend-only, persisted in localStorage) ──
 
 export interface DaySchedule {
+  horarioDiaId?: number;
   dia: string;
   horaInicio: string;
   horaFin: string;
@@ -109,8 +135,12 @@ export const horarioService = {
     return apiClient.post("/Horario", data);
   },
 
-  async update(id: number, data: CreateHorarioData): Promise<Horario | null> {
+  async update(id: number, data: UpdateHorarioData): Promise<Horario | null> {
     return apiClient.put(`/Horario/${id}`, data);
+  },
+
+  async toggle(id: number): Promise<void> {
+    return apiClient.patch(`/Horario/${id}/toggle`);
   },
 
   async delete(id: number): Promise<void> {
@@ -129,11 +159,27 @@ export const horarioEmpleadoService = {
     return apiClient.post("/HorarioEmpleado", data);
   },
 
+  async createBulk(data: BulkHorarioEmpleadoData): Promise<void> {
+    return apiClient.post("/HorarioEmpleado", data);
+  },
+
+  async createMasivo(data: { horarioId: number; documentosEmpleado: string[] }): Promise<void> {
+    // Mantener por compatibilidad temporal si es necesario, pero redirigir a la nueva estructura si es posible
+    const bulkData: BulkHorarioEmpleadoData = {
+      dias: [{ horarioDiaId: data.horarioId, empleados: data.documentosEmpleado }]
+    };
+    return this.createBulk(bulkData);
+  },
+
   async update(
     id: number,
-    data: CreateHorarioEmpleadoData,
+    data: UpdateHorarioEmpleadoData,
   ): Promise<HorarioEmpleado | null> {
     return apiClient.put(`/HorarioEmpleado/${id}`, data);
+  },
+
+  async getByEmpleado(documentoEmpleado: string): Promise<HorarioEmpleado[]> {
+    return apiClient.get(`/HorarioEmpleado/empleado/${documentoEmpleado}`);
   },
 
   async delete(id: number): Promise<void> {
@@ -141,10 +187,17 @@ export const horarioEmpleadoService = {
   },
 };
 
+export interface PaginatedResponse<T> {
+  data: T[];
+  totalRecords: number;
+  totalPages: number;
+  currentPage: number;
+}
+
 // ── Empleado Service (read-only for this module) ──
 
 export const empleadoService = {
-  async getAll(): Promise<Empleado[]> {
-    return apiClient.get("/Empleados");
+  async getAll(page: number = 1, pageSize: number = 10, search: string = ""): Promise<PaginatedResponse<Empleado> | Empleado[]> {
+    return apiClient.get("/Empleados", { page, pageSize, search });
   },
 };

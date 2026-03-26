@@ -1,4 +1,4 @@
-import { apiClient } from './apiClient';
+import { apiClient, PaginatedResponse } from './apiClient';
 
 // ── Response Interfaces ──
 
@@ -34,6 +34,9 @@ export interface CreatePurchaseItem {
 export interface CreatePurchaseRequest {
     proveedorId: number;
     iva: number;
+    purchaseNumber?: string;
+    notes?: string;
+    fechaRegistro?: string;
     items: CreatePurchaseItem[];
 }
 
@@ -41,13 +44,14 @@ export interface UpdatePurchaseRequest {
     proveedorId: number;
     iva: number;
     estado: boolean;
+    observacion?: string;
 }
 
 // ── Service ──
 
 export const purchaseService = {
-    getAll: async (): Promise<PurchaseAPI[]> => {
-        return apiClient.get('/Compras');
+    getAll: async (params?: { page?: number; pageSize?: number; search?: string }): Promise<PaginatedResponse<PurchaseAPI>> => {
+        return apiClient.get<PaginatedResponse<PurchaseAPI>>('/Compras', params);
     },
 
     getById: async (id: number): Promise<PurchaseAPI> => {

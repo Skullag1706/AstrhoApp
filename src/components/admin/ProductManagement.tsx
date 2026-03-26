@@ -1,12 +1,32 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
-  Package, Plus, Edit, Trash2, Search,
-  DollarSign, Save, X, Eye, AlertCircle, CheckCircle, FileText, TrendingUp, Star
+  Package, Plus, Edit, Trash2, Search, AlertCircle, X, Save,
+  Eye, CheckCircle, TrendingUp, FileText, Star, Loader2, ChevronDown, FolderTree
 } from 'lucide-react';
 import { mockProducts } from '../../data/management';
 import { SimplePagination } from '../ui/simple-pagination';
+import { cn } from '../ui/utils';
 import { supplyCategoryService, Category as APICategory } from '../../services/supplyCategoryService';
 import { supplyService, Supply as APISupply } from '../../services/supplyService';
+import { toast } from 'sonner';
+
+// Helper: ASP.NET with ReferenceHandler.Preserve wraps arrays in { $values: [...] }
+function unwrapValues(obj: any): any {
+  if (obj == null) return obj;
+  if (Array.isArray(obj)) return obj.map(unwrapValues);
+  if (typeof obj === 'object') {
+    if (Array.isArray(obj.$values)) {
+      return obj.$values.map(unwrapValues);
+    }
+    const result: any = {};
+    for (const key of Object.keys(obj)) {
+      if (key === '$id' || key === '$ref') continue;
+      result[key] = unwrapValues(obj[key]);
+    }
+    return result;
+  }
+  return obj;
+}
 
 interface Product {
   id: number;
@@ -54,6 +74,8 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(5);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
 
@@ -72,24 +94,38 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
   const fetchInitialData = async () => {
     setIsLoading(true);
     try {
-      const [suppliesData, categoriesData] = await Promise.all([
-        supplyService.getSupplies(),
-        supplyCategoryService.getCategories()
-      ]);
-
-      console.log('Supplies data received:', suppliesData);
-      console.log('Categories data received:', categoriesData);
-
-      if (!Array.isArray(suppliesData)) {
-        console.error('Supplies data is not an array:', suppliesData);
-        throw new Error('Los datos de insumos recibidos no tienen el formato correcto (se esperaba un arreglo).');
-      }
-
-      setProducts(suppliesData.map(mapSupplyToUI));
-      setCategories(categoriesData);
+      const response = await supplyCategoryService.getCategories({ pageSize: 100 });
+      const categoriesData = response.data || [];
+      setCategories(unwrapValues(categoriesData));
+      await fetchProducts();
     } catch (error: any) {
-      console.error('Error fetching initial data:', error);
-      setErrorModalMessage(error.message || 'No se pudieron cargar los datos. Por favor, intente de nuevo.');
+      console.error('Error fetching categories:', error);
+      setErrorModalMessage(error.message || 'No se pudieron cargar las categorías.');
+      setShowErrorModal(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchProducts = async () => {
+    setIsLoading(true);
+    try {
+      const response = await supplyService.getSupplies({
+        page: currentPage,
+        pageSize: itemsPerPage,
+        search: searchTerm
+      });
+
+      console.log('Supplies data received:', response);
+
+      const suppliesArray = response.data || [];
+      setTotalCount(response.totalCount || 0);
+      setTotalPages(response.totalPages || 0);
+
+      setProducts(unwrapValues(suppliesArray).map((supply: APISupply) => mapSupplyToUI(supply)));
+    } catch (error: any) {
+      console.error('Error fetching products:', error);
+      setErrorModalMessage(error.message || 'No se pudieron cargar los insumos.');
       setShowErrorModal(true);
     } finally {
       setIsLoading(false);
@@ -101,62 +137,46 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
   }, []);
 
   useEffect(() => {
+    fetchProducts();
+  }, [currentPage, searchTerm]);
+
+  useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm]);
 
-  // Auto-hide success alert after 4 seconds
-  useEffect(() => {
-    if (showSuccessAlert) {
-      const timer = setTimeout(() => {
-        setShowSuccessAlert(false);
-      }, 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [showSuccessAlert]);
+  // Ya no filtramos en el cliente, usamos lo que viene de la API
+  const paginatedProducts = products;
 
-  const matchesSearch = (product: any, term: string) => {
-    const normalized = term.toLowerCase();
-    return (
-      product.name.toLowerCase().includes(normalized) ||
-      product.sku.toLowerCase().includes(normalized)
-    );
+  // Pagination totalPages se obtiene de la API
+  // const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
+
+  const handleViewDetail = async (product: any) => {
+    try {
+      setIsLoading(true);
+      const fullSupply = await supplyService.getSupplyById(product.id);
+      setSelectedProduct(mapSupplyToUI(fullSupply));
+      setShowDetailModal(true);
+    } catch (error) {
+      console.error('Error fetching supply detail:', error);
+      toast.error('No se pudo cargar el detalle del insumo');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const filteredProducts = products.filter(product =>
-    matchesSearch(product, searchTerm)
-  );
-
-  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
-
-  const paginatedProducts = filteredProducts.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-
-  const productCategories = categories.map(cat => ({
-    id: cat.categoriaId,
-    name: cat.nombre,
-    status: cat.estado ? 'active' : 'inactive'
-  }));
+  const handleDeleteProduct = (product: Product) => {
+    setProductToDelete(product);
+    setShowDeleteModal(true);
+  };
 
   const handleCreateProduct = () => {
     setSelectedProduct(null);
     setShowProductModal(true);
   };
 
-  const handleEditProduct = (product: any) => {
+  const handleEditProduct = (product: Product) => {
     setSelectedProduct(product);
     setShowProductModal(true);
-  };
-
-  const handleViewDetail = (product: any) => {
-    setSelectedProduct(product);
-    setShowDetailModal(true);
-  };
-
-  const handleDeleteProduct = (product: Product) => {
-    setProductToDelete(product);
-    setShowDeleteModal(true);
   };
 
   const confirmDeleteProduct = async () => {
@@ -308,6 +328,12 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
 
           {/* Table */}
           <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+            <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-6 border-b border-gray-100">
+              <h3 className="text-xl font-bold text-gray-800">Lista de Insumos</h3>
+              <p className="text-gray-600">
+                {totalCount} insumo{totalCount !== 1 ? 's' : ''} encontrado{totalCount !== 1 ? 's' : ''}
+              </p>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gradient-to-r from-pink-50 to-purple-50">
@@ -387,19 +413,13 @@ export function ProductManagement({ hasPermission }: ProductManagementProps) {
             </div>
 
             {/* Pagination */}
-            <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
-              <div className="text-sm text-gray-600">
-                Mostrando {filteredProducts.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0}
-                {' - '}
-                {Math.min(currentPage * itemsPerPage, filteredProducts.length)}
-                {' de '}
-                {filteredProducts.length} registros
-              </div>
-
+            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50">
               <SimplePagination
                 totalPages={totalPages}
                 currentPage={currentPage}
                 onPageChange={setCurrentPage}
+                totalRecords={totalCount}
+                recordsPerPage={itemsPerPage}
               />
             </div>
           </div>
@@ -490,6 +510,192 @@ function ErrorModal({ message, onClose }: { message: string, onClose: () => void
   );
 }
 
+// ══════════════════════════════════════════
+// Reusable Search Select Component for Categories
+// ══════════════════════════════════════════
+
+function CategorySearchSelect({ onSelect, selectedId, error, disabled, initialData = [] }: any) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [searchResults, setSearchResults] = useState<APICategory[]>(initialData);
+  const [loading, setLoading] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<APICategory | null>(null);
+
+  // Sync with initialData if provided and not searching
+  useEffect(() => {
+    if (initialData.length > 0 && !searchTerm && !loading) {
+      setSearchResults(initialData);
+    }
+  }, [initialData, searchTerm, loading]);
+
+  useEffect(() => {
+    const fetchSelected = async () => {
+      if (selectedId && !selectedCategory) {
+        try {
+          const category = await supplyCategoryService.getCategoryById(parseInt(selectedId));
+          setSelectedCategory(unwrapValues(category));
+        } catch (e) {
+          console.warn('Error fetching selected category:', e);
+        }
+      } else if (!selectedId) {
+        setSelectedCategory(null);
+      }
+    };
+    fetchSelected();
+  }, [selectedId, selectedCategory]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const fetchCategories = async () => {
+      setLoading(true);
+      try {
+        const res = await supplyCategoryService.getCategories({ 
+          search: searchTerm || '', 
+          pageSize: searchTerm ? 20 : 100 
+        });
+        
+        // Ensure we extract the array correctly
+        let dataArray = [];
+        if (Array.isArray(res)) {
+          dataArray = res;
+        } else if (res && res.data && Array.isArray(res.data)) {
+          dataArray = res.data;
+        } else if (res && Array.isArray(res)) {
+          dataArray = res;
+        }
+        
+        setSearchResults(unwrapValues(dataArray));
+      } catch (err) {
+        console.error('Error searching categories:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const timer = setTimeout(fetchCategories, searchTerm ? 300 : 0);
+    return () => clearTimeout(timer);
+  }, [searchTerm, isOpen]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+        setSearchTerm('');
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div className={`relative ${isOpen ? 'z-[100]' : ''}`} ref={dropdownRef}>
+      <div
+        className={cn(
+          "w-full px-4 py-3 min-h-[48px] border rounded-xl flex items-center justify-between cursor-pointer bg-white transition-all shadow-sm hover:border-pink-300 focus-within:ring-2 focus-within:ring-pink-200",
+          error ? 'border-red-300 ring-1 ring-red-100' : 'border-gray-200',
+          disabled && 'bg-gray-100 cursor-not-allowed opacity-100'
+        )}
+        onClick={() => !disabled && setIsOpen(true)}
+      >
+        {!isOpen && !selectedCategory ? (
+          <div className="flex items-center gap-2">
+            <FolderTree className="w-4 h-4 text-pink-400" />
+            <span className="text-gray-500 text-sm font-medium">Seleccionar categoría...</span>
+          </div>
+        ) : !isOpen && selectedCategory ? (
+          <div className="flex items-center gap-2 overflow-hidden">
+            <FolderTree className="w-4 h-4 text-pink-500 shrink-0" />
+            <span className="text-gray-800 font-bold text-sm truncate">{selectedCategory.nombre}</span>
+          </div>
+        ) : (
+          <div className="flex-1 flex items-center">
+            {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin text-pink-500" /> : <Search className="text-pink-400 w-4 h-4 mr-2" />}
+            <input
+              type="text"
+              className="w-full bg-transparent text-sm focus:outline-none font-medium placeholder:text-gray-400"
+              placeholder="Escribe para buscar categorías..."
+              value={searchTerm}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+              autoFocus
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            />
+          </div>
+        )}
+        <ChevronDown className={cn(
+          "w-4 h-4 text-gray-400 transition-transform duration-300 ml-2 shrink-0",
+          isOpen && 'rotate-180 text-pink-500'
+        )} />
+      </div>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-100 rounded-2xl shadow-2xl overflow-hidden z-[200] animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="max-h-64 overflow-y-auto py-2 no-scrollbar">
+            {loading && searchResults.length === 0 ? (
+               <div className="p-8 flex flex-col items-center justify-center space-y-3">
+                 <Loader2 className="w-8 h-8 text-pink-400 animate-spin" />
+                 <p className="text-sm text-gray-500 font-medium">Buscando categorías...</p>
+               </div>
+            ) : searchResults.length === 0 ? (
+              <div className="p-8 text-center flex flex-col items-center justify-center space-y-2">
+                <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center">
+                  <FolderTree className="w-6 h-6 text-gray-300" />
+                </div>
+                <p className="text-sm text-gray-500 font-medium">
+                  {searchTerm ? `No se encontró "${searchTerm}"` : 'No hay categorías disponibles'}
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-1 px-2">
+                {searchResults.map((cat) => (
+                  <div
+                    key={cat.categoriaId}
+                    className={cn(
+                      "px-4 py-3 rounded-xl cursor-pointer text-sm flex justify-between items-center transition-all group",
+                      String(cat.categoriaId) === String(selectedId) 
+                        ? 'bg-gradient-to-r from-pink-50 to-purple-50 text-pink-700 font-bold border border-pink-100' 
+                        : 'text-gray-700 hover:bg-gray-50 hover:translate-x-1'
+                    )}
+                    onClick={(e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      onSelect(cat);
+                      setSelectedCategory(cat);
+                      setIsOpen(false);
+                      setSearchTerm('');
+                    }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={cn(
+                        "w-8 h-8 rounded-lg flex items-center justify-center transition-colors",
+                        String(cat.categoriaId) === String(selectedId) ? "bg-pink-100" : "bg-gray-100 group-hover:bg-pink-100"
+                      )}>
+                        <FolderTree className={cn(
+                          "h-4 w-4 transition-colors",
+                          String(cat.categoriaId) === String(selectedId) ? "text-pink-600" : "text-gray-400 group-hover:text-pink-600"
+                        )} />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="font-semibold">{cat.nombre}</span>
+                        {cat.descripcion && (
+                          <span className="text-[10px] text-gray-400 font-normal line-clamp-1 italic">{cat.descripcion}</span>
+                        )}
+                      </div>
+                    </div>
+                    {String(cat.categoriaId) === String(selectedId) && (
+                      <CheckCircle className="h-4 w-4 text-pink-500" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Modal para crear/editar insumo
 interface ProductModalProps {
   product: any;
@@ -504,15 +710,11 @@ function ProductModal({ product, onClose, onSave, categories }: ProductModalProp
     sku: product?.sku || '',
     categoryId: product?.categoryId || '',
     status: product?.status || 'active',
-    description: product?.description || '',
-    quantity: product?.quantity || 0
+    description: product?.description || ''
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
-
-  // Filtrar solo categorías activas
-  const activeCategories = categories.filter((cat: APICategory) => cat.estado === true);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -529,7 +731,12 @@ function ProductModal({ product, onClose, onSave, categories }: ProductModalProp
 
     setIsSaving(true);
     try {
-      await onSave(formData);
+      // Incluimos quantity: 0 para nuevos insumos si el backend lo requiere, 
+      // o mantenemos el valor actual si es edición.
+      await onSave({
+        ...formData,
+        quantity: product?.quantity || 0
+      });
     } finally {
       setIsSaving(false);
     }
@@ -645,24 +852,12 @@ function ProductModal({ product, onClose, onSave, categories }: ProductModalProp
 
                   <div>
                     <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Categoría</label>
-                    <div className="relative">
-                      <CheckCircle className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                      <select
-                        name="categoryId"
-                        value={formData.categoryId}
-                        onChange={handleInputChange}
-                        className={`w-full pl-10 pr-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all outline-none appearance-none ${
-                          errors.categoryId ? 'border-red-300 ring-1 ring-red-100' : 'border-gray-200'
-                        }`}
-                      >
-                        <option value="">Seleccionar categoría</option>
-                        {activeCategories.map((cat: any) => (
-                          <option key={cat.categoriaId} value={cat.categoriaId}>
-                            {cat.nombre}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                    <CategorySearchSelect
+                      selectedId={formData.categoryId}
+                      onSelect={(cat: any) => setFormData({ ...formData, categoryId: cat.categoriaId })}
+                      error={!!errors.categoryId}
+                      initialData={categories}
+                    />
                   </div>
                 </div>
               </div>
@@ -671,24 +866,9 @@ function ProductModal({ product, onClose, onSave, categories }: ProductModalProp
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                 <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100 flex items-center space-x-2">
                   <TrendingUp className="w-4 h-4 text-purple-500" />
-                  <h4 className="font-bold text-gray-700 text-sm uppercase tracking-wider">Inventario y Estado</h4>
+                  <h4 className="font-bold text-gray-700 text-sm uppercase tracking-wider">Estado y Descripción</h4>
                 </div>
                 <div className="p-6 space-y-4">
-                  <div>
-                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Stock Inicial / Actual</label>
-                    <div className="relative">
-                      <TrendingUp className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                      <input
-                        type="number"
-                        name="quantity"
-                        value={formData.quantity}
-                        onChange={handleInputChange}
-                        className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all outline-none"
-                        min="0"
-                      />
-                    </div>
-                  </div>
-
                   <div className="pt-2">
                     <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Estado del Insumo</label>
                     <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
@@ -732,7 +912,7 @@ function ProductModal({ product, onClose, onSave, categories }: ProductModalProp
                   <h4 className="font-black text-[10px] uppercase tracking-[0.2em] text-gray-700">Aviso Asthro</h4>
                 </div>
                 <p className="text-sm text-gray-600 italic leading-relaxed">
-                  Mantener un SKU único por insumo facilita el rastreo y las auditorías de inventario. Asegúrese de que la categoría corresponda al tipo de producto.
+                  El stock de los insumos se gestiona automáticamente a través del módulo de **Compras** y **Consumos**. No es necesario asignar stock manualmente al registrar.
                 </p>
             </div>
           </div>

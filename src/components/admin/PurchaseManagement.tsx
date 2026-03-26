@@ -2,12 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   ShoppingCart, Plus, Eye, Filter, Search, Calendar, AlertTriangle,
   CheckCircle, Clock, Truck, Package, X, Save, DollarSign,
-  FileText, Ban, File, Trash2, ChevronDown, Loader2
+  FileText, Ban, File, Trash2, ChevronDown, Loader2, ShoppingBag, AlertCircle
 } from 'lucide-react';
 import { purchaseService, PurchaseAPI } from '../../services/purchaseService';
 import { supplierService, SupplierAPI } from '../../services/supplierService';
 import { supplyService, Supply } from '../../services/supplyService';
 import { SimplePagination } from '../ui/simple-pagination';
+import { cn } from '../ui/utils';
+import { toast } from 'sonner';
 
 interface PurchaseManagementProps {
   hasPermission: (permission: string) => boolean;
@@ -45,6 +47,8 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
   const [statusDropdownOpen, setStatusDropdownOpen] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
   const [loading, setLoading] = useState(true);
@@ -56,20 +60,15 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
     try {
       setLoading(true);
       setError(null);
-      const raw = await purchaseService.getAll();
-      console.log('Compras API raw response:', raw);
+      const response = await purchaseService.getAll({
+        page: currentPage,
+        pageSize: itemsPerPage,
+        search: searchTerm
+      });
 
-      // Extract the array from any wrapper format
-      let items: any[] = [];
-      if (Array.isArray(raw)) {
-        items = raw;
-      } else if (raw && Array.isArray(raw.$values)) {
-        items = raw.$values;
-      } else if (raw && Array.isArray(raw.data)) {
-        items = raw.data;
-      } else if (raw && Array.isArray(raw.result)) {
-        items = raw.result;
-      }
+      const items = response.data || [];
+      setTotalCount(response.totalCount || 0);
+      setTotalPages(response.totalPages || 0);
 
       // Unwrap nested $values (e.g. detalles.$values)
       const cleaned = items.map(unwrapValues);
@@ -85,18 +84,8 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
 
   const fetchSuppliers = async () => {
     try {
-      const raw = await supplierService.getAll();
-      let items: any[] = [];
-      if (Array.isArray(raw)) {
-        items = raw;
-      } else if (raw && Array.isArray(raw.$values)) {
-        items = raw.$values;
-      } else if (raw && Array.isArray(raw.data)) {
-        items = raw.data;
-      } else if (raw && Array.isArray(raw.result)) {
-        items = raw.result;
-      }
-      setSuppliers(items);
+      const response = await supplierService.getAll();
+      setSuppliers(response.data || []);
     } catch (err) {
       console.error('Error loading suppliers:', err);
     }
@@ -104,18 +93,8 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
 
   const fetchSupplies = async () => {
     try {
-      const raw = await supplyService.getSupplies();
-      let items: any[] = [];
-      if (Array.isArray(raw)) {
-        items = raw;
-      } else if (raw && Array.isArray(raw.$values)) {
-        items = raw.$values;
-      } else if (raw && Array.isArray(raw.data)) {
-        items = raw.data;
-      } else if (raw && Array.isArray(raw.result)) {
-        items = raw.result;
-      }
-      setSupplies(items);
+      const response = await supplyService.getSupplies();
+      setSupplies(response.data || []);
     } catch (err) {
       console.error('Error loading supplies:', err);
     }
@@ -123,30 +102,12 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
 
   useEffect(() => {
     fetchPurchases();
+  }, [currentPage, searchTerm]);
+
+  useEffect(() => {
     fetchSuppliers();
     fetchSupplies();
   }, []);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (statusDropdownOpen !== null) {
-        const dropdownElements = document.querySelectorAll('[data-dropdown]');
-        const clickedInsideDropdown = Array.from(dropdownElements).some(element =>
-          element.contains(event.target)
-        );
-
-        if (!clickedInsideDropdown) {
-          setStatusDropdownOpen(null);
-        }
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [statusDropdownOpen]);
 
   // Auto-hide success alert after 4 seconds
   useEffect(() => {
@@ -158,22 +119,10 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
     }
   }, [showSuccessAlert]);
 
-  const filteredPurchases = purchases.filter(purchase => {
-    if (!searchTerm) return true;
-    const term = searchTerm.toLowerCase();
-    const compraIdStr = (purchase.compraId ?? '').toString();
-    const proveedorStr = (purchase.proveedorNombre ?? '').toLowerCase();
-    return (
-      compraIdStr.includes(term) ||
-      proveedorStr.includes(term)
-    );
-  });
-
-  // Pagination calculations
-  const totalPages = Math.ceil(filteredPurchases.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentPurchases = filteredPurchases.slice(startIndex, endIndex);
+  // Reset page when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
   const getStatusColor = (estado: boolean) => {
     return estado
@@ -185,31 +134,19 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
     return estado ? 'Aprobado' : 'Anulado';
   };
 
-  const getStatusIcon = (estado: boolean) => {
-    return estado
-      ? <CheckCircle className="w-4 h-4" />
-      : <X className="w-4 h-4" />;
+  const handleViewDetail = async (purchase: PurchaseAPI) => {
+    try {
+      setLoading(true);
+      const fullPurchase = await purchaseService.getById(purchase.compraId);
+      setSelectedPurchase(unwrapValues(fullPurchase));
+      setShowDetailModal(true);
+    } catch (error) {
+      console.error('Error fetching purchase detail:', error);
+      toast.error('No se pudo cargar el detalle de la compra');
+    } finally {
+      setLoading(false);
+    }
   };
-
-  const handleViewDetail = (purchase: PurchaseAPI) => {
-    setSelectedPurchase(purchase);
-    setShowDetailModal(true);
-  };
-
-  const handleStatusChange = (purchaseId, newStatus) => {
-    setStatusDropdownOpen(null);
-  };
-
-  const toggleStatusDropdown = (purchaseId) => {
-    setStatusDropdownOpen(statusDropdownOpen === purchaseId ? null : purchaseId);
-  };
-
-  const handleStatusDropdownClick = (e, purchaseId) => {
-    e.stopPropagation();
-    toggleStatusDropdown(purchaseId);
-  };
-
-  const statusOptions = [];
 
   const handleCreatePurchase = () => {
     setSelectedPurchase(null);
@@ -219,18 +156,6 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
   // Pagination handlers
   const goToPage = (page) => {
     setCurrentPage(page);
-  };
-
-  const goToNextPage = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1);
-    }
-  };
-
-  const goToPreviousPage = () => {
-    if (currentPage > 1) {
-      setCurrentPage(currentPage - 1);
-    }
   };
 
   const handleCancelPurchase = (purchase: PurchaseAPI) => {
@@ -245,7 +170,8 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
       await purchaseService.update(selectedPurchase.compraId, {
         proveedorId: selectedPurchase.proveedorId,
         iva: selectedPurchase.iva,
-        estado: false
+        estado: false,
+        observacion: observation // Pass the observation to the update
       });
 
       await fetchPurchases();
@@ -256,8 +182,7 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
       setAlertMessage('Compra anulada exitosamente');
     } catch (err) {
       console.error('Error cancelling purchase:', err);
-      setShowSuccessAlert(true);
-      setAlertMessage('Error al anular la compra');
+      toast.error('Error al anular la compra');
     }
   };
 
@@ -334,43 +259,38 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
     `;
 
     const newWindow = window.open('', '_blank');
-    newWindow.document.write(`
-      <html>
-        <head>
-          <title>Factura de Compra - #${purchase.compraId}</title>
-        </head>
-        <body>
-          ${receiptContent}
-          <script>
-            window.onload = function() {
-              window.print();
-              window.close();
-            };
-          </script>
-        </body>
-      </html>
-    `);
-    newWindow.document.close();
+    if (newWindow) {
+      newWindow.document.write(`
+        <html>
+          <head>
+            <title>Factura de Compra - #${purchase.compraId}</title>
+          </head>
+          <body>
+            ${receiptContent}
+            <script>
+              window.onload = function() {
+                window.print();
+                window.close();
+              };
+            </script>
+          </body>
+        </html>
+      `);
+      newWindow.document.close();
+    }
   };
 
-  const handleSavePurchase = async (purchaseData: { proveedorId: number; iva: number; items: { insumoId: number; cantidad: number; precioUnitario: number }[] }) => {
+  const handleSavePurchase = async (purchaseData: any) => {
     try {
-      await purchaseService.create({
-        proveedorId: purchaseData.proveedorId,
-        iva: purchaseData.iva,
-        items: purchaseData.items
-      });
-
+      await purchaseService.create(purchaseData);
       await fetchPurchases();
-
       setShowCreateModal(false);
       setSelectedPurchase(null);
       setShowSuccessAlert(true);
       setAlertMessage('Compra registrada exitosamente');
     } catch (err) {
       console.error('Error creating purchase:', err);
-      setShowSuccessAlert(true);
-      setAlertMessage('Error al registrar la compra');
+      toast.error('Error al registrar la compra');
     }
   };
 
@@ -437,6 +357,9 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
         <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
           <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-6 border-b border-gray-100">
             <h3 className="text-xl font-bold text-gray-800">Historial de Compras</h3>
+            <p className="text-gray-600">
+              {totalCount} compra{totalCount !== 1 ? 's' : ''} encontrada{totalCount !== 1 ? 's' : ''}
+            </p>
           </div>
 
           <div className="overflow-x-auto">
@@ -453,7 +376,7 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {currentPurchases.map((purchase) => (
+                {purchases.map((purchase) => (
                   <tr key={purchase.compraId} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
                       <div className="font-semibold text-gray-800">#{purchase.compraId}</div>
@@ -526,14 +449,13 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
 
       {/* Pagination - Always visible */}
       {!loading && !error && (
-        <div className="px-6 py-4 bg-white rounded-b-2xl border-t border-gray-100 flex items-center justify-between">
-          <div className="text-sm text-gray-600">
-            Mostrando {filteredPurchases.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} - {Math.min(currentPage * itemsPerPage, filteredPurchases.length)} de {filteredPurchases.length} registros
-          </div>
+        <div className="px-6 py-4 bg-gray-50/50 rounded-b-2xl border-t border-gray-100">
           <SimplePagination
             totalPages={totalPages}
             currentPage={currentPage}
             onPageChange={goToPage}
+            totalRecords={totalCount}
+            recordsPerPage={itemsPerPage}
           />
         </div>
       )}
@@ -774,6 +696,301 @@ function PurchaseDetailModal({ purchase, suppliers, onClose }: { purchase: Purch
   );
 }
 
+// ══════════════════════════════════════════
+// Reusable Search Select Components
+// ══════════════════════════════════════════
+
+function SupplierSearchSelect({ onSelect, selectedId, error, disabled }: any) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [searchResults, setSearchResults] = useState<SupplierAPI[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedSupplier, setSelectedSupplier] = useState<SupplierAPI | null>(null);
+
+  useEffect(() => {
+    const fetchSelected = async () => {
+      if (selectedId && !selectedSupplier) {
+        try {
+          const supplier = await supplierService.getById(parseInt(selectedId));
+          setSelectedSupplier(supplier);
+        } catch (e) {
+          console.warn('Error fetching selected supplier:', e);
+        }
+      }
+    };
+    fetchSelected();
+  }, [selectedId, selectedSupplier]);
+
+  useEffect(() => {
+    const fetchSuppliers = async () => {
+      if (!searchTerm.trim()) {
+        setSearchResults([]);
+        return;
+      }
+      setLoading(true);
+      try {
+        const res = await supplierService.getAll({ search: searchTerm, pageSize: 20 });
+        setSearchResults(res.data);
+      } catch (err) {
+        console.error('Error searching suppliers:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const timer = setTimeout(fetchSuppliers, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+        setSearchTerm('');
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div className={`relative ${isOpen ? 'z-50' : ''}`} ref={dropdownRef}>
+      <div
+        className={cn(
+          "w-full px-4 py-3 min-h-[48px] border rounded-xl flex items-center justify-between cursor-pointer bg-white transition-all",
+          error ? 'border-red-300' : 'border-gray-300',
+          disabled && 'bg-gray-100 cursor-not-allowed opacity-100'
+        )}
+        onClick={() => !disabled && setIsOpen(true)}
+      >
+        {!isOpen && !selectedSupplier ? (
+          <div className="flex items-center gap-2">
+            <Truck className="w-4 h-4 text-pink-400" />
+            <span className="text-gray-500 text-sm">Seleccionar proveedor...</span>
+          </div>
+        ) : !isOpen && selectedSupplier ? (
+          <div className="flex items-center gap-2">
+            <Truck className="w-4 h-4 text-pink-400" />
+            <span className="text-gray-800 font-medium text-sm">{selectedSupplier.nombre}</span>
+          </div>
+        ) : (
+          <div className="flex-1 flex items-center">
+            {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin text-pink-400" /> : <Search className="text-gray-400 w-4 h-4 mr-2" />}
+            <input
+              type="text"
+              className="w-full bg-transparent text-sm focus:outline-none"
+              placeholder="Buscar por nombre o NIT..."
+              value={searchTerm}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+              autoFocus
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            />
+          </div>
+        )}
+        <ChevronDown className={cn(
+          "w-4 h-4 text-gray-500 transition-transform",
+          isOpen && 'rotate-180'
+        )} />
+      </div>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200">
+          <div className="max-h-60 overflow-y-auto py-1">
+            {loading && searchResults.length === 0 ? (
+               <div className="p-4 text-sm text-gray-500 text-center">Buscando...</div>
+            ) : searchResults.length === 0 ? (
+              <div className="p-4 text-sm text-gray-500 text-center">
+                {searchTerm ? 'No se encontraron proveedores' : 'Escribe para buscar...'}
+              </div>
+            ) : (
+              searchResults.map((supplier) => (
+                <div
+                  key={supplier.proveedorId}
+                  className={cn(
+                    "px-4 py-3 hover:bg-pink-50 cursor-pointer text-sm flex justify-between items-center transition-colors",
+                    String(supplier.proveedorId) === selectedId ? 'bg-pink-100 text-pink-700 font-semibold' : 'text-gray-800'
+                  )}
+                  onClick={(e: React.MouseEvent) => {
+                    e.stopPropagation();
+                    onSelect(supplier);
+                    setSelectedSupplier(supplier);
+                    setIsOpen(false);
+                    setSearchTerm('');
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <CheckCircle
+                      className={cn(
+                        "h-4 w-4 text-pink-500",
+                        String(supplier.proveedorId) === selectedId ? "opacity-100" : "opacity-0"
+                      )}
+                    />
+                    <div className="flex flex-col">
+                      <span className="font-medium">{supplier.nombre}</span>
+                      <span className="text-xs text-gray-500">NIT: {supplier.nit}</span>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SupplySearchSelect({ onSelect, selectedId, error, disabled, allSelectedIds }: any) {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [searchResults, setSearchResults] = useState<Supply[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedSupply, setSelectedSupply] = useState<Supply | null>(null);
+
+  useEffect(() => {
+    const fetchSelected = async () => {
+      if (selectedId && !selectedSupply) {
+        try {
+          const supply = await supplyService.getById(parseInt(selectedId));
+          setSelectedSupply(supply);
+        } catch (e) {
+          console.warn('Error fetching selected supply:', e);
+        }
+      } else if (!selectedId) {
+        setSelectedSupply(null);
+      }
+    };
+    fetchSelected();
+  }, [selectedId, selectedSupply]);
+
+  useEffect(() => {
+    const fetchSupplies = async () => {
+      if (!searchTerm.trim()) {
+        setSearchResults([]);
+        return;
+      }
+      setLoading(true);
+      try {
+        const res = await supplyService.getAll({ search: searchTerm, pageSize: 20 });
+        setSearchResults(res.data);
+      } catch (err) {
+        console.error('Error searching supplies:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const timer = setTimeout(fetchSupplies, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+        setSearchTerm('');
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div className={`relative ${isOpen ? 'z-50' : ''}`} ref={dropdownRef}>
+      <div
+        className={cn(
+          "w-full px-4 py-2 min-h-[40px] border rounded-xl flex items-center justify-between cursor-pointer bg-white transition-all",
+          error ? 'border-red-300' : 'border-gray-200',
+          disabled && 'bg-gray-100 cursor-not-allowed opacity-100'
+        )}
+        onClick={() => !disabled && setIsOpen(true)}
+      >
+        {!isOpen && !selectedSupply ? (
+          <div className="flex items-center gap-2">
+            <span className="text-gray-500 text-sm">Buscar insumo...</span>
+          </div>
+        ) : !isOpen && selectedSupply ? (
+          <div className="flex items-center gap-2">
+            <span className="text-gray-800 font-bold text-sm">{selectedSupply.nombre}</span>
+          </div>
+        ) : (
+          <div className="flex-1 flex items-center">
+            {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin text-pink-400" /> : <Search className="text-gray-400 w-4 h-4 mr-2" />}
+            <input
+              type="text"
+              className="w-full bg-transparent text-sm focus:outline-none font-bold"
+              placeholder="Escribe para buscar..."
+              value={searchTerm}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+              autoFocus
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            />
+          </div>
+        )}
+        <ChevronDown className={cn(
+          "w-4 h-4 text-gray-500 transition-transform",
+          isOpen && 'rotate-180'
+        )} />
+      </div>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200">
+          <div className="max-h-60 overflow-y-auto py-1">
+            {loading && searchResults.length === 0 ? (
+               <div className="p-4 text-sm text-gray-500 text-center">Buscando...</div>
+            ) : searchResults.length === 0 ? (
+              <div className="p-4 text-sm text-gray-500 text-center">
+                {searchTerm ? 'No se encontraron insumos' : 'Escribe para buscar...'}
+              </div>
+            ) : (
+              searchResults.map((supply) => {
+                const isAlreadySelected = allSelectedIds.includes(String(supply.insumoId)) && String(supply.insumoId) !== selectedId;
+                return (
+                  <div
+                    key={supply.insumoId}
+                    className={cn(
+                      "px-4 py-3 text-sm flex justify-between items-center transition-colors",
+                      String(supply.insumoId) === selectedId ? 'bg-pink-100 text-pink-700 font-semibold' : 'text-gray-800',
+                      isAlreadySelected ? 'opacity-50 cursor-not-allowed bg-gray-50' : 'hover:bg-pink-50 cursor-pointer'
+                    )}
+                    onClick={(e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      if (isAlreadySelected) return;
+                      onSelect(supply);
+                      setSelectedSupply(supply);
+                      setIsOpen(false);
+                      setSearchTerm('');
+                    }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <CheckCircle
+                        className={cn(
+                          "h-4 w-4 text-pink-500",
+                          String(supply.insumoId) === selectedId ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      <div className="flex flex-col">
+                        <span className="font-medium">{supply.nombre}</span>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[10px] text-gray-400">Stock: {supply.stockActual} {supply.unidadMedida}</span>
+                          <span className="text-[10px] text-gray-400">•</span>
+                          <span className="text-[10px] text-pink-500 font-bold">${(supply.precioPromedio || 0).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Purchase Creation Modal Component
 function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
   onClose: () => void;
@@ -789,6 +1006,8 @@ function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
     proveedorId: '',
     iva: '19',
     orderDate: getCurrentDate(),
+    purchaseNumber: '',
+    notes: '',
     items: [] as { insumoId: string; insumoNombre: string; cantidad: number; precioUnitario: number; subtotal: number }[]
   });
 
@@ -816,7 +1035,7 @@ function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
         insumoId: '',
         insumoNombre: '',
         cantidad: 1,
-        precioUnitario: '' as any,
+        precioUnitario: 0,
         subtotal: 0
       }, ...formData.items]
     });
@@ -830,16 +1049,15 @@ function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
     });
   };
 
-  const updateProduct = (index: number, field: string, value: string) => {
+  const updateProduct = (index: number, field: string, value: any) => {
     const newItems = [...formData.items];
     const item = { ...newItems[index] };
 
     if (field === 'insumoId') {
-      const supply = supplies.find(s => s.insumoId === parseInt(value));
-      item.insumoId = value;
-      item.insumoNombre = supply ? supply.nombre : '';
+      item.insumoId = String(value.insumoId);
+      item.insumoNombre = value.nombre;
     } else if (field === 'cantidad') {
-      item.cantidad = parseInt(value) || 1;
+      item.cantidad = parseInt(value) || 0;
     } else if (field === 'precioUnitario') {
       item.precioUnitario = parseFloat(value) || 0;
     }
@@ -859,6 +1077,10 @@ function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
 
     if (!formData.proveedorId) {
       newErrors.proveedorId = 'Selecciona un proveedor';
+    }
+
+    if (!formData.purchaseNumber) {
+      newErrors.purchaseNumber = 'Ingresa el N° de factura o referencia';
     }
 
     if (!formData.iva || parseFloat(formData.iva) < 0) {
@@ -895,6 +1117,9 @@ function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
     const purchaseData = {
       proveedorId: parseInt(formData.proveedorId),
       iva: parseFloat(formData.iva),
+      purchaseNumber: formData.purchaseNumber,
+      notes: formData.notes,
+      fechaRegistro: formData.orderDate,
       items: formData.items.map(item => ({
         insumoId: parseInt(item.insumoId),
         cantidad: item.cantidad,
@@ -910,35 +1135,28 @@ function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
   const ivaAmount = subtotal * (ivaPercent / 100);
   const total = subtotal + ivaAmount;
 
-  // Filter only active suppliers (estado === true)
-  const activeSuppliers = suppliers.filter(s => s.estado === true);
-
-  // Filter only active supplies (estado === true)
-  const activeSupplies = supplies.filter(s => s.estado === true);
-
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
         {/* Header - Fixed at top */}
         <div className="bg-gradient-to-r from-pink-500 to-purple-600 p-5 text-white shrink-0 shadow-md z-20">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm shadow-inner">
-                <Plus className="w-6 h-6 text-white" />
+                <ShoppingBag className="w-6 h-6 text-white" />
               </div>
               <div>
                 <h3 className="text-xl font-bold leading-tight">Registrar Nueva Compra</h3>
-                <p className="text-pink-100 text-sm">Crea una orden de abastecimiento para el inventario</p>
+                <p className="text-pink-100 text-sm">Abastece tu inventario registrando facturas de proveedores</p>
               </div>
             </div>
             <div className="flex items-center space-x-3">
               <button
                 onClick={handleSubmit}
-                disabled={formData.items.length === 0}
                 className="flex items-center space-x-2 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-xl transition-all font-bold text-xs uppercase tracking-widest backdrop-blur-sm shadow-sm"
               >
                 <Save className="w-4 h-4" />
-                <span>Guardar</span>
+                <span>Finalizar</span>
               </button>
               <button
                 onClick={onClose}
@@ -957,12 +1175,12 @@ function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
             .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
           `}</style>
 
-          <form onSubmit={handleSubmit} className="max-w-5xl mx-auto space-y-6">
+          <form onSubmit={handleSubmit} className="max-w-4xl mx-auto space-y-6">
             {/* Form Alert */}
             {Object.keys(errors).length > 0 && (
               <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-xl flex items-center space-x-3 animate-in slide-in-from-left-2 duration-200">
-                <AlertTriangle className="w-5 h-5 text-red-500" />
-                <p className="text-sm text-red-700">Por favor, completa la información de la orden y corrige los errores.</p>
+                <AlertCircle className="w-5 h-5 text-red-500" />
+                <p className="text-sm text-red-700">Por favor, completa los campos obligatorios.</p>
               </div>
             )}
 
@@ -973,46 +1191,65 @@ function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
                 <h4 className="font-bold uppercase text-[10px] tracking-widest">Información de la Orden</h4>
               </div>
 
-              <div className="grid md:grid-cols-3 gap-6">
-                <div>
-                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Fecha de Orden</label>
-                  <div className="relative">
-                    <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                    <input
-                      type="date"
-                      value={formData.orderDate}
-                      disabled
-                      className="w-full pl-10 pr-4 py-3 bg-gray-100 border border-gray-200 rounded-xl font-medium text-gray-500 cursor-not-allowed"
+              <div className="grid md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Proveedor *</label>
+                    <SupplierSearchSelect
+                      selectedId={formData.proveedorId}
+                      onSelect={(s: SupplierAPI) => setFormData({ ...formData, proveedorId: String(s.proveedorId) })}
+                      error={!!errors.proveedorId}
                     />
+                    {errors.proveedorId && <p className="text-[10px] text-red-500 mt-1 ml-1">{errors.proveedorId}</p>}
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">N° de Factura / Referencia *</label>
+                    <div className="relative">
+                      <FileText className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <input
+                        type="text"
+                        name="purchaseNumber"
+                        placeholder="Ej: FAC-12345"
+                        value={formData.purchaseNumber}
+                        onChange={handleInputChange}
+                        className={cn(
+                          "w-full pl-10 pr-4 py-3 bg-gray-50/50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all font-medium text-gray-700",
+                          errors.purchaseNumber ? 'border-red-300' : 'border-gray-200'
+                        )}
+                      />
+                    </div>
+                    {errors.purchaseNumber && <p className="text-[10px] text-red-500 mt-1 ml-1">{errors.purchaseNumber}</p>}
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Proveedor *</label>
-                  <select
-                    name="proveedorId"
-                    value={formData.proveedorId}
-                    onChange={handleInputChange}
-                    className={`w-full px-4 py-3 bg-gray-50/50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all font-medium text-gray-700 ${errors.proveedorId ? 'border-red-300' : 'border-gray-200'}`}
-                  >
-                    <option value="">Seleccionar...</option>
-                    {activeSuppliers.map(s => (
-                      <option key={s.proveedorId} value={s.proveedorId}>{s.nombre}</option>
-                    ))}
-                  </select>
-                  {errors.proveedorId && <p className="text-[10px] text-red-500 mt-1 ml-1">{errors.proveedorId}</p>}
-                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Fecha de Registro *</label>
+                    <div className="relative">
+                      <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                      <input
+                        type="date"
+                        name="orderDate"
+                        value={formData.orderDate}
+                        max={getCurrentDate()}
+                        onChange={handleInputChange}
+                        className="w-full pl-10 pr-4 py-3 bg-gray-50/50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all font-medium text-gray-700"
+                      />
+                    </div>
+                  </div>
 
-                <div>
-                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">IVA (%) *</label>
-                  <input
-                    type="number"
-                    name="iva"
-                    value={formData.iva}
-                    onChange={handleInputChange}
-                    className={`w-full px-4 py-3 bg-gray-50/50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all font-medium text-gray-700 ${errors.iva ? 'border-red-300' : 'border-gray-200'}`}
-                  />
-                  {errors.iva && <p className="text-[10px] text-red-500 mt-1 ml-1">{errors.iva}</p>}
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Observaciones</label>
+                    <textarea
+                      name="notes"
+                      value={formData.notes}
+                      onChange={handleInputChange}
+                      rows={2}
+                      placeholder="Notas adicionales sobre la compra..."
+                      className="w-full px-4 py-3 bg-gray-50/50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all font-medium text-gray-700 resize-none"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -1030,7 +1267,7 @@ function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
                   className="bg-gradient-to-r from-pink-500 to-purple-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:shadow-lg transition-all flex items-center space-x-2"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>Añadir Item</span>
+                  <span>Añadir Insumo</span>
                 </button>
               </div>
 
@@ -1041,16 +1278,12 @@ function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
                       <div key={index} className="flex flex-wrap md:flex-nowrap items-end gap-4 bg-gray-50/50 p-4 rounded-2xl border border-gray-100 group hover:border-pink-200 transition-all">
                         <div className="flex-1 min-w-[200px]">
                           <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Insumo *</label>
-                          <select
-                            value={item.insumoId}
-                            onChange={(e) => updateProduct(index, 'insumoId', e.target.value)}
-                            className={`w-full px-4 py-2 bg-white border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all font-bold text-gray-700 text-sm ${errors[`product_${index}`] ? 'border-red-300' : 'border-gray-200'}`}
-                          >
-                            <option value="">Seleccionar...</option>
-                            {activeSupplies.map(s => (
-                              <option key={s.insumoId} value={s.insumoId}>{s.nombre}</option>
-                            ))}
-                          </select>
+                          <SupplySearchSelect
+                            selectedId={item.insumoId}
+                            onSelect={(s: Supply) => updateProduct(index, 'insumoId', s)}
+                            error={!!errors[`product_${index}`]}
+                            allSelectedIds={formData.items.map(i => i.insumoId)}
+                          />
                         </div>
 
                         <div className="w-24">
@@ -1059,7 +1292,10 @@ function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
                             type="number"
                             value={item.cantidad}
                             onChange={(e) => updateProduct(index, 'cantidad', e.target.value)}
-                            className={`w-full px-3 py-2 bg-white border rounded-xl focus:ring-2 focus:ring-pink-300 transition-all font-bold text-gray-700 text-sm ${errors[`quantity_${index}`] ? 'border-red-300' : 'border-gray-200'}`}
+                            className={cn(
+                              "w-full px-3 py-2 bg-white border rounded-xl focus:ring-2 focus:ring-pink-300 transition-all font-bold text-gray-700 text-sm",
+                              errors[`quantity_${index}`] ? 'border-red-300' : 'border-gray-200'
+                            )}
                           />
                         </div>
 
@@ -1071,7 +1307,10 @@ function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
                               type="number"
                               value={item.precioUnitario === 0 ? '' : item.precioUnitario}
                               onChange={(e) => updateProduct(index, 'precioUnitario', e.target.value)}
-                              className={`w-full pl-7 pr-3 py-2 bg-white border rounded-xl focus:ring-2 focus:ring-pink-300 transition-all font-bold text-gray-700 text-sm ${errors[`price_${index}`] ? 'border-red-300' : 'border-gray-200'}`}
+                              className={cn(
+                                "w-full pl-7 pr-3 py-2 bg-white border rounded-xl focus:ring-2 focus:ring-pink-300 transition-all font-bold text-gray-700 text-sm",
+                                errors[`price_${index}`] ? 'border-red-300' : 'border-gray-200'
+                              )}
                               placeholder="0"
                             />
                           </div>
@@ -1079,7 +1318,7 @@ function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
 
                         <div className="w-32">
                           <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Subtotal</label>
-                          <div className="px-3 py-2 bg-green-50 border border-green-100 rounded-xl text-sm font-black text-green-600 text-center">
+                          <div className="w-full px-3 py-2 bg-gray-100 border border-gray-200 rounded-xl font-bold text-gray-500 text-sm">
                             ${item.subtotal.toLocaleString()}
                           </div>
                         </div>
@@ -1087,38 +1326,47 @@ function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
                         <button
                           type="button"
                           onClick={() => removeProduct(index)}
-                          className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all mb-0.5"
+                          className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all mb-1"
                         >
-                          <Trash2 className="w-5 h-5" />
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     ))}
                   </div>
                 ) : (
                   <div className="text-center py-10 border-2 border-dashed border-gray-100 rounded-3xl">
-                    <ShoppingCart className="w-10 h-10 text-gray-200 mx-auto mb-2" />
-                    <p className="text-sm text-gray-400 font-medium">No hay insumos agregados a la orden</p>
+                    <Package className="w-10 h-10 text-gray-200 mx-auto mb-2" />
+                    <p className="text-sm text-gray-400 font-medium">No has agregado ningún insumo aún</p>
                   </div>
                 )}
-                {errors.items && <p className="text-red-500 text-[10px] mt-4 text-center font-black uppercase tracking-widest">{errors.items}</p>}
+                {errors.items && <p className="text-red-500 text-[10px] mt-2 text-center font-black uppercase tracking-widest">{errors.items}</p>}
               </div>
 
               {/* Totals Summary */}
               {formData.items.length > 0 && (
-                <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex flex-wrap justify-between items-center gap-4">
-                  <div className="flex items-center space-x-6">
+                <div className="px-8 py-6 bg-gray-900 text-white border-t border-gray-100 flex flex-wrap justify-between items-center gap-4">
+                  <div className="flex items-center space-x-8">
                     <div>
-                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Subtotal</span>
-                      <span className="text-lg font-black text-gray-700">${subtotal.toLocaleString()}</span>
+                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Subtotal</span>
+                      <span className="text-xl font-bold text-gray-300">
+                        ${subtotal.toLocaleString()}
+                      </span>
                     </div>
+                    <div className="w-px h-10 bg-gray-700 hidden md:block"></div>
                     <div>
-                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">IVA ({ivaPercent}%)</span>
-                      <span className="text-lg font-black text-gray-700">${ivaAmount.toLocaleString()}</span>
+                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">IVA (%)</span>
+                      <input
+                        type="number"
+                        name="iva"
+                        value={formData.iva}
+                        onChange={handleInputChange}
+                        className="w-16 bg-transparent border-b border-gray-700 focus:border-pink-500 focus:ring-0 text-xl font-bold text-purple-400 p-0 text-center"
+                      />
                     </div>
                   </div>
                   <div className="text-right">
-                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Total de Compra</span>
-                    <span className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-purple-600">
+                    <span className="text-[10px] font-black text-purple-400 uppercase tracking-[0.2em] block mb-1">Total Compra</span>
+                    <span className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-purple-500">
                       ${total.toLocaleString()}
                     </span>
                   </div>
@@ -1139,14 +1387,10 @@ function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
           </button>
           <button
             onClick={handleSubmit}
-            disabled={formData.items.length === 0}
-            className={`px-8 py-2.5 rounded-xl font-black active:scale-95 transition-all text-sm uppercase tracking-widest shadow-md flex items-center space-x-2 ${formData.items.length === 0
-              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-              : 'bg-gradient-to-r from-pink-400 to-purple-500 text-white hover:shadow-lg'
-              }`}
+            className="px-8 py-2.5 bg-gradient-to-r from-pink-400 to-purple-500 text-white rounded-xl font-black hover:shadow-lg active:scale-95 transition-all text-sm uppercase tracking-widest shadow-md flex items-center space-x-2"
           >
             <Save className="w-4 h-4" />
-            <span>Registrar Compra</span>
+            <span>Finalizar Compra</span>
           </button>
         </div>
       </div>
@@ -1163,6 +1407,10 @@ function CancelConfirmationModal({ purchase, onClose, onConfirm }: {
   const [observation, setObservation] = useState('');
 
   const handleConfirm = () => {
+    if (!observation.trim()) {
+      toast.error('Por favor, ingresa el motivo de anulación');
+      return;
+    }
     onConfirm(observation);
   };
 
@@ -1218,22 +1466,18 @@ function CancelConfirmationModal({ purchase, onClose, onConfirm }: {
             />
           </div>
 
-          <div className="flex flex-col gap-3">
-            <button
-              onClick={handleConfirm}
-              disabled={!observation.trim()}
-              className={`w-full py-4 rounded-2xl font-black uppercase tracking-[0.2em] shadow-lg transition-all ${!observation.trim()
-                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                : 'bg-gradient-to-r from-red-500 to-pink-600 text-white hover:shadow-red-200 hover:scale-[1.02] active:scale-95'
-                }`}
-            >
-              Confirmar Anulación
-            </button>
+          <div className="flex gap-3">
             <button
               onClick={onClose}
-              className="w-full py-4 bg-gray-100 text-gray-500 rounded-2xl font-black uppercase tracking-[0.2em] hover:bg-gray-200 hover:text-gray-700 transition-all"
+              className="flex-1 px-6 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 transition-all uppercase text-xs tracking-widest"
             >
-              Regresar
+              Cerrar
+            </button>
+            <button
+              onClick={handleConfirm}
+              className="flex-1 px-6 py-3 bg-red-500 text-white rounded-xl font-bold hover:bg-red-600 transition-all shadow-lg shadow-red-200 uppercase text-xs tracking-widest"
+            >
+              Anular
             </button>
           </div>
         </div>

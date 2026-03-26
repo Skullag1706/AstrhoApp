@@ -1,4 +1,4 @@
-import { apiClient } from './apiClient';
+import { apiClient, PaginatedResponse } from './apiClient';
 
 export interface RolListDto {
     rolId: number;
@@ -31,8 +31,25 @@ export interface ActualizarRolDto {
 }
 
 export const roleService = {
-    getRoles: async (): Promise<RolListDto[]> => {
-        return await apiClient.get<RolListDto[]>('/Roles');
+    getRoles: async (params?: { page?: number; pageSize?: number; search?: string }): Promise<PaginatedResponse<RolListDto>> => {
+        const response = await apiClient.get<any>('/Roles', params);
+        
+        if (response && response.data && Array.isArray(response.data)) {
+            return response;
+        }
+
+        // Fallback for simple array response
+        if (Array.isArray(response)) {
+            return {
+                data: response,
+                totalCount: response.length,
+                page: params?.page || 1,
+                pageSize: params?.pageSize || response.length,
+                totalPages: 1
+            };
+        }
+
+        return { data: [], totalCount: 0, page: 1, pageSize: 10, totalPages: 0 };
     },
 
     getRoleById: async (id: number): Promise<RolResponseDto> => {

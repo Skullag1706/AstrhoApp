@@ -272,7 +272,7 @@ export function ClientAppointments({ currentUser, onBookNewAppointment, onResche
                               </span>
                               <span className="flex items-center space-x-1">
                                 <Clock className="w-4 h-4" />
-                                <span>{appointment.horaInicio.substring(0, 5)}</span>
+                                <span>{appointment.horaInicio?.substring(0, 5) || '--:--'}</span>
                               </span>
                             </div>
                             <div className="flex items-center space-x-4 text-sm text-gray-600 mb-3">
@@ -419,7 +419,7 @@ export function ClientAppointments({ currentUser, onBookNewAppointment, onResche
               </div>
               <h3 className="text-2xl font-black text-gray-800 mb-2">¿Cancelar Cita?</h3>
               <p className="text-gray-500 font-medium mb-8">
-                Esta acción no se puede deshacer. ¿Estás seguro de que deseas cancelar tu cita para el <span className="text-gray-800 font-bold">{new Date(appointmentToCancel.fechaCita + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })}</span> a las <span className="text-gray-800 font-bold">{appointmentToCancel.horaInicio.substring(0, 5)}</span>?
+                Esta acción no se puede deshacer. ¿Estás seguro de que deseas cancelar tu cita para el <span className="text-gray-800 font-bold">{new Date(appointmentToCancel.fechaCita + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })}</span> a las <span className="text-gray-800 font-bold">{appointmentToCancel.horaInicio?.substring(0, 5) || '--:--'}</span>?
               </p>
               
               <div className="flex flex-col sm:flex-row gap-3">
@@ -560,7 +560,7 @@ function AppointmentDetailModal({
                   </p>
                   <p className="text-purple-600 font-bold flex items-center">
                     <Clock className="w-4 h-4 mr-1" />
-                    {appointment.horaInicio.substring(0, 5)}
+                    {appointment.horaInicio?.substring(0, 5) || '--:--'}
                   </p>
                 </div>
               </div>

@@ -69,7 +69,7 @@ export function AppointmentBooking({ currentUser, onBookingComplete, onBack, ini
       
       // Set date and time
       setSelectedDate(appointmentToReschedule.fechaCita.split('T')[0]);
-      setSelectedTime(appointmentToReschedule.horaInicio.substring(0, 5));
+      setSelectedTime(appointmentToReschedule.horaInicio?.substring(0, 5) || '');
       
       // Payment method is handled after metodosPago load
     } else if (initialService && services.length > 0) {

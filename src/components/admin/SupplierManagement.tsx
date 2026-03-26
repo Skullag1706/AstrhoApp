@@ -58,6 +58,8 @@ export function SupplierManagement({ hasPermission }: SupplierManagementProps) {
   const [supplierTypeFilter, setSupplierTypeFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(5); // 3x3 grid removed for standardization
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [checkingPurchases, setCheckingPurchases] = useState(false);
   const [supplierHasPurchases, setSupplierHasPurchases] = useState(false);
@@ -65,19 +67,16 @@ export function SupplierManagement({ hasPermission }: SupplierManagementProps) {
   const loadSuppliers = async () => {
     try {
       setIsLoading(true);
-      const data = await supplierService.getAll();
-      console.log('Loaded suppliers API response:', data);
+      const response = await supplierService.getAll({
+        page: currentPage,
+        pageSize: itemsPerPage,
+        search: searchTerm
+      });
+      console.log('Loaded suppliers API response:', response);
 
-      let items: any[] = [];
-      if (Array.isArray(data)) {
-        items = data;
-      } else if (data && Array.isArray(data.$values)) {
-        items = data.$values;
-      } else if (data && Array.isArray(data.data)) {
-        items = data.data;
-      } else if (data && Array.isArray(data.result)) {
-        items = data.result;
-      }
+      const items = response.data || [];
+      setTotalCount(response.totalCount || 0);
+      setTotalPages(response.totalPages || 0);
 
       // Load ALL suppliers (active + inactive) — soft-deleted ones are shown on reload
       setSuppliers(items.map(mapApiToFrontend).filter(Boolean));
@@ -91,26 +90,28 @@ export function SupplierManagement({ hasPermission }: SupplierManagementProps) {
 
   useEffect(() => {
     loadSuppliers();
-  }, []);
+  }, [currentPage, searchTerm]);
 
-  const filteredSuppliers = suppliers.filter(supplier => {
-    const nameStr = supplier?.name || '';
-    const contactStr = supplier?.contactPerson || '';
-    const matchesSearch = nameStr.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      contactStr.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesType = supplierTypeFilter === 'all' || supplier?.supplierType === supplierTypeFilter;
-    return matchesSearch && matchesType;
-  });
+  // Reset page when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
-  // Pagination calculations
-  const totalPages = Math.ceil(filteredSuppliers.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentSuppliers = filteredSuppliers.slice(startIndex, endIndex);
+  // Ya no filtramos en el cliente, usamos lo que viene de la API
+  const currentSuppliers = suppliers;
 
-  const handleViewDetail = (supplier) => {
-    setSelectedSupplier(supplier);
-    setShowDetailModal(true);
+  const handleViewDetail = async (supplier) => {
+    try {
+      setIsLoading(true);
+      const fullSupplier = await supplierService.getById(supplier.id);
+      setSelectedSupplier(mapApiToFrontend(fullSupplier));
+      setShowDetailModal(true);
+    } catch (error) {
+      console.error('Error fetching supplier detail:', error);
+      toast.error('No se pudo cargar el detalle del proveedor');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleEditSupplier = (supplier) => {
@@ -345,6 +346,12 @@ export function SupplierManagement({ hasPermission }: SupplierManagementProps) {
 
       {/* Suppliers List */}
       <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+        <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-6 border-b border-gray-100">
+          <h3 className="text-xl font-bold text-gray-800">Lista de Proveedores</h3>
+          <p className="text-gray-600">
+            {totalCount} proveedor{totalCount !== 1 ? 'es' : ''} encontrado{totalCount !== 1 ? 's' : ''}
+          </p>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gradient-to-r from-pink-50 to-purple-50">
@@ -450,16 +457,13 @@ export function SupplierManagement({ hasPermission }: SupplierManagementProps) {
         </div>
 
         {/* Pagination - Always visible */}
-        <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
-          <div className="text-sm text-gray-600">
-            Mostrando {filteredSuppliers.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} - {Math.min(currentPage * itemsPerPage, filteredSuppliers.length)} de {filteredSuppliers.length} registros
-          </div>
+        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50">
           <SimplePagination
             totalPages={totalPages}
             currentPage={currentPage}
             onPageChange={goToPage}
-            onPreviousPage={goToPreviousPage}
-            onNextPage={goToNextPage}
+            totalRecords={totalCount}
+            recordsPerPage={itemsPerPage}
           />
         </div>
       </div>

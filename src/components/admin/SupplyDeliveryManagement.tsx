@@ -37,6 +37,8 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(5);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [deliveryToCancel, setDeliveryToCancel] = useState<Delivery | null>(null);
   const [cancelReason, setCancelReason] = useState('');
@@ -47,27 +49,23 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [deliveriesData, suppliesData, employeesData] = await Promise.all([
-        deliveryService.getDeliveries(),
+      const [response, suppliesData, employeesData] = await Promise.all([
+        deliveryService.getDeliveries({
+          page: currentPage,
+          pageSize: itemsPerPage,
+          search: searchTerm
+        }),
         supplyService.getSupplies(),
         personService.getPersons('employee')
       ]);
 
+      const deliveriesData = response.data || [];
+      setTotalCount(response.totalCount || 0);
+      setTotalPages(response.totalPages || 0);
+
       // Strict persistence merge: never allow a finalized delivery to revert to Pending
-      setDeliveries(prev => {
-        if (prev.length === 0) return deliveriesData;
-        return deliveriesData.map(newItem => {
-          const oldItem = prev.find(p => p.id === newItem.id);
-          if (!oldItem) return newItem;
-          const oldLabel = getNormalizedLabel(oldItem.estado);
-          const newLabel = getNormalizedLabel(newItem.estado);
-          if ((oldLabel === 'Completado' || oldLabel === 'Cancelado') && newLabel === 'Pendiente') {
-            return { ...newItem, estado: oldLabel };
-          }
-          return newItem;
-        });
-      });
-      setSupplies(suppliesData);
+      setDeliveries(deliveriesData);
+      setSupplies(suppliesData.data || []);
 
       const mappedEmployees = employeesData.map(emp => ({
         id: emp.documentId,
@@ -83,10 +81,18 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
     }
   };
 
-  // Fetch data on mount
+  // Fetch data on mount, page change, or search change
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [currentPage, searchTerm]);
+
+  // Reset page when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
+
+  // Ya no filtramos en el cliente, usamos lo que viene de la API
+  const paginatedDeliveries = deliveries;
 
   // Auto-hide success alert after 4 seconds
   useEffect(() => {
@@ -97,33 +103,6 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
       return () => clearTimeout(timer);
     }
   }, [showSuccessAlert]);
-
-  const filteredDeliveries = deliveries.filter(delivery => {
-    // For search, we check the responsible name and the items' names
-    const responsible = users.find(u => u.id === delivery.documentoEmpleado);
-
-    const productNames = delivery.detalles?.map(d => {
-      const s = supplies.find(sup => sup.insumoId === d.insumoId);
-      return (s?.nombre || '').toLowerCase();
-    }) || [];
-
-    const matchesSearch = productNames.some(name => name.includes(searchTerm.toLowerCase())) ||
-      responsible?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      delivery.id.toString().includes(searchTerm);
-
-    const matchesStatus = filterStatus === 'all' || delivery.estado.toLowerCase() === filterStatus.toLowerCase();
-    const matchesResponsible = filterResponsible === 'all' || delivery.documentoEmpleado === filterResponsible;
-    const matchesDate = !dateRange.start || delivery.fechaEntrega.split('T')[0] >= dateRange.start;
-
-    return matchesSearch && matchesStatus && matchesResponsible && matchesDate;
-  });
-
-  // Pagination
-  const totalPages = Math.ceil(filteredDeliveries.length / itemsPerPage);
-  const paginatedDeliveries = filteredDeliveries.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
 
   const goToPage = (page: number) => {
     setCurrentPage(page);
@@ -474,6 +453,12 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
 
       {/* Deliveries Table */}
       <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100">
+        <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-6 border-b border-gray-100">
+          <h3 className="text-xl font-bold text-gray-800">Lista de Entregas</h3>
+          <p className="text-gray-600">
+            {totalCount} entrega{totalCount !== 1 ? 's' : ''} encontrada{totalCount !== 1 ? 's' : ''}
+          </p>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-100">
@@ -576,19 +561,13 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
         </div>
 
         {/* Pagination */}
-        <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between">
-          <div className="text-sm text-gray-600">
-            Mostrando {filteredDeliveries.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0}
-            {' - '}
-            {Math.min(currentPage * itemsPerPage, filteredDeliveries.length)}
-            {' de '}
-            {filteredDeliveries.length} registros
-          </div>
-
+        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50">
           <SimplePagination
             totalPages={totalPages}
             currentPage={currentPage}
             onPageChange={setCurrentPage}
+            totalRecords={totalCount}
+            recordsPerPage={itemsPerPage}
           />
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { apiClient } from './apiClient';
+import { apiClient, PaginatedResponse } from './apiClient';
 
 export interface SupplyDeliveryItem {
     id?: number;
@@ -24,8 +24,8 @@ export interface SupplyDelivery {
 }
 
 export const supplyDeliveryService = {
-    async getDeliveries(): Promise<SupplyDelivery[]> {
-        return apiClient.get('/SupplyDelivery');
+    async getDeliveries(params?: { page?: number; pageSize?: number; search?: string }): Promise<PaginatedResponse<SupplyDelivery>> {
+        return apiClient.get<PaginatedResponse<SupplyDelivery>>('/SupplyDelivery', params);
     },
 
     async getDeliveryById(id: number): Promise<SupplyDelivery> {

@@ -1,4 +1,4 @@
-import { apiClient } from './apiClient';
+import { apiClient, PaginatedResponse } from './apiClient';
 
 export interface Service {
     servicioId: number;
@@ -14,8 +14,12 @@ export interface Service {
 }
 
 export const serviceService = {
-    async getServices(): Promise<Service[]> {
-        return apiClient.get('/Servicios');
+    async getServices(params?: { page?: number; pageSize?: number; search?: string }): Promise<PaginatedResponse<Service>> {
+        return apiClient.get('/Servicios', params);
+    },
+
+    async getServiceById(id: number): Promise<Service> {
+        return apiClient.get(`/Servicios/${id}`);
     },
 
     async createService(service: Omit<Service, 'servicioId'> | FormData): Promise<Service> {

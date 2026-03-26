@@ -47,6 +47,8 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(5);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const [showSuccessAlert, setShowSuccessAlert] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
 
@@ -76,7 +78,16 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
   const fetchRoles = async () => {
     try {
       setLoading(true);
-      const data = await roleService.getRoles();
+      const response = await roleService.getRoles({
+        page: currentPage,
+        pageSize: itemsPerPage,
+        search: searchTerm
+      });
+      
+      const data = response.data || [];
+      setTotalCount(response.totalCount || 0);
+      setTotalPages(response.totalPages || 0);
+
       // Map API roles to internal interface
       const mappedRoles = data.map(role => ({
         id: role.rolId.toString(),
@@ -98,7 +109,7 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
 
   useEffect(() => {
     fetchRoles();
-  }, []);
+  }, [currentPage, searchTerm]);
 
   // New role form data
   const [newRoleData, setNewRoleData] = useState({
@@ -189,18 +200,13 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
 
   const permissionsByModule = groupPermissionsByModule();
 
-  // Filter roles based on search
-  const filteredRoles = roles.filter(role =>
-    role.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    role.description.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Reset page when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
-  // Pagination
-  const totalPages = Math.ceil(filteredRoles.length / itemsPerPage);
-  const paginatedRoles = filteredRoles.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  // Ya no filtramos en el cliente, usamos lo que viene de la API
+  const paginatedRoles = roles;
 
   const goToPage = (page: number) => {
     setCurrentPage(page);
@@ -212,6 +218,28 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
 
   const goToNextPage = () => {
     setCurrentPage(prev => Math.min(prev + 1, totalPages));
+  };
+
+  const handleViewRole = async (role: any) => {
+    try {
+      setLoading(true);
+      const fullRole = await roleService.getRoleById(parseInt(role.id));
+      setViewingRole({
+        id: fullRole.rolId.toString(),
+        name: fullRole.nombre,
+        description: fullRole.descripcion,
+        permissions: fullRole.permisos || [],
+        status: fullRole.estado ? 'active' : 'inactive',
+        createdAt: 'N/A',
+        updatedAt: 'N/A'
+      });
+    } catch (error) {
+      console.error('Error fetching role detail:', error);
+      // Fallback
+      setViewingRole(role);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getRoleColor = (roleId) => {
@@ -345,28 +373,6 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
     }
   };
 
-  const handleViewRole = async (role) => {
-    setLoading(true);
-    try {
-      const fullRole = await roleService.getRoleById(parseInt(role.id));
-      const mappedRole = {
-        id: fullRole.rolId.toString(),
-        name: fullRole.nombre,
-        description: fullRole.descripcion,
-        permissions: (fullRole.permisosIds || []).map(id => REVERSE_PERMISSION_MAP[id]).filter(p => p),
-        status: fullRole.estado ? 'active' : 'inactive',
-        isSuperUser: fullRole.nombre.toLowerCase().trim() === 'super admin'
-      };
-      setViewingRole(mappedRole);
-    } catch (error) {
-      console.error('Error fetching role details for view:', error);
-      // Fallback to basic info if API fails
-      setViewingRole({ ...role });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const toggleRoleStatus = async (roleId) => {
     const role = roles.find(r => r.id === roleId);
     if (!role) return;
@@ -471,7 +477,7 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
         <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-6 border-b border-gray-100">
           <h3 className="text-xl font-bold text-gray-800">Lista de Roles</h3>
           <p className="text-gray-600">
-            {filteredRoles.length} rol{filteredRoles.length !== 1 ? 'es' : ''} encontrado{filteredRoles.length !== 1 ? 's' : ''}
+            {totalCount} rol{totalCount !== 1 ? 'es' : ''} encontrado{totalCount !== 1 ? 's' : ''}
           </p>
         </div>
 
@@ -584,7 +590,7 @@ export function RoleManagement({ hasPermission }: RoleManagementProps) {
         {/* Pagination */}
         <div className="px-6 py-4 flex flex-col sm:flex-row items-center justify-between border-t border-gray-100 gap-4">
           <div className="text-sm text-gray-500">
-            Mostrando {filteredRoles.length > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} a {Math.min(currentPage * itemsPerPage, filteredRoles.length)} de {filteredRoles.length} entradas
+            Mostrando {totalCount > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0} a {Math.min(currentPage * itemsPerPage, totalCount)} de {totalCount} entradas
           </div>
           <div className="flex items-center space-x-2">
             <button
