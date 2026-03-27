@@ -574,51 +574,51 @@ export function DashboardOverview({
 
         {/* Appointments Chart */}
         <div className="bg-white rounded-2xl shadow-lg p-6">
-            <h3 className="text-xl font-bold text-gray-800 mb-8">
-              Citas {periodLabel}
-            </h3>
-            {isLoading ? (
-              <div className="h-[400px] bg-gray-100 animate-pulse rounded-xl" />
-            ) : (
-              <ResponsiveContainer width="100%" height={400}>
-                <LineChart data={appointmentsChartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip formatter={(value: number) => [value, "Citas"]} />
-                  <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="value"
-                    name="Citas"
-                    stroke="#a855f7"
-                    strokeWidth={2}
-                    activeDot={{ r: 8 }}
-                    dot={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            )}
-          </div>
+          <h3 className="text-xl font-bold text-gray-800 mb-8">
+            Citas {periodLabel}
+          </h3>
+          {isLoading ? (
+            <div className="h-[400px] bg-gray-100 animate-pulse rounded-xl" />
+          ) : (
+            <ResponsiveContainer width="100%" height={400}>
+              <LineChart data={appointmentsChartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis allowDecimals={false} />
+                <Tooltip formatter={(value: number) => [value, "Citas"]} />
+                <Legend />
+                <Line
+                  type="monotone"
+                  dataKey="value"
+                  name="Citas"
+                  stroke="#a855f7"
+                  strokeWidth={2}
+                  activeDot={{ r: 8 }}
+                  dot={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
         </div>
+      </div>
 
       {/* Two Column: Upcoming Appointments + Top Services */}
       <div className="grid lg:grid-cols-2 gap-8">
         {/* Upcoming Appointments */}
         <div className="bg-white rounded-2xl shadow-lg p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-gray-800">
-                Próximas Citas (Hoy)
-              </h3>
-              <div className="flex items-center space-x-2 text-sm text-gray-600">
-                <Clock className="w-4 h-4" />
-                {lastUpdated ? (
-                  <span>Actualizado {lastUpdated.toLocaleTimeString()}</span>
-                ) : (
-                  <span>Cargando...</span>
-                )}
-              </div>
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-bold text-gray-800">
+              Próximas Citas (Hoy)
+            </h3>
+            <div className="flex items-center space-x-2 text-sm text-gray-600">
+              <Clock className="w-4 h-4" />
+              {lastUpdated ? (
+                <span>Actualizado {lastUpdated.toLocaleTimeString()}</span>
+              ) : (
+                <span>Cargando...</span>
+              )}
             </div>
+          </div>
 
           {isLoading ? (
             <div className="space-y-3">
@@ -662,13 +662,12 @@ export function DashboardOverview({
                     </div>
                     <div className="text-right flex-shrink-0">
                       <span
-                        className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          isConfirmed
+                        className={`px-3 py-1 rounded-full text-xs font-semibold ${isConfirmed
                             ? "bg-green-100 text-green-800"
                             : isPending
                               ? "bg-yellow-100 text-yellow-800"
                               : "bg-gray-100 text-gray-700"
-                        }`}
+                          }`}
                       >
                         {apt.estado}
                       </span>

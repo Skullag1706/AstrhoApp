@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle,
+import {
+  CheckCircle,
   Calendar, Clock, Users, Plus,
   AlertCircle, Edit, Eye, Trash2,
   Save, X, Loader2, RefreshCw, Copy, UserPlus, UserMinus, FileText, Search, ChevronLeft, ChevronRight
@@ -95,7 +96,7 @@ export function ScheduleManagement({ hasPermission, currentUser }: ScheduleManag
       // 2. Load legacy groups from localStorage for backward compatibility
       const savedGroups = scheduleGroupService.getAll();
       const validIds = new Set(hData.map((h: Horario) => h.horarioId));
-      
+
       const reconciledLegacyGroups = savedGroups.map(g => ({
         ...g,
         horarioIds: g.horarioIds.filter(id => validIds.has(id))
@@ -224,13 +225,13 @@ export function ScheduleManagement({ hasPermission, currentUser }: ScheduleManag
     try {
       const primaryId = group.horarioIds[0];
       if (!primaryId) return;
-      
+
       await horarioService.toggle(primaryId);
-      
+
       // Update group in localStorage
       const newEstado = !group.estado;
       scheduleGroupService.upsert({ ...group, estado: newEstado });
-      
+
       showAlert(
         newEstado ? 'success' : 'info',
         `Horario "${group.nombre}" ${newEstado ? 'activado' : 'inactivado'} correctamente`
@@ -324,12 +325,11 @@ export function ScheduleManagement({ hasPermission, currentUser }: ScheduleManag
       // 5. Process pending employee assignments and deletions
       // We need to map the pending assignments to the correct horarioDiaId
       const savedDays = savedHorario ? extractArray(savedHorario) : [];
-      
       // 🔥 Validación estricta: si no hay días cargados, no podemos mapear empleados
       if (!savedHorario || !savedDays.length) {
         const errorMsg = 'No se pudo mapear las asignaciones de empleados porque no se obtuvieron los detalles de los días del servidor.';
         console.error(`[ScheduleManagement] ${errorMsg}`, savedHorario);
-        
+
         if (assignmentsToCreate.length > 0) {
           showAlert('error', 'El horario se guardó, pero no se pudieron asignar los empleados automáticamente. Intenta asignarlos nuevamente editando el horario.');
           setSaving(false);
@@ -337,13 +337,14 @@ export function ScheduleManagement({ hasPermission, currentUser }: ScheduleManag
         }
       }
 
-      if (savedDays.length > 0) {
+      // ✅ condición correcta combinada
+      if (savedHorario && savedDays.length > 0) {
         // Group assignments by the new IDs from server
         const assignmentsByDay: Record<number, string[]> = {};
 
         for (const pending of assignmentsToCreate) {
           let dayNameToUse = pending.diaSemana || "";
-          
+
           if (!dayNameToUse) {
             const allDaysInSystem = horarios.flatMap(h => extractArray(h));
             const oldDayRecord = allDaysInSystem.find(d => d.horarioDiaId === pending.horarioId);
@@ -360,7 +361,7 @@ export function ScheduleManagement({ hasPermission, currentUser }: ScheduleManag
           if (dayNameToUse) {
             const normalizedTarget = normalizeDay(dayNameToUse);
             const newDayRecord = savedDays.find(d => normalizeDay(d.diaSemana) === normalizedTarget);
-            
+
             if (newDayRecord && newDayRecord.horarioDiaId) {
               if (!assignmentsByDay[newDayRecord.horarioDiaId]) {
                 assignmentsByDay[newDayRecord.horarioDiaId] = [];
@@ -442,7 +443,6 @@ export function ScheduleManagement({ hasPermission, currentUser }: ScheduleManag
 
       console.log('[ScheduleManagement] Enviando asignación individual bulk:', JSON.stringify(bulkData, null, 2));
       await horarioEmpleadoService.createBulk(bulkData);
-      
       showAlert('success', `${validEmpleados.length} empleado(s) asignado(s) correctamente`);
       setShowAssignModal(false);
       await loadData();
@@ -466,12 +466,12 @@ export function ScheduleManagement({ hasPermission, currentUser }: ScheduleManag
   };
 
   // ── Helpers ──
-  
+
   const checkOverlap = (
-    doc: string, 
-    dia: string, 
-    inicio: string, 
-    fin: string, 
+    doc: string,
+    dia: string,
+    inicio: string,
+    fin: string,
     excludeScheduleId?: number
   ) => {
     const normalizedDia = normalizeDay(dia);
@@ -479,7 +479,7 @@ export function ScheduleManagement({ hasPermission, currentUser }: ScheduleManag
     return horarioEmpleados.some(he => {
       // Must be same employee and same day
       if (he.documentoEmpleado !== doc || normalizeDay(he.diaSemana) !== normalizedDia) return false;
-      
+
       // If we're editing/re-assigning, exclude the current assignment
       if (excludeScheduleId && he.horarioId === excludeScheduleId) return false;
 
@@ -971,7 +971,7 @@ function ScheduleModal({ group, horarios, empleados, existingAssignments, onClos
       // Encontrar el día dentro de la lista de horarios del grupo
       let foundDay: HorarioDia | undefined;
       const normalizedTarget = normalizeDay(dia);
-      
+
       for (const h of horarios) {
         const hDays = extractArray(h);
         foundDay = hDays.find(d => normalizeDay(d.diaSemana) === normalizedTarget);
@@ -1020,7 +1020,7 @@ function ScheduleModal({ group, horarios, empleados, existingAssignments, onClos
       setLoadingAvailable(true);
       try {
         const response = await empleadoService.getAll(availablePage, itemsPerPageAvailable, searchTermAvailable);
-        
+
         setAvailableEmpleadosFromApi(extractArray(response));
         const total = (data: any) => {
           if (data && typeof data.totalCount === 'number') return data.totalCount;
@@ -1065,12 +1065,12 @@ function ScheduleModal({ group, horarios, empleados, existingAssignments, onClos
 
   const handleLocalAssign = (documentoEmpleado: string) => {
     const foundDay = days.find(d => d.dia === selectedDayForAssign);
-    
+
     if (foundDay && checkOverlap(documentoEmpleado, foundDay.dia, foundDay.horaInicio, foundDay.horaFin)) {
       setValidationError(`El empleado ya tiene un horario asignado que se cruza con este día (${foundDay.dia} ${foundDay.horaInicio}-${foundDay.horaFin})`);
       return;
     }
-    
+
     setPendingCreates(prev => [...prev, { documentoEmpleado, diaSemana: selectedDayForAssign }]);
     setValidationError(null);
   };
@@ -1174,27 +1174,12 @@ function ScheduleModal({ group, horarios, empleados, existingAssignments, onClos
                 <p className="text-pink-100 text-xs font-medium">Configura los días, horas y personal del salón</p>
               </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <button
-                type="submit"
-                form="schedule-form"
-                disabled={saving}
-                className="bg-white text-purple-600 px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-pink-50 active:scale-95 transition-all shadow-sm flex items-center space-x-2 disabled:opacity-50"
-              >
-                {saving ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Save className="w-3.5 h-3.5" />
-                )}
-                <span>{group ? 'Guardar Cambios' : 'Registrar'}</span>
-              </button>
-              <button
-                onClick={onClose}
-                className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
-              >
-                <X className="w-5 h-5 text-white" />
-              </button>
-            </div>
+            <button
+              onClick={onClose}
+              className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
+            >
+              <X className="w-5 h-5 text-white" />
+            </button>
           </div>
         </div>
 
@@ -1268,11 +1253,10 @@ function ScheduleModal({ group, horarios, empleados, existingAssignments, onClos
                         key={day.dia}
                         type="button"
                         onClick={() => toggleDay(day.dia)}
-                        className={`py-2 px-1 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all border ${
-                          day.enabled
-                            ? 'bg-purple-600 border-purple-600 text-white shadow-sm'
-                            : 'bg-white border-gray-100 text-gray-400 hover:border-purple-200'
-                        }`}
+                        className={`py-2 px-1 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all border ${day.enabled
+                          ? 'bg-purple-600 border-purple-600 text-white shadow-sm'
+                          : 'bg-white border-gray-100 text-gray-400 hover:border-purple-200'
+                          }`}
                       >
                         {day.dia.substring(0, 3)}
                       </button>
@@ -1337,11 +1321,10 @@ function ScheduleModal({ group, horarios, empleados, existingAssignments, onClos
                                 key={d.dia}
                                 type="button"
                                 onClick={() => setSelectedDayForAssign(d.dia)}
-                                className={`px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all border ${
-                                  selectedDayForAssign === d.dia
-                                    ? 'bg-blue-500 border-blue-500 text-white shadow-sm'
-                                    : 'bg-white border-gray-100 text-gray-400 hover:border-blue-200'
-                                }`}
+                                className={`px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all border ${selectedDayForAssign === d.dia
+                                  ? 'bg-blue-500 border-blue-500 text-white shadow-sm'
+                                  : 'bg-white border-gray-100 text-gray-400 hover:border-blue-200'
+                                  }`}
                               >
                                 {d.dia.substring(0, 3)}
                               </button>
@@ -1408,25 +1391,23 @@ function ScheduleModal({ group, horarios, empleados, existingAssignments, onClos
                               paginatedAvailable.map(emp => {
                                 const currentDay = days.find(d => d.dia === selectedDayForAssign);
                                 const isOverlapping = currentDay ? checkOverlap(
-                                  emp.documentoEmpleado, 
-                                  currentDay.dia, 
-                                  currentDay.horaInicio, 
+                                  emp.documentoEmpleado,
+                                  currentDay.dia,
+                                  currentDay.horaInicio,
                                   currentDay.horaFin
                                 ) : false;
 
                                 return (
                                   <div
                                     key={emp.documentoEmpleado}
-                                    className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
-                                      isOverlapping 
-                                        ? 'bg-red-50 border-red-100 opacity-60' 
-                                        : 'bg-white border-gray-100 hover:border-blue-200 hover:shadow-sm'
-                                    }`}
+                                    className={`flex items-center justify-between p-3 rounded-xl border transition-all ${isOverlapping
+                                      ? 'bg-red-50 border-red-100 opacity-60'
+                                      : 'bg-white border-gray-100 hover:border-blue-200 hover:shadow-sm'
+                                      }`}
                                   >
                                     <div className="flex items-center space-x-3">
-                                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-white text-xs ${
-                                        isOverlapping ? 'bg-red-400' : 'bg-gradient-to-br from-blue-400 to-indigo-500'
-                                      }`}>
+                                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-white text-xs ${isOverlapping ? 'bg-red-400' : 'bg-gradient-to-br from-blue-400 to-indigo-500'
+                                        }`}>
                                         {(emp.nombre || 'E').charAt(0)}
                                       </div>
                                       <div>
@@ -1603,7 +1584,7 @@ function ScheduleDetailModal({ group, horarios, assignments, onClose }: Schedule
                   <span>Días y Horas de Atención</span>
                 </h4>
               </div>
-              
+
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-50">
@@ -1755,7 +1736,7 @@ function DeleteScheduleModal({ group, horarios, onClose, onConfirm, saving }: De
               ¿Eliminar horario "{group.nombre}"?
             </h4>
             <p className="text-sm text-gray-500 leading-relaxed">
-              Se eliminarán <span className="font-bold text-gray-700">{horarios.reduce((acc, h) => acc + (extractArray(h).length), 0)} día(s)</span> configurado(s). 
+              Se eliminarán <span className="font-bold text-gray-700">{horarios.reduce((acc, h) => acc + (extractArray(h).length), 0)} día(s)</span> configurado(s).
               Los empleados asignados no serán eliminados del sistema.
             </p>
           </div>
@@ -1833,7 +1814,7 @@ function AssignEmployeeModal({ group, horarios, empleados, existingAssignments, 
           if (data && typeof data.totalRecords === 'number') return data.totalRecords;
           return Array.isArray(data) ? data.length : 0;
         };
-        
+
         setAvailableEmpleadosFromApi(extract(response));
         setTotalAvailableRecords(total(response));
       } catch (error) {
@@ -1852,7 +1833,7 @@ function AssignEmployeeModal({ group, horarios, empleados, existingAssignments, 
   }, [searchTermAvailable]);
 
   const toggleEmpleado = (doc: string) => {
-    setSelectedEmpleados(prev => 
+    setSelectedEmpleados(prev =>
       prev.includes(doc) ? prev.filter(d => d !== doc) : [...prev, doc]
     );
   };
@@ -1919,11 +1900,10 @@ function AssignEmployeeModal({ group, horarios, empleados, existingAssignments, 
                   key={d.horarioDiaId}
                   type="button"
                   onClick={() => { setSelectedDayId(d.horarioDiaId!); setSelectedEmpleados([]); }}
-                  className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${
-                    selectedDayId === d.horarioDiaId
-                      ? 'bg-purple-600 border-purple-600 text-white shadow-sm'
-                      : 'bg-white border-gray-100 text-gray-400 hover:border-purple-200'
-                  }`}
+                  className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${selectedDayId === d.horarioDiaId
+                    ? 'bg-purple-600 border-purple-600 text-white shadow-sm'
+                    : 'bg-white border-gray-100 text-gray-400 hover:border-purple-200'
+                    }`}
                 >
                   {d.diaSemana?.substring(0, 3) || '---'}
                 </button>
@@ -1969,13 +1949,12 @@ function AssignEmployeeModal({ group, horarios, empleados, existingAssignments, 
                   return (
                     <label
                       key={emp.documentoEmpleado}
-                      className={`flex items-center space-x-3 p-3 rounded-xl border transition-all cursor-pointer group ${
-                        isOverlapping 
-                          ? 'opacity-50 cursor-not-allowed bg-red-50 border-red-100' 
-                          : selectedEmpleados.includes(emp.documentoEmpleado)
-                            ? 'border-purple-500 bg-purple-50 shadow-sm'
-                            : 'border-gray-100 hover:border-purple-200 hover:bg-gray-50'
-                      }`}
+                      className={`flex items-center space-x-3 p-3 rounded-xl border transition-all cursor-pointer group ${isOverlapping
+                        ? 'opacity-50 cursor-not-allowed bg-red-50 border-red-100'
+                        : selectedEmpleados.includes(emp.documentoEmpleado)
+                          ? 'border-purple-500 bg-purple-50 shadow-sm'
+                          : 'border-gray-100 hover:border-purple-200 hover:bg-gray-50'
+                        }`}
                     >
                       <div className="relative flex items-center justify-center">
                         <input
@@ -1987,20 +1966,18 @@ function AssignEmployeeModal({ group, horarios, empleados, existingAssignments, 
                           disabled={isOverlapping}
                           className="sr-only"
                         />
-                        <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
-                          selectedEmpleados.includes(emp.documentoEmpleado)
-                            ? 'border-purple-600 bg-purple-600'
-                            : 'border-gray-300'
-                        }`}>
+                        <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${selectedEmpleados.includes(emp.documentoEmpleado)
+                          ? 'border-purple-600 bg-purple-600'
+                          : 'border-gray-300'
+                          }`}>
                           {selectedEmpleados.includes(emp.documentoEmpleado) && (
                             <CheckCircle className="w-3.5 h-3.5 text-white" />
                           )}
                         </div>
                       </div>
-                      
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white text-sm ${
-                        isOverlapping ? 'bg-red-400' : 'bg-gradient-to-br from-blue-400 to-indigo-500'
-                      }`}>
+
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white text-sm ${isOverlapping ? 'bg-red-400' : 'bg-gradient-to-br from-blue-400 to-indigo-500'
+                        }`}>
                         {(emp.nombre || 'E').charAt(0)}
                       </div>
 

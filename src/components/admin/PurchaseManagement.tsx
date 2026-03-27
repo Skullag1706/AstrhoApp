@@ -137,8 +137,36 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
   const handleViewDetail = async (purchase: PurchaseAPI) => {
     try {
       setLoading(true);
-      const fullPurchase = await purchaseService.getById(purchase.compraId);
-      setSelectedPurchase(unwrapValues(fullPurchase));
+      const raw = await purchaseService.getById(purchase.compraId);
+      const unwrapped = unwrapValues(raw);
+
+      // Normalize: API may return wrapped in .data/.result or use PascalCase keys
+      const src = unwrapped?.data && typeof unwrapped.data === 'object' && !Array.isArray(unwrapped.data)
+        ? unwrapped.data
+        : unwrapped?.result && typeof unwrapped.result === 'object' && !Array.isArray(unwrapped.result)
+          ? unwrapped.result
+          : unwrapped;
+
+      const normalized: PurchaseAPI = {
+        compraId: src?.compraId ?? src?.CompraId ?? purchase.compraId,
+        fechaRegistro: src?.fechaRegistro ?? src?.FechaRegistro ?? purchase.fechaRegistro,
+        proveedorId: src?.proveedorId ?? src?.ProveedorId ?? purchase.proveedorId,
+        proveedorNombre: src?.proveedorNombre ?? src?.ProveedorNombre ?? purchase.proveedorNombre ?? '',
+        iva: src?.iva ?? src?.Iva ?? purchase.iva ?? 0,
+        subtotal: src?.subtotal ?? src?.Subtotal ?? purchase.subtotal ?? 0,
+        total: src?.total ?? src?.Total ?? purchase.total ?? 0,
+        estado: src?.estado ?? src?.Estado ?? purchase.estado,
+        detalles: (src?.detalles ?? src?.Detalles ?? purchase.detalles ?? []).map((d: any) => ({
+          detalleCompraId: d?.detalleCompraId ?? d?.DetalleCompraId ?? 0,
+          insumoId: d?.insumoId ?? d?.InsumoId ?? 0,
+          insumoNombre: d?.insumoNombre ?? d?.InsumoNombre ?? 'Sin nombre',
+          cantidad: d?.cantidad ?? d?.Cantidad ?? 0,
+          precioUnitario: d?.precioUnitario ?? d?.PrecioUnitario ?? 0,
+          subtotal: d?.subtotal ?? d?.Subtotal ?? 0,
+        })),
+      };
+
+      setSelectedPurchase(normalized);
       setShowDetailModal(true);
     } catch (error) {
       console.error('Error fetching purchase detail:', error);
@@ -311,7 +339,7 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
             className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all flex items-center space-x-2"
           >
             <Plus className="w-5 h-5" />
-            <span>Registrar Nueva Compra</span>
+            <span>Registrar Compra</span>
           </button>
         )}
       </div>
@@ -646,8 +674,8 @@ function PurchaseDetailModal({ purchase, suppliers, onClose }: { purchase: Purch
                       <tr key={index} className="hover:bg-gray-50 transition-colors">
                         <td className="px-4 py-3 font-medium text-gray-800">{item.insumoNombre}</td>
                         <td className="px-4 py-3 text-gray-600">{item.cantidad}</td>
-                        <td className="px-4 py-3 text-gray-600">${item.precioUnitario.toLocaleString()}</td>
-                        <td className="px-4 py-3 font-semibold text-gray-800">${item.subtotal.toLocaleString()}</td>
+                        <td className="px-4 py-3 text-gray-600">${(item.precioUnitario ?? 0).toLocaleString()}</td>
+                        <td className="px-4 py-3 font-semibold text-gray-800">${(item.subtotal ?? 0).toLocaleString()}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -661,19 +689,19 @@ function PurchaseDetailModal({ purchase, suppliers, onClose }: { purchase: Purch
                 <div className="flex justify-between text-base">
                   <span className="text-gray-700">Subtotal:</span>
                   <span className="font-semibold text-gray-800">
-                    ${purchase.subtotal.toLocaleString()}
+                    ${(purchase.subtotal ?? 0).toLocaleString()}
                   </span>
                 </div>
                 <div className="flex justify-between text-base">
                   <span className="text-gray-700">IVA ({purchase.iva}%):</span>
                   <span className="font-semibold text-gray-800">
-                    ${((purchase.subtotal * purchase.iva) / 100).toLocaleString()}
+                    ${(((purchase.subtotal ?? 0) * (purchase.iva ?? 0)) / 100).toLocaleString()}
                   </span>
                 </div>
                 <div className="flex justify-between border-t border-purple-300 pt-3">
                   <span className="font-bold text-gray-800">Total:</span>
                   <span className="font-bold text-purple-700 text-xl">
-                    ${purchase.total.toLocaleString()}
+                    ${(purchase.total ?? 0).toLocaleString()}
                   </span>
                 </div>
               </div>
@@ -798,7 +826,7 @@ function SupplierSearchSelect({ onSelect, selectedId, error, disabled }: any) {
         <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200">
           <div className="max-h-60 overflow-y-auto py-1">
             {loading && searchResults.length === 0 ? (
-               <div className="p-4 text-sm text-gray-500 text-center">Buscando...</div>
+              <div className="p-4 text-sm text-gray-500 text-center">Buscando...</div>
             ) : searchResults.length === 0 ? (
               <div className="p-4 text-sm text-gray-500 text-center">
                 {searchTerm ? 'No se encontraron proveedores' : 'Escribe para buscar...'}
@@ -828,7 +856,11 @@ function SupplierSearchSelect({ onSelect, selectedId, error, disabled }: any) {
                     />
                     <div className="flex flex-col">
                       <span className="font-medium">{supplier.nombre}</span>
-                      <span className="text-xs text-gray-500">NIT: {supplier.nit}</span>
+                      <span className="text-xs text-gray-500">
+                        {supplier.tipoDocumento === 'NIT' || supplier.tipoProveedor === 'Juridico'
+                          ? `NIT: ${supplier.documento || 'N/A'}`
+                          : `${supplier.tipoDocumento || 'Doc'}: ${supplier.documento || 'N/A'}`}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -853,7 +885,7 @@ function SupplySearchSelect({ onSelect, selectedId, error, disabled, allSelected
     const fetchSelected = async () => {
       if (selectedId && !selectedSupply) {
         try {
-          const supply = await supplyService.getById(parseInt(selectedId));
+          const supply = await supplyService.getSupplyById(parseInt(selectedId));
           setSelectedSupply(supply);
         } catch (e) {
           console.warn('Error fetching selected supply:', e);
@@ -873,7 +905,7 @@ function SupplySearchSelect({ onSelect, selectedId, error, disabled, allSelected
       }
       setLoading(true);
       try {
-        const res = await supplyService.getAll({ search: searchTerm, pageSize: 20 });
+        const res = await supplyService.getSupplies({ search: searchTerm, pageSize: 20 });
         setSearchResults(res.data);
       } catch (err) {
         console.error('Error searching supplies:', err);
@@ -939,7 +971,7 @@ function SupplySearchSelect({ onSelect, selectedId, error, disabled, allSelected
         <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200">
           <div className="max-h-60 overflow-y-auto py-1">
             {loading && searchResults.length === 0 ? (
-               <div className="p-4 text-sm text-gray-500 text-center">Buscando...</div>
+              <div className="p-4 text-sm text-gray-500 text-center">Buscando...</div>
             ) : searchResults.length === 0 ? (
               <div className="p-4 text-sm text-gray-500 text-center">
                 {searchTerm ? 'No se encontraron insumos' : 'Escribe para buscar...'}
@@ -1057,7 +1089,7 @@ function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
       item.insumoId = String(value.insumoId);
       item.insumoNombre = value.nombre;
     } else if (field === 'cantidad') {
-      item.cantidad = parseInt(value) || 0;
+      item.cantidad = Math.max(1, parseInt(value) || 1);
     } else if (field === 'precioUnitario') {
       item.precioUnitario = parseFloat(value) || 0;
     }
@@ -1146,18 +1178,11 @@ function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
                 <ShoppingBag className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h3 className="text-xl font-bold leading-tight">Registrar Nueva Compra</h3>
+                <h3 className="text-xl font-bold leading-tight">Registrar Compra</h3>
                 <p className="text-pink-100 text-sm">Abastece tu inventario registrando facturas de proveedores</p>
               </div>
             </div>
             <div className="flex items-center space-x-3">
-              <button
-                onClick={handleSubmit}
-                className="flex items-center space-x-2 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-xl transition-all font-bold text-xs uppercase tracking-widest backdrop-blur-sm shadow-sm"
-              >
-                <Save className="w-4 h-4" />
-                <span>Finalizar</span>
-              </button>
               <button
                 onClick={onClose}
                 className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
@@ -1255,7 +1280,7 @@ function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
             </div>
 
             {/* Products Selection Section */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm">
               <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100 flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <Package className="w-4 h-4 text-pink-400" />
@@ -1273,9 +1298,9 @@ function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
 
               <div className="p-6">
                 {formData.items.length > 0 ? (
-                  <div className="space-y-4">
+                  <div className="divide-y divide-gray-100">
                     {formData.items.map((item, index) => (
-                      <div key={index} className="flex flex-wrap md:flex-nowrap items-end gap-4 bg-gray-50/50 p-4 rounded-2xl border border-gray-100 group hover:border-pink-200 transition-all">
+                      <div key={index} className="flex flex-wrap md:flex-nowrap items-end gap-4 py-4 group">
                         <div className="flex-1 min-w-[200px]">
                           <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Insumo *</label>
                           <SupplySearchSelect
@@ -1290,6 +1315,7 @@ function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
                           <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Cant. *</label>
                           <input
                             type="number"
+                            min="1"
                             value={item.cantidad}
                             onChange={(e) => updateProduct(index, 'cantidad', e.target.value)}
                             className={cn(
@@ -1302,13 +1328,17 @@ function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
                         <div className="w-32">
                           <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Precio Unit. *</label>
                           <div className="relative">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                            {item.precioUnitario === 0 && (
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">$</span>
+                            )}
                             <input
                               type="number"
+                              min="0"
                               value={item.precioUnitario === 0 ? '' : item.precioUnitario}
                               onChange={(e) => updateProduct(index, 'precioUnitario', e.target.value)}
                               className={cn(
-                                "w-full pl-7 pr-3 py-2 bg-white border rounded-xl focus:ring-2 focus:ring-pink-300 transition-all font-bold text-gray-700 text-sm",
+                                "w-full pr-3 py-2 bg-white border rounded-xl focus:ring-2 focus:ring-pink-300 transition-all font-bold text-gray-700 text-sm",
+                                item.precioUnitario === 0 ? 'pl-7' : 'pl-3',
                                 errors[`price_${index}`] ? 'border-red-300' : 'border-gray-200'
                               )}
                               placeholder="0"
@@ -1341,38 +1371,43 @@ function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
                 )}
                 {errors.items && <p className="text-red-500 text-[10px] mt-2 text-center font-black uppercase tracking-widest">{errors.items}</p>}
               </div>
+            </div>
 
-              {/* Totals Summary */}
-              {formData.items.length > 0 && (
-                <div className="px-8 py-6 bg-gray-900 text-white border-t border-gray-100 flex flex-wrap justify-between items-center gap-4">
-                  <div className="flex items-center space-x-8">
-                    <div>
-                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Subtotal</span>
-                      <span className="text-xl font-bold text-gray-300">
-                        ${subtotal.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="w-px h-10 bg-gray-700 hidden md:block"></div>
-                    <div>
-                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">IVA (%)</span>
+            {/* Totals Summary - outside the gray box, visually attached */}
+            {formData.items.length > 0 && (
+              <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-5 rounded-2xl border border-purple-200 shadow-sm -mt-1">
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center text-base">
+                    <span className="text-gray-700">Subtotal:</span>
+                    <span className="font-semibold text-gray-800">
+                      ${subtotal.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-base">
+                    <div className="flex items-center gap-2 text-gray-700">
+                      <span>IVA (</span>
                       <input
                         type="number"
                         name="iva"
                         value={formData.iva}
                         onChange={handleInputChange}
-                        className="w-16 bg-transparent border-b border-gray-700 focus:border-pink-500 focus:ring-0 text-xl font-bold text-purple-400 p-0 text-center"
+                        className="w-14 bg-white border border-purple-200 rounded-lg px-2 py-0.5 text-center font-bold text-purple-600 text-sm focus:ring-2 focus:ring-pink-300 focus:border-pink-400 transition-all"
                       />
+                      <span>%):</span>
                     </div>
+                    <span className="font-semibold text-gray-800">
+                      ${ivaAmount.toLocaleString()}
+                    </span>
                   </div>
-                  <div className="text-right">
-                    <span className="text-[10px] font-black text-purple-400 uppercase tracking-[0.2em] block mb-1">Total Compra</span>
-                    <span className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-purple-500">
+                  <div className="flex justify-between items-center border-t border-purple-300 pt-3">
+                    <span className="font-bold text-gray-800">Total:</span>
+                    <span className="font-bold text-purple-700 text-xl">
                       ${total.toLocaleString()}
                     </span>
                   </div>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </form>
         </div>
 
@@ -1390,7 +1425,7 @@ function PurchaseCreateModal({ onClose, onSave, suppliers, supplies }: {
             className="px-8 py-2.5 bg-gradient-to-r from-pink-400 to-purple-500 text-white rounded-xl font-black hover:shadow-lg active:scale-95 transition-all text-sm uppercase tracking-widest shadow-md flex items-center space-x-2"
           >
             <Save className="w-4 h-4" />
-            <span>Finalizar Compra</span>
+            <span>Registrar Compra</span>
           </button>
         </div>
       </div>
@@ -1425,37 +1460,56 @@ function CancelConfirmationModal({ purchase, onClose, onConfirm }: {
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-        <div className="bg-gradient-to-r from-red-500 to-pink-600 p-6 text-white text-center">
-          <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-sm shadow-inner">
-            <AlertTriangle className="w-10 h-10 text-white" />
+        {/* Header */}
+        <div className="bg-gradient-to-r from-red-500 to-pink-600 p-5 text-white shrink-0 shadow-md">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center">
+                <Ban className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold leading-tight">Confirmar Anulación</h3>
+                <p className="text-pink-100 text-xs">Esta acción no se puede deshacer</p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 transition-all"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
-          <h3 className="text-2xl font-black uppercase tracking-tight">¿Anular Compra?</h3>
-          <p className="text-red-100 text-sm mt-1">Esta acción no se puede deshacer</p>
         </div>
 
-        <div className="p-8 space-y-6">
+        <div className="p-6 space-y-5">
+          {/* Centered alert icon */}
           <div className="text-center">
-            <p className="text-gray-600 leading-relaxed">
-              ¿Estás segura de que quieres anular la compra <span className="font-bold text-gray-800">#{purchase.compraId}</span>? El inventario se verá afectado.
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle className="w-8 h-8 text-red-500" />
+            </div>
+            <h4 className="text-lg font-bold text-gray-800 mb-2">
+              ¿Anular compra #{purchase.compraId}?
+            </h4>
+            <p className="text-gray-500 text-sm leading-relaxed">
+              Estás a punto de anular esta compra de forma permanente.
+              Esta acción afectará el inventario de insumos asociados.
             </p>
           </div>
 
-          <div className="bg-red-50 border border-red-100 rounded-2xl p-5 space-y-3">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-red-400 font-bold uppercase text-[10px] tracking-widest">Proveedor:</span>
-              <span className="font-bold text-red-700">{purchase.proveedorNombre}</span>
+          {/* Item card */}
+          <div className="flex items-center gap-3 bg-red-50 border border-red-100 rounded-2xl p-4">
+            <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <ShoppingCart className="w-5 h-5 text-red-500" />
             </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-red-400 font-bold uppercase text-[10px] tracking-widest">Fecha:</span>
-              <span className="font-bold text-red-700">{formatDate(purchase.fechaRegistro)}</span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-red-400 font-bold uppercase text-[10px] tracking-widest">Total:</span>
-              <span className="font-bold text-red-700">${purchase.total.toLocaleString()}</span>
+            <div>
+              <p className="text-[10px] font-black text-red-400 uppercase tracking-widest">Compra a anular</p>
+              <p className="font-bold text-red-700">Compra #{purchase.compraId}</p>
+              <p className="text-xs text-red-500">{purchase.proveedorNombre} | ${(purchase.total ?? 0).toLocaleString()}</p>
             </div>
           </div>
 
-          <div className="space-y-2">
+          {/* Motivo */}
+          <div>
             <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Motivo de Anulación *</label>
             <textarea
               value={observation}
@@ -1466,17 +1520,19 @@ function CancelConfirmationModal({ purchase, onClose, onConfirm }: {
             />
           </div>
 
+          {/* Actions */}
           <div className="flex gap-3">
             <button
               onClick={onClose}
               className="flex-1 px-6 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 transition-all uppercase text-xs tracking-widest"
             >
-              Cerrar
+              Cancelar
             </button>
             <button
               onClick={handleConfirm}
-              className="flex-1 px-6 py-3 bg-red-500 text-white rounded-xl font-bold hover:bg-red-600 transition-all shadow-lg shadow-red-200 uppercase text-xs tracking-widest"
+              className="flex-1 px-6 py-3 bg-red-500 text-white rounded-xl font-bold hover:bg-red-600 transition-all shadow-lg shadow-red-200 uppercase text-xs tracking-widest flex items-center justify-center gap-2"
             >
+              <Ban className="w-4 h-4" />
               Anular
             </button>
           </div>

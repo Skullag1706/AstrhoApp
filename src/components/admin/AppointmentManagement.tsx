@@ -70,7 +70,7 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<AgendaItem | null>(null);
-  const [appointmentToChangeStatus, setAppointmentToChangeStatus] = useState<{apt: AgendaItem, newStatusId: number} | null>(null);
+  const [appointmentToChangeStatus, setAppointmentToChangeStatus] = useState<{ apt: AgendaItem, newStatusId: number } | null>(null);
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterEmployee, setFilterEmployee] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -146,18 +146,18 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
       };
 
       const rawHorariosEmpleado: any[] = extract(results[4]);
-      const rawHorarios: any[]         = extract(results[5]);
+      const rawHorarios: any[] = extract(results[5]);
       const rawMotivos: any[]          = extract(results[7]);
 
       // HorarioEmpleado now comes with diaSemana, horaInicio, and horaFin from the API
       const enrichedHorariosEmpleado: HorarioEmpleado[] = rawHorariosEmpleado.map((he: any) => ({
         horarioEmpleadoId: he.horarioEmpleadoId,
-        horarioId:         he.horarioId,
+        horarioId: he.horarioId,
         documentoEmpleado: he.documentoEmpleado,
-        empleadoNombre:    he.empleadoNombre || '',
-        diaSemana:         he.diaSemana || '',
-        horaInicio:        he.horaInicio || '',
-        horaFin:           he.horaFin || '',
+        empleadoNombre: he.empleadoNombre || '',
+        diaSemana: he.diaSemana || '',
+        horaInicio: he.horaInicio || '',
+        horaFin: he.horaFin || '',
       }));
 
       const agendaResponse = results[0].status === 'fulfilled' ? results[0].value : { data: [], totalCount: 0, totalPages: 0 };
@@ -330,11 +330,11 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
   const confirmStatusChange = async () => {
     if (!appointmentToChangeStatus) return;
     const { apt, newStatusId } = appointmentToChangeStatus;
-    
+
     try {
       const servicioIds = apt.servicios.map((name) => {
-         const svc = servicios.find((s) => s.nombre.trim().toLowerCase() === name.trim().toLowerCase());
-         return svc ? svc.servicioId : 0;
+        const svc = servicios.find((s) => s.nombre.trim().toLowerCase() === name.trim().toLowerCase());
+        return svc ? svc.servicioId : 0;
       }).filter(id => id > 0);
 
       const mp = metodosPago.find(m => m.nombre.trim().toLowerCase() === apt.metodoPago.trim().toLowerCase());
@@ -359,8 +359,8 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
       setShowStatusModal(false);
       setAppointmentToChangeStatus(null);
     } catch (error) {
-       console.error("Error changing status", error);
-       toast.error('Error al cambiar el estado');
+      console.error("Error changing status", error);
+      toast.error('Error al cambiar el estado');
     }
   };
 
@@ -373,27 +373,27 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
           <p className="text-gray-600 text-lg">Cargando agendamiento...</p>
         </div>
 
-      {/* Success Alert */}
-      {showSuccessAlert && (
-        <div className="fixed top-4 right-4 z-[9999] animate-in slide-in-from-top-5 duration-300">
-          <div className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center space-x-4 min-w-[320px]">
-            <div className="flex-shrink-0">
-              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                <CheckCircle className="w-6 h-6 text-white" />
+        {/* Success Alert */}
+        {showSuccessAlert && (
+          <div className="fixed top-4 right-4 z-[9999] animate-in slide-in-from-top-5 duration-300">
+            <div className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center space-x-4 min-w-[320px]">
+              <div className="flex-shrink-0">
+                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                  <CheckCircle className="w-6 h-6 text-white" />
+                </div>
               </div>
+              <div className="flex-1">
+                <p className="font-semibold">{alertMessage}</p>
+              </div>
+              <button
+                onClick={() => setShowSuccessAlert(false)}
+                className="flex-shrink-0 w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            <div className="flex-1">
-              <p className="font-semibold">{alertMessage}</p>
-            </div>
-            <button
-              onClick={() => setShowSuccessAlert(false)}
-              className="flex-shrink-0 w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
           </div>
-        </div>
-      )}
+        )}
       </div>
     );
   }
@@ -503,97 +503,98 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
               {paginatedAppointments.map((apt) => {
                 const estadoLower = apt.estado.toLowerCase();
                 const isLocked = estadoLower === 'completado' || estadoLower === 'completed' || estadoLower === 'cancelado' || estadoLower === 'cancelled';
-                
+
                 return (
-                <tr key={apt.agendaId} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="p-4">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full flex items-center justify-center">
-                        <User className="w-5 h-5 text-white" />
+                  <tr key={apt.agendaId} className="border-b border-gray-100 hover:bg-gray-50">
+                    <td className="p-4">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full flex items-center justify-center">
+                          <User className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <div className="font-semibold text-gray-800">{apt.cliente}</div>
+                          <div className="text-xs text-gray-500">{apt.documentoCliente}</div>
+                        </div>
                       </div>
+                    </td>
+                    <td className="p-4">
                       <div>
-                        <div className="font-semibold text-gray-800">{apt.cliente}</div>
-                        <div className="text-xs text-gray-500">{apt.documentoCliente}</div>
+                        <div className="font-semibold text-gray-800">
+                          {new Date(apt.fechaCita + 'T00:00:00').toLocaleDateString('es-ES')}
+                        </div>
+                        <div className="text-sm text-gray-600 flex items-center">
+                          <Clock className="w-4 h-4 mr-1" />
+                          {formatTime(apt.horaInicio)} ({getAppointmentDuration(apt)} min)
+                        </div>
                       </div>
-                    </div>
-                  </td>
-                  <td className="p-4">
-                    <div>
-                      <div className="font-semibold text-gray-800">
-                        {new Date(apt.fechaCita + 'T00:00:00').toLocaleDateString('es-ES')}
-                      </div>
-                      <div className="text-sm text-gray-600 flex items-center">
-                        <Clock className="w-4 h-4 mr-1" />
-                        {formatTime(apt.horaInicio)} ({getAppointmentDuration(apt)} min)
-                      </div>
-                    </div>
-                  </td>
-                  <td className="p-4">
-                    <div className="space-y-1">
-                      {apt.servicios.map((svc, i) => (
-                        <span
-                          key={i}
-                          className="inline-block bg-purple-50 text-purple-700 text-xs px-2 py-1 rounded-full mr-1"
-                        >
-                          {svc}
-                        </span>
-                      ))}
-                    </div>
-                  </td>
-                  <td className="p-4">
-                    <div className="font-semibold text-gray-800">{apt.empleado}</div>
-                  </td>
-                  <td className="p-4">
-                    {isLocked || !hasPermission('manage_appointments') ? (
-                      <span className={`px-3 py-1 rounded-full text-sm font-semibold border inline-block ${getStatusColor(apt.estado)}`}>
-                        {apt.estado}
-                      </span>
-                    ) : (
-                      <select
-                        value={getEstadoId(apt.estado)}
-                        onChange={(e) => handleStatusChangeClick(apt, Number(e.target.value))}
-                        className={`px-3 py-1 rounded-full text-sm font-bold border-2 cursor-pointer transition-all duration-200 focus:outline-none ${getStatusColor(apt.estado)}`}
-                      >
-                        {estadosAgenda.map((est) => (
-                          <option key={est.estadoId} value={est.estadoId}>
-                            {est.nombre}
-                          </option>
+                    </td>
+                    <td className="p-4">
+                      <div className="space-y-1">
+                        {apt.servicios.map((svc, i) => (
+                          <span
+                            key={i}
+                            className="inline-block bg-purple-50 text-purple-700 text-xs px-2 py-1 rounded-full mr-1"
+                          >
+                            {svc}
+                          </span>
                         ))}
-                      </select>
-                    )}
-                  </td>
-                  <td className="p-4">
-                    <div className="text-gray-700">{apt.metodoPago}</div>
-                  </td>
-                  <td className="p-4">
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => handleViewDetail(apt)}
-                        className="p-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
-                        title="Ver detalle"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleEditAppointment(apt)}
-                        disabled={isLocked}
-                        className={`p-2 rounded-lg transition-colors ${isLocked ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}
-                        title="Editar cita"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteAppointment(apt)}
-                        disabled={estadoLower === 'completado' || estadoLower === 'completed'}
-                        className={`p-2 rounded-lg transition-colors ${(estadoLower === 'completado' || estadoLower === 'completed') ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}
-                        title="Eliminar cita"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              )})}
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <div className="font-semibold text-gray-800">{apt.empleado}</div>
+                    </td>
+                    <td className="p-4">
+                      {isLocked || !hasPermission('manage_appointments') ? (
+                        <span className={`px-3 py-1 rounded-full text-sm font-semibold border inline-block ${getStatusColor(apt.estado)}`}>
+                          {apt.estado}
+                        </span>
+                      ) : (
+                        <select
+                          value={getEstadoId(apt.estado)}
+                          onChange={(e) => handleStatusChangeClick(apt, Number(e.target.value))}
+                          className={`px-3 py-1 rounded-full text-sm font-bold border-2 cursor-pointer transition-all duration-200 focus:outline-none ${getStatusColor(apt.estado)}`}
+                        >
+                          {estadosAgenda.map((est) => (
+                            <option key={est.estadoId} value={est.estadoId}>
+                              {est.nombre}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </td>
+                    <td className="p-4">
+                      <div className="text-gray-700">{apt.metodoPago}</div>
+                    </td>
+                    <td className="p-4">
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => handleViewDetail(apt)}
+                          className="p-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
+                          title="Ver detalle"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleEditAppointment(apt)}
+                          disabled={isLocked}
+                          className={`p-2 rounded-lg transition-colors ${isLocked ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}
+                          title="Editar cita"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteAppointment(apt)}
+                          disabled={estadoLower === 'completado' || estadoLower === 'completed'}
+                          className={`p-2 rounded-lg transition-colors ${(estadoLower === 'completado' || estadoLower === 'completed') ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}
+                          title="Eliminar cita"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
 
@@ -669,12 +670,12 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
                 <p className="text-gray-600">¿Estás seguro de cambiar el estado?</p>
               </div>
             </div>
-            
+
             <p className="text-gray-700 mb-6">
               Se cambiará el estado de la cita de <strong>{appointmentToChangeStatus.apt.cliente}</strong> a{' '}
               <strong>{estadosAgenda.find(e => e.estadoId === appointmentToChangeStatus.newStatusId)?.nombre}</strong>.
             </p>
-            
+
             <div className="flex space-x-3">
               <button
                 onClick={() => {
@@ -1039,24 +1040,12 @@ function AppointmentModal({
                 </p>
               </div>
             </div>
-            <div className="flex items-center space-x-3">
-              {!isCompleted && (
-                <button
-                  onClick={handleSubmit}
-                  disabled={saving}
-                  className="flex items-center space-x-2 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-xl transition-all font-bold text-xs uppercase tracking-widest backdrop-blur-sm shadow-sm"
-                >
-                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  <span>{saving ? 'Guardando...' : 'Guardar'}</span>
-                </button>
-              )}
-              <button
-                onClick={onClose}
-                className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+            <button
+              onClick={onClose}
+              className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
         </div>
 
@@ -1456,17 +1445,15 @@ function AppointmentDetailModal({ appointment, servicios, getStatusColor, onClos
               </div>
 
               {/* Status Card */}
-              <div className={`rounded-2xl p-5 border shadow-sm flex flex-col items-center justify-center ${
-                getStatusColor(appointment.estado).includes('bg-green') 
-                ? 'bg-green-50/50 border-green-100 text-green-600' 
-                : getStatusColor(appointment.estado).includes('bg-red')
-                ? 'bg-red-50/50 border-red-100 text-red-600'
-                : 'bg-blue-50/50 border-blue-100 text-blue-600'
-              }`}>
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-2 ${
-                  getStatusColor(appointment.estado).includes('bg-green') ? 'bg-green-100' : 
-                  getStatusColor(appointment.estado).includes('bg-red') ? 'bg-red-100' : 'bg-blue-100'
+              <div className={`rounded-2xl p-5 border shadow-sm flex flex-col items-center justify-center ${getStatusColor(appointment.estado).includes('bg-green')
+                  ? 'bg-green-50/50 border-green-100 text-green-600'
+                  : getStatusColor(appointment.estado).includes('bg-red')
+                    ? 'bg-red-50/50 border-red-100 text-red-600'
+                    : 'bg-blue-50/50 border-blue-100 text-blue-600'
                 }`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-2 ${getStatusColor(appointment.estado).includes('bg-green') ? 'bg-green-100' :
+                    getStatusColor(appointment.estado).includes('bg-red') ? 'bg-red-100' : 'bg-blue-100'
+                  }`}>
                   <CheckCircle className="w-5 h-5" />
                 </div>
                 <span className="font-black uppercase text-[10px] tracking-[0.2em]">
@@ -1486,7 +1473,7 @@ function AppointmentDetailModal({ appointment, servicios, getStatusColor, onClos
                   {appointmentServices.length} servicios
                 </span>
               </div>
-              
+
               <div className="max-h-[250px] overflow-y-auto no-scrollbar">
                 <table className="w-full">
                   <thead className="bg-gray-50/80 sticky top-0 backdrop-blur-sm z-10">
@@ -1596,56 +1583,65 @@ function DeleteAppointmentModal({ appointment, serviciosMap, onClose, onConfirm 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-        <div className="bg-gradient-to-r from-red-500 to-pink-600 p-6 text-white text-center">
-          <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-sm shadow-inner">
-            <AlertCircle className="w-10 h-10 text-white" />
+        {/* Header */}
+        <div className="bg-gradient-to-r from-red-500 to-pink-600 p-5 text-white shrink-0 shadow-md">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm shadow-inner">
+                <Trash2 className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold leading-tight">Confirmar Eliminación</h3>
+                <p className="text-red-100 text-xs font-medium">Esta acción no se puede deshacer</p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
+            >
+              <X className="w-5 h-5 text-white" />
+            </button>
           </div>
-          <h3 className="text-2xl font-black uppercase tracking-tight">¿Eliminar Cita?</h3>
-          <p className="text-red-100 text-sm mt-1">Esta acción no se puede deshacer</p>
         </div>
 
-        <div className="p-8 space-y-6">
-          <div className="text-center">
-            <p className="text-gray-600 leading-relaxed">
-              ¿Estás segura de que quieres eliminar permanentemente la cita de <span className="font-bold text-gray-800">{appointment.cliente}</span>?
+        <div className="p-8">
+          <div className="text-center mb-8">
+            <div className="w-20 h-20 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-red-100 rotate-3">
+              <AlertCircle className="w-10 h-10 text-red-500 -rotate-3" />
+            </div>
+            <h4 className="text-lg font-bold text-gray-800 mb-2">
+              ¿Eliminar cita de "{appointment.cliente}"?
+            </h4>
+            <p className="text-sm text-gray-500 leading-relaxed mb-6">
+              Estás a punto de eliminar permanentemente esta cita. 
+              Esta acción liberará el espacio en la agenda del profesional.
             </p>
-          </div>
-
-          <div className="bg-red-50 border border-red-100 rounded-2xl p-5 space-y-3">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-red-400 font-bold uppercase text-[10px] tracking-widest">Programación:</span>
-              <span className="font-bold text-red-700">
-                {new Date(appointment.fechaCita + 'T00:00:00').toLocaleDateString('es-ES')} - {appointment.horaInicio?.substring(0, 5) || '--:--'}
-              </span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-red-400 font-bold uppercase text-[10px] tracking-widest">Duración:</span>
-              <span className="font-bold text-red-700">{totalDuration} min</span>
-            </div>
-            <div className="pt-2 border-t border-red-100">
-              <span className="text-red-400 font-bold uppercase text-[10px] tracking-widest block mb-1">Servicios:</span>
-              <div className="flex flex-wrap gap-1">
-                {appointment.servicios.map((svc, i) => (
-                  <span key={i} className="bg-red-100 text-red-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                    {svc}
-                  </span>
-                ))}
+            
+            <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 flex items-center space-x-4 text-left">
+              <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center shrink-0">
+                <Calendar className="w-6 h-6 text-pink-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Información de la Cita</p>
+                <p className="font-bold text-gray-700 truncate">{new Date(appointment.fechaCita + 'T00:00:00').toLocaleDateString('es-ES')} - {appointment.horaInicio?.substring(0, 5) || '--:--'}</p>
+                <p className="text-[10px] font-mono text-gray-400 uppercase mt-0.5">Duración: {totalDuration} min</p>
               </div>
             </div>
           </div>
 
-          <div className="flex flex-col gap-3">
-            <button
-              onClick={onConfirm}
-              className="w-full py-4 bg-gradient-to-r from-red-500 to-pink-600 text-white rounded-2xl font-black uppercase tracking-[0.2em] shadow-lg hover:shadow-red-200 hover:scale-[1.02] active:scale-95 transition-all"
-            >
-              Sí, Eliminar Cita
-            </button>
+          <div className="flex space-x-3">
             <button
               onClick={onClose}
-              className="w-full py-4 bg-gray-100 text-gray-500 rounded-2xl font-black uppercase tracking-[0.2em] hover:bg-gray-200 hover:text-gray-700 transition-all"
+              className="flex-1 px-6 py-3 rounded-xl font-black text-gray-400 hover:bg-gray-100 transition-all text-[10px] uppercase tracking-widest"
             >
               Cancelar
+            </button>
+            <button
+              onClick={onConfirm}
+              className="flex-1 bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center justify-center space-x-2"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Eliminar</span>
             </button>
           </div>
         </div>
@@ -1770,7 +1766,7 @@ function ClientSearchSelect({ onSelect, selectedDocument, error, disabled }: any
         <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200">
           <div className="max-h-60 overflow-y-auto py-1">
             {loading && searchResults.length === 0 ? (
-               <div className="p-4 text-sm text-gray-500 text-center">Buscando...</div>
+              <div className="p-4 text-sm text-gray-500 text-center">Buscando...</div>
             ) : searchResults.length === 0 ? (
               <div className="p-4 text-sm text-gray-500 text-center">
                 {searchTerm ? 'No se encontraron clientes' : 'Escribe para buscar...'}
@@ -1946,7 +1942,7 @@ function ProfessionalSearchSelect({
         <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200">
           <div className="max-h-[280px] overflow-y-auto py-1">
             {loading && searchResults.length === 0 ? (
-               <div className="p-4 text-sm text-gray-500 text-center">Buscando...</div>
+              <div className="p-4 text-sm text-gray-500 text-center">Buscando...</div>
             ) : searchResults.length === 0 ? (
               <div className="p-4 text-sm text-gray-500 text-center">
                 {searchTerm ? 'No se encontraron profesionales' : 'Escribe para buscar...'}
@@ -1959,8 +1955,8 @@ function ProfessionalSearchSelect({
                 const statusText = occupied
                   ? 'Ocupado'
                   : !isWithinSchedule
-                  ? 'Fuera de horario'
-                  : '';
+                    ? 'Fuera de horario'
+                    : '';
 
                 return (
                   <div
@@ -2119,7 +2115,7 @@ function ServiceSearchSelect({
         <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200">
           <div className="max-h-[250px] overflow-y-auto py-1">
             {loading && searchResults.length === 0 ? (
-               <div className="p-4 text-sm text-gray-500 text-center">Buscando...</div>
+              <div className="p-4 text-sm text-gray-500 text-center">Buscando...</div>
             ) : searchResults.length === 0 ? (
               <div className="p-4 text-sm text-gray-500 text-center">
                 {searchTerm ? 'No se encontraron servicios' : 'Escribe para buscar...'}
@@ -2128,7 +2124,7 @@ function ServiceSearchSelect({
               searchResults.map((svc) => {
                 const isSelected = svc.servicioId === selectedServiceId;
                 const isAlreadyAdded = allSelectedIds.includes(svc.servicioId) && !isSelected;
-                
+
                 return (
                   <div
                     key={svc.servicioId}
