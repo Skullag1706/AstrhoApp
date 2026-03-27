@@ -21,6 +21,7 @@ import {
   AgendaItem, MetodoPago, EmpleadoAPI, ClienteAPI, ServicioAPI, EstadoAgenda
 } from '../../services/agendaService';
 import { horarioEmpleadoService, horarioService, HorarioEmpleado } from '../../services/scheduleService';
+import { motivoService, Motivo } from '../../services/motivoService';
 import { personService } from '../../services/personService';
 import { serviceService } from '../../services/serviceService';
 // processImageSource and handleImageError removed as they are no longer needed here
@@ -53,6 +54,7 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
   const [metodosPago, setMetodosPago] = useState<MetodoPago[]>([]);
   const [horariosEmpleado, setHorariosEmpleado] = useState<HorarioEmpleado[]>([]);
   const [baseHorarios, setBaseHorarios] = useState<any[]>([]);
+  const [motivos, setMotivos] = useState<Motivo[]>([]);
   const [estadosAgenda, setEstadosAgenda] = useState<EstadoAgenda[]>([
     { estadoId: 1, nombre: 'Pendiente' },
     { estadoId: 2, nombre: 'Confirmado' },
@@ -131,6 +133,7 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
         horarioEmpleadoService.getAll(),
         horarioService.getAll(), // fetch base Horario records for the join
         estadoAgendaService.getAll(), // fetch real estados from API
+        motivoService.getAll(), // fetch absence reasons
       ]);
 
       const extract = (r: PromiseSettledResult<any>) => {
@@ -144,6 +147,7 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
 
       const rawHorariosEmpleado: any[] = extract(results[4]);
       const rawHorarios: any[]         = extract(results[5]);
+      const rawMotivos: any[]          = extract(results[7]);
 
       // HorarioEmpleado now comes with diaSemana, horaInicio, and horaFin from the API
       const enrichedHorariosEmpleado: HorarioEmpleado[] = rawHorariosEmpleado.map((he: any) => ({
@@ -166,6 +170,7 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
       setMetodosPago(extract(results[3]));
       setHorariosEmpleado(enrichedHorariosEmpleado);
       setBaseHorarios(rawHorarios.filter((h: any) => h.estado));
+      setMotivos(rawMotivos);
       // Load real estados from API (results[6]), fall back to defaults if failed
       const rawEstados = extract(results[6]).filter((e: any) => e.estadoId > 0 && e.nombre);
       if (rawEstados.length > 0) setEstadosAgenda(rawEstados);
@@ -622,6 +627,7 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
           horariosEmpleado={horariosEmpleado}
           allAppointments={appointments}
           serviciosMap={serviciosMap}
+          motivos={motivos}
           estadosAgenda={estadosAgenda}
           baseHorarios={baseHorarios}
           initialEmployee={filterEmployee}
@@ -704,6 +710,7 @@ interface AppointmentModalProps {
   horariosEmpleado: HorarioEmpleado[];
   allAppointments: AgendaItem[];
   serviciosMap: Map<string, number>;
+  motivos: Motivo[];
   estadosAgenda: EstadoAgenda[];
   baseHorarios: any[];
   initialEmployee: string;
@@ -724,6 +731,7 @@ function AppointmentModal({
   horariosEmpleado,
   allAppointments,
   serviciosMap,
+  motivos,
   estadosAgenda,
   baseHorarios,
   initialEmployee,
@@ -814,6 +822,7 @@ function AppointmentModal({
       totalDuration,
       allAppointments,
       serviciosMap,
+      motivos,
       isEdit ? appointment!.agendaId : undefined
     );
   };
@@ -901,6 +910,7 @@ function AppointmentModal({
           totalDuration,
           allAppointments,
           serviciosMap,
+          motivos,
           isEdit ? appointment!.agendaId : undefined
         );
 
@@ -919,6 +929,7 @@ function AppointmentModal({
     baseHorarios,
     allAppointments,
     serviciosMap,
+    motivos,
     isEdit,
     appointment
   ]);

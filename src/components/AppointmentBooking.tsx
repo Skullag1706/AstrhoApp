@@ -8,6 +8,7 @@ import { serviceService } from '../services/serviceService';
 import { agendaService, empleadoAgendaService, metodoPagoService, AgendaItem } from '../services/agendaService';
 import { userService } from '../services/userService';
 import { horarioEmpleadoService, HorarioEmpleado } from '../services/scheduleService';
+import { motivoService, Motivo } from '../services/motivoService';
 
 const defaultTimeSlots = [
   '08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
@@ -35,6 +36,7 @@ export function AppointmentBooking({ currentUser, onBookingComplete, onBack, ini
   const [existingAppointments, setExistingAppointments] = useState<AgendaItem[]>([]);
   const [metodosPago, setMetodosPago] = useState<any[]>([]);
   const [horariosEmpleados, setHorariosEmpleados] = useState<HorarioEmpleado[]>([]);
+  const [motivos, setMotivos] = useState<Motivo[]>([]);
   const [isLoadingServices, setIsLoadingServices] = useState(true);
   const [isLoadingProfessionals, setIsLoadingProfessionals] = useState(true);
   const [isBooking, setIsBooking] = useState(false);
@@ -44,13 +46,59 @@ export function AppointmentBooking({ currentUser, onBookingComplete, onBack, ini
   const [professionalSearchTerm, setProfessionalSearchTerm] = useState('');
   const [hasProfessionalPermissionError, setHasProfessionalPermissionError] = useState(false);
 
+  // Pagination and Search for Services
+  const [serviceSearchTerm, setServiceSearchTerm] = useState('');
+  const [debouncedServiceSearchTerm, setDebouncedServiceSearchTerm] = useState('');
+  const [servicePage, setServicePage] = useState(1);
+  const itemsPerPage = 6;
+
+  // Pagination for Professionals
+  const [professionalPage, setProfessionalPage] = useState(1);
+  const [debouncedProfessionalSearchTerm, setDebouncedProfessionalSearchTerm] = useState('');
+
   // Service Map for duration lookup
   const [serviciosMap, setServiciosMap] = useState<Map<string, number>>(new Map());
 
-  // Filter professionals
+  // Debounce effect for search terms
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedServiceSearchTerm(serviceSearchTerm);
+      setServicePage(1); // Reset to first page on search
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [serviceSearchTerm]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedProfessionalSearchTerm(professionalSearchTerm);
+      setProfessionalPage(1); // Reset to first page on search
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [professionalSearchTerm]);
+
+  // Filter and Paginate Services
+  const filteredServices = services.filter(s => 
+    s.name.toLowerCase().includes(debouncedServiceSearchTerm.toLowerCase()) ||
+    s.description.toLowerCase().includes(debouncedServiceSearchTerm.toLowerCase()) ||
+    s.category.toLowerCase().includes(debouncedServiceSearchTerm.toLowerCase())
+  );
+
+  const totalServicePages = Math.ceil(filteredServices.length / itemsPerPage);
+  const paginatedServices = filteredServices.slice(
+    (servicePage - 1) * itemsPerPage,
+    servicePage * itemsPerPage
+  );
+
+  // Filter and Paginate Professionals
   const filteredProfessionals = professionals.filter(p => 
-    p.name.toLowerCase().includes(professionalSearchTerm.toLowerCase()) ||
-    p.role.toLowerCase().includes(professionalSearchTerm.toLowerCase())
+    p.name.toLowerCase().includes(debouncedProfessionalSearchTerm.toLowerCase()) ||
+    p.role.toLowerCase().includes(debouncedProfessionalSearchTerm.toLowerCase())
+  );
+
+  const totalProfessionalPages = Math.ceil(filteredProfessionals.length / itemsPerPage);
+  const paginatedProfessionals = filteredProfessionals.slice(
+    (professionalPage - 1) * itemsPerPage,
+    professionalPage * itemsPerPage
   );
 
   // Initialize data for new booking or reschedule
@@ -81,7 +129,7 @@ export function AppointmentBooking({ currentUser, onBookingComplete, onBack, ini
     const fetchData = async () => {
       try {
         // Individual catch for each promise to avoid Promise.all failing completely
-        const [servicesData, professionalsData, appointmentsData, metodosData, horariosData] = await Promise.all([
+        const [servicesData, professionalsData, appointmentsData, metodosData, horariosData, motivosData] = await Promise.all([
           serviceService.getServices().catch(err => {
             console.error('Error fetching services:', err);
             return [];
@@ -104,8 +152,21 @@ export function AppointmentBooking({ currentUser, onBookingComplete, onBack, ini
           horarioEmpleadoService.getAll().catch(err => {
             console.error('Error fetching employee schedules:', err);
             return [];
+          }),
+          motivoService.getAll().catch(err => {
+            console.error('Error fetching motives:', err);
+            return [];
           })
         ]);
+
+        // Process Motivos
+        let motivosArray = [];
+        if (Array.isArray(motivosData)) {
+          motivosArray = motivosData;
+        } else if (motivosData && typeof motivosData === 'object') {
+          motivosArray = (motivosData as any).data || (motivosData as any).$values || [];
+        }
+        setMotivos(motivosArray);
 
         // Process Schedules
         let horariosArray = [];
@@ -354,7 +415,7 @@ export function AppointmentBooking({ currentUser, onBookingComplete, onBack, ini
     // States that do NOT block the schedule (freed slots)
     const NON_BLOCKING_STATES = ["cancelado", "cancelled", "sin agendar", "sin_agendar"];
 
-    return !appointments.some(apt => {
+    const hasAppointmentOverlap = appointments.some(apt => {
       // Skip cancelled / unscheduled appointments
       const estadoLower = (apt.estado || "").toLowerCase().trim();
       if (NON_BLOCKING_STATES.includes(estadoLower)) return false;
@@ -373,6 +434,46 @@ export function AppointmentBooking({ currentUser, onBookingComplete, onBack, ini
 
       // Overlap: two intervals [a, b) and [c, d) overlap iff a < d && c < b
       return (slotStart < aptEnd && aptStart < slotEnd);
+    });
+
+    if (hasAppointmentOverlap) return false;
+
+    // Check absence motives (ALL motives block the schedule, regardless of state)
+    const activeMotivos = motivos.filter(m => 
+      m.fecha.split('T')[0] === date && 
+      String(m.documentoEmpleado) === String(professionalId)
+    );
+
+    const hasAbsenceOverlap = activeMotivos.some(m => {
+      const [mStartH, mStartM] = m.horaInicio.split(':').map(Number);
+      const [mEndH, mEndM] = m.horaFin.split(':').map(Number);
+      
+      const mStart = mStartH * 60 + mStartM;
+      const mEnd = mEndH * 60 + mEndM;
+
+      // Rule: unavailable if slot overlaps with [mStart, mEnd)
+      return (slotStart < mEnd && mStart < slotEnd);
+    });
+
+    return !hasAbsenceOverlap;
+  };
+
+  // Get absence motive for specific slot
+  const getAbsenceForSlot = (date: string, time: string, professionalId: string) => {
+    return motivos.find(m => {
+      if (m.fecha.split('T')[0] !== date || String(m.documentoEmpleado) !== String(professionalId)) return false;
+
+      const [hours, minutes] = time.split(':').map(Number);
+      const slotTime = hours * 60 + minutes;
+
+      const [mStartH, mStartM] = m.horaInicio.split(':').map(Number);
+      const [mEndH, mEndM] = m.horaFin.split(':').map(Number);
+      
+      const mStart = mStartH * 60 + mStartM;
+      const mEnd = mEndH * 60 + mEndM;
+
+      // Rule: unavailable if: hora >= motivo.horaInicio AND hora < motivo.horaFin
+      return slotTime >= mStart && slotTime < mEnd;
     });
   };
 
@@ -549,49 +650,132 @@ export function AppointmentBooking({ currentUser, onBookingComplete, onBack, ini
               </div>
             ) : services.length > 0 ? (
               <>
-                <div className="grid md:grid-cols-2 gap-6 mb-8">
-                  {services.map((service) => {
-                    const isSelected = selectedServices.some(s => s.id === service.id);
-                    return (
-                      <div
-                        key={service.id}
-                        onClick={() => toggleServiceSelection(service)}
-                        className={`p-6 rounded-2xl border-2 cursor-pointer transition-all duration-300 hover:shadow-lg ${isSelected
-                          ? 'border-pink-500 bg-pink-50 shadow-lg scale-105'
-                          : 'border-gray-200 hover:border-pink-300'
-                          }`}
-                      >
-                        <div className="flex items-start space-x-4">
-                          <div className="mt-1">
-                            <div className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-all ${isSelected
-                              ? 'bg-pink-500 border-pink-500'
-                              : 'border-gray-300'
-                              }`}>
-                              {isSelected && <CheckCircle className="w-5 h-5 text-white" />}
-                            </div>
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-3 mb-3">
-                              <div className={`w-10 h-10 ${service.color} rounded-full flex items-center justify-center`}>
-                                <Clock className="w-5 h-5 text-white" />
+                {/* Search Bar for Services */}
+                <div className="mb-8 relative group">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <Search className="h-5 w-5 text-gray-400 group-focus-within:text-pink-500 transition-colors" />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Buscar servicios por nombre, descripción o categoría..."
+                    value={serviceSearchTerm}
+                    onChange={(e) => setServiceSearchTerm(e.target.value)}
+                    className="block w-full pl-11 pr-4 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-300 focus:border-pink-300 focus:bg-white transition-all text-lg"
+                  />
+                  {serviceSearchTerm && (
+                    <button 
+                      onClick={() => setServiceSearchTerm('')}
+                      className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-pink-500"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  )}
+                </div>
+
+                {paginatedServices.length > 0 ? (
+                  <div className="grid md:grid-cols-2 gap-6 mb-8">
+                    {paginatedServices.map((service) => {
+                      const isSelected = selectedServices.some(s => s.id === service.id);
+                      return (
+                        <div
+                          key={service.id}
+                          onClick={() => toggleServiceSelection(service)}
+                          className={`p-6 rounded-2xl border-2 cursor-pointer transition-all duration-300 hover:shadow-lg ${isSelected
+                            ? 'border-pink-500 bg-pink-50 shadow-lg scale-105'
+                            : 'border-gray-200 hover:border-pink-300'
+                            }`}
+                        >
+                          <div className="flex items-start space-x-4">
+                            <div className="mt-1">
+                              <div className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-all ${isSelected
+                                ? 'bg-pink-500 border-pink-500'
+                                : 'border-gray-300'
+                                }`}>
+                                {isSelected && <CheckCircle className="w-5 h-5 text-white" />}
                               </div>
-                              <h4 className="font-bold text-gray-800 text-lg">{service.name}</h4>
                             </div>
-                            <div className="flex items-center justify-between text-sm text-gray-600">
-                              <span className="flex items-center space-x-1">
-                                <Clock className="w-4 h-4" />
-                                <span>{service.duration} min</span>
-                              </span>
-                              <span className="font-bold text-pink-600 text-lg">
-                                ${service.price.toLocaleString()}
-                              </span>
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-3 mb-3">
+                                <div className={`w-10 h-10 ${service.color} rounded-full flex items-center justify-center`}>
+                                  <Clock className="w-5 h-5 text-white" />
+                                </div>
+                                <h4 className="font-bold text-gray-800 text-lg">{service.name}</h4>
+                              </div>
+                              <div className="flex items-center justify-between text-sm text-gray-600">
+                                <span className="flex items-center space-x-1">
+                                  <Clock className="w-4 h-4" />
+                                  <span>{service.duration} min</span>
+                                </span>
+                                <span className="font-bold text-pink-600 text-lg">
+                                  ${service.price.toLocaleString()}
+                                </span>
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 bg-gray-50 rounded-2xl mb-8">
+                    <Search className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                    <p className="text-gray-500 font-medium">No se encontraron servicios que coincidan con tu búsqueda</p>
+                  </div>
+                )}
+
+                {/* Pagination for Services */}
+                {totalServicePages > 1 && (
+                  <div className="flex items-center justify-center space-x-4 mb-8">
+                    <button
+                      onClick={() => {
+                        setServicePage(p => Math.max(1, p - 1));
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      disabled={servicePage === 1}
+                      className={`p-2 rounded-xl transition-all ${
+                        servicePage === 1 
+                          ? 'text-gray-300 cursor-not-allowed' 
+                          : 'text-pink-500 hover:bg-pink-50'
+                      }`}
+                    >
+                      <ChevronLeft className="w-8 h-8" />
+                    </button>
+                    
+                    <div className="flex items-center space-x-2">
+                      {[...Array(totalServicePages)].map((_, i) => (
+                        <button
+                          key={i}
+                          onClick={() => {
+                            setServicePage(i + 1);
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          }}
+                          className={`w-10 h-10 rounded-xl font-bold transition-all ${
+                            servicePage === i + 1
+                              ? 'bg-pink-500 text-white shadow-md'
+                              : 'text-gray-500 hover:bg-gray-100'
+                          }`}
+                        >
+                          {i + 1}
+                        </button>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setServicePage(p => Math.min(totalServicePages, p + 1));
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      disabled={servicePage === totalServicePages}
+                      className={`p-2 rounded-xl transition-all ${
+                        servicePage === totalServicePages 
+                          ? 'text-gray-300 cursor-not-allowed' 
+                          : 'text-pink-500 hover:bg-pink-50'
+                      }`}
+                    >
+                      <ChevronRight className="w-8 h-8" />
+                    </button>
+                  </div>
+                )}
 
                 {/* Payment Method Selection */}
                 <div className="mb-10 border-t border-gray-100 pt-10">
@@ -760,39 +944,95 @@ export function AppointmentBooking({ currentUser, onBookingComplete, onBack, ini
                   )}
                 </div>
 
-                {filteredProfessionals.length > 0 ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-                    {filteredProfessionals.map((professional) => (
-                      <div
-                        key={professional.id}
-                        onClick={() => {
-                          setSelectedProfessional(professional);
-                          setStep(3);
-                        }}
-                        className={`p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 hover:shadow-md flex items-center space-x-4 group ${
-                          selectedProfessional?.id === professional.id
-                            ? 'border-pink-500 bg-pink-50 shadow-md scale-[1.02]'
-                            : 'border-gray-100 hover:border-pink-200 bg-white'
-                        }`}
-                      >
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-bold text-gray-800 text-base mb-0.5 truncate group-hover:text-pink-600 transition-colors">
-                            {professional.name}
-                          </h4>
-                          <p className="text-gray-500 text-xs font-medium truncate">
-                            {professional.role}
-                          </p>
+                {paginatedProfessionals.length > 0 ? (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+                      {paginatedProfessionals.map((professional) => (
+                        <div
+                          key={professional.id}
+                          onClick={() => {
+                            setSelectedProfessional(professional);
+                            setStep(3);
+                          }}
+                          className={`p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 hover:shadow-md flex items-center space-x-4 group ${
+                            selectedProfessional?.id === professional.id
+                              ? 'border-pink-500 bg-pink-50 shadow-md scale-[1.02]'
+                              : 'border-gray-100 hover:border-pink-200 bg-white'
+                          }`}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-bold text-gray-800 text-base mb-0.5 truncate group-hover:text-pink-600 transition-colors">
+                              {professional.name}
+                            </h4>
+                            <p className="text-gray-500 text-xs font-medium truncate">
+                              {professional.role}
+                            </p>
+                          </div>
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-all ${
+                            selectedProfessional?.id === professional.id 
+                              ? 'bg-pink-500 text-white rotate-0' 
+                              : 'bg-gray-50 text-gray-400 -rotate-45 group-hover:rotate-0 group-hover:bg-pink-100 group-hover:text-pink-500'
+                          }`}>
+                            <ArrowRight className="w-4 h-4" />
+                          </div>
                         </div>
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-all ${
-                          selectedProfessional?.id === professional.id 
-                            ? 'bg-pink-500 text-white rotate-0' 
-                            : 'bg-gray-50 text-gray-400 -rotate-45 group-hover:rotate-0 group-hover:bg-pink-100 group-hover:text-pink-500'
-                        }`}>
-                          <ArrowRight className="w-4 h-4" />
+                      ))}
+                    </div>
+
+                    {/* Pagination for Professionals */}
+                    {totalProfessionalPages > 1 && (
+                      <div className="flex items-center justify-center space-x-4 mb-8">
+                        <button
+                          onClick={() => {
+                            setProfessionalPage(p => Math.max(1, p - 1));
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          }}
+                          disabled={professionalPage === 1}
+                          className={`p-2 rounded-xl transition-all ${
+                            professionalPage === 1 
+                              ? 'text-gray-300 cursor-not-allowed' 
+                              : 'text-pink-500 hover:bg-pink-50'
+                          }`}
+                        >
+                          <ChevronLeft className="w-8 h-8" />
+                        </button>
+                        
+                        <div className="flex items-center space-x-2">
+                          {[...Array(totalProfessionalPages)].map((_, i) => (
+                            <button
+                              key={i}
+                              onClick={() => {
+                                setProfessionalPage(i + 1);
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                              }}
+                              className={`w-10 h-10 rounded-xl font-bold transition-all ${
+                                professionalPage === i + 1
+                                  ? 'bg-pink-500 text-white shadow-md'
+                                  : 'text-gray-500 hover:bg-gray-100'
+                              }`}
+                            >
+                              {i + 1}
+                            </button>
+                          ))}
                         </div>
+
+                        <button
+                          onClick={() => {
+                            setProfessionalPage(p => Math.min(totalProfessionalPages, p + 1));
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          }}
+                          disabled={professionalPage === totalProfessionalPages}
+                          className={`p-2 rounded-xl transition-all ${
+                            professionalPage === totalProfessionalPages 
+                              ? 'text-gray-300 cursor-not-allowed' 
+                              : 'text-pink-500 hover:bg-pink-50'
+                          }`}
+                        >
+                          <ChevronRight className="w-8 h-8" />
+                        </button>
                       </div>
-                    ))}
-                  </div>
+                    )}
+                  </>
                 ) : (
                   <div className="text-center py-20 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200">
                     <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -1026,13 +1266,19 @@ export function AppointmentBooking({ currentUser, onBookingComplete, onBack, ini
                       }
 
                       const appointment = getAppointmentForSlot(selectedDate, time, selectedProfessional.id);
-                      const isAvailable = !isPastTime && !appointment && isTimeSlotAvailable(selectedDate, time, selectedProfessional.id, getTotalDuration());
+                      const absence = getAbsenceForSlot(selectedDate, time, selectedProfessional.id);
+                      const isAvailable = !isPastTime && !appointment && !absence && isTimeSlotAvailable(selectedDate, time, selectedProfessional.id, getTotalDuration());
 
                       return (
                         <div key={time} className="relative group">
                           {appointment ? (
                             <div className="w-full h-16 bg-gray-100 rounded-2xl flex items-center justify-center text-gray-400 text-[10px] font-black uppercase cursor-not-allowed border border-dashed border-gray-200 opacity-60">
                               Reservado
+                            </div>
+                          ) : absence ? (
+                            <div className="w-full h-16 bg-red-50 rounded-2xl flex flex-col items-center justify-center text-red-400 border-2 border-red-100 cursor-not-allowed opacity-60">
+                              <span className="text-lg font-black">{time}</span>
+                              <span className="text-[9px] font-black uppercase tracking-tighter">Ausente</span>
                             </div>
                           ) : (
                             <button
@@ -1045,7 +1291,11 @@ export function AppointmentBooking({ currentUser, onBookingComplete, onBack, ini
                               }`}
                             >
                               <span>{time}</span>
-                              {isAvailable && <span className="text-[9px] font-black opacity-60 uppercase tracking-tighter">Libre</span>}
+                              {isAvailable ? (
+                                <span className="text-[9px] font-black opacity-60 uppercase tracking-tighter">Libre</span>
+                              ) : (
+                                <span className="text-[9px] font-black opacity-60 uppercase tracking-tighter">No disponible</span>
+                              )}
                             </button>
                           )}
                         </div>
