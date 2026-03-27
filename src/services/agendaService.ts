@@ -310,7 +310,6 @@ export const estadoAgendaService = {
       { estadoId: 2, nombre: 'Confirmado' },
       { estadoId: 3, nombre: 'Cancelado' },
       { estadoId: 4, nombre: 'Completado' },
-      { estadoId: 5, nombre: 'Sin Agendar' },
     ];
   },
 };

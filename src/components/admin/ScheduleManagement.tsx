@@ -28,10 +28,11 @@ const normalizeDay = (day: string | null | undefined): string => {
 
 const extractArray = (data: any): any[] => {
   if (!data) return [];
+  // Si la respuesta del backend está anidada en una propiedad 'data', recursivamente entramos en ella.
+  if (data.data) return extractArray(data.data);
   if (Array.isArray(data)) return data;
   if (data.$values && Array.isArray(data.$values)) return data.$values;
-  if (data.data && Array.isArray(data.data)) return data.data;
-  // If it's an object with days/horarioDias, try to extract them
+  // Si es un objeto con dias/horarioDias, intentamos extraerlos.
   if (data.dias) return extractArray(data.dias);
   if (data.horarioDias) return extractArray(data.horarioDias);
   return [];
@@ -250,54 +251,44 @@ export function ScheduleManagement({ hasPermission }: ScheduleManagementProps) {
 
       // 2. Send the single request to create/update the entire schedule
       let savedHorario: Horario | null = null;
+      let resolvedId: number | undefined;
+
       try {
         if (existingGroup && existingGroup.horarioIds.length > 0) {
-          // Si es una edición, usamos el primer ID del grupo (en el nuevo sistema un grupo = un Horario ID)
+          // Si es una edición, usamos el primer ID del grupo
           const primaryId = existingGroup.horarioIds[0];
-          savedHorario = await horarioService.update(primaryId, payload);
-          if (savedHorario) {
-            finalIds = [savedHorario.horarioId];
-          } else {
-            // Si el PUT no devuelve el objeto, mantenemos el ID original
-            finalIds = [primaryId];
-          }
+          await horarioService.update(primaryId, payload);
+          resolvedId = primaryId;
         } else {
           // Si es un registro nuevo
-          savedHorario = await horarioService.create(payload);
-          if (savedHorario && savedHorario.horarioId) {
-            finalIds = [savedHorario.horarioId];
-          }
+          const response = await horarioService.create(payload);
+          const created = response.data ?? response;
+          resolvedId = created?.horarioId;
+        }
+
+        // 🔥 Obtener datos completos con días del servidor para asegurar que tenemos los IDs reales (horarioDiaId)
+        if (resolvedId) {
+          const response = await horarioService.getById(resolvedId);
+          savedHorario = response.data ?? response;
         }
       } catch (err) {
         console.error(`Error saving schedule:`, err);
         throw err;
       }
 
-      // 3. Resolve the full object with its day IDs (horarioDiaId)
-      // The API might not return the object on PUT/POST, so we fetch it to be sure
-      const resolvedId = finalIds[0] || savedHorario?.horarioId;
-      if (resolvedId) {
+      // 3. Resolve the full object with its day IDs (horarioDiaId) if getById failed or wasn't called
+      if (resolvedId && !savedHorario) {
         try {
-          // Fetch the full object directly by ID to get the latest state of its days
-          savedHorario = await horarioService.getById(resolvedId);
-          if (savedHorario) {
-            finalIds = [savedHorario.horarioId];
-          }
-        } catch (fetchErr) {
           console.warn(`Could not fetch horario ${resolvedId} directly, trying fallback by name...`);
-          // Fallback: search by name if ID fetch fails
-          try {
-            const allHorariosData: any = await horarioService.getAll();
-            const hData = extractArray(allHorariosData);
-            savedHorario = hData.find((h: Horario) => h.nombre === nombre) || null;
-            if (savedHorario) {
-              finalIds = [savedHorario.horarioId];
-            }
-          } catch {
-            console.error('Final fallback to resolve IDs failed');
-          }
+          const allHorariosData: any = await horarioService.getAll();
+          const hData = extractArray(allHorariosData);
+          savedHorario = hData.find((h: Horario) => h.nombre === nombre) || null;
+        } catch (fallbackErr) {
+          console.error('Final fallback to resolve IDs failed', fallbackErr);
         }
       }
+
+      finalIds = savedHorario ? [savedHorario.horarioId] : (resolvedId ? [resolvedId] : []);
 
       // 4. Save group to localStorage
       const group: ScheduleGroup = {
@@ -312,7 +303,19 @@ export function ScheduleManagement({ hasPermission }: ScheduleManagementProps) {
       // We need to map the pending assignments to the correct horarioDiaId
       const savedDays = savedHorario ? extractArray(savedHorario) : [];
       
-      if (savedHorario && savedDays.length > 0) {
+      // 🔥 Validación estricta: si no hay días cargados, no podemos mapear empleados
+      if (!savedHorario || !savedDays.length) {
+        const errorMsg = 'No se pudo mapear las asignaciones de empleados porque no se obtuvieron los detalles de los días del servidor.';
+        console.error(`[ScheduleManagement] ${errorMsg}`, savedHorario);
+        
+        if (assignmentsToCreate.length > 0) {
+          showAlert('error', 'El horario se guardó, pero no se pudieron asignar los empleados automáticamente. Intenta asignarlos nuevamente editando el horario.');
+          setSaving(false);
+          return; // Detener el flujo
+        }
+      }
+
+      if (savedDays.length > 0) {
         // Group assignments by the new IDs from server
         const assignmentsByDay: Record<number, string[]> = {};
 
@@ -320,7 +323,8 @@ export function ScheduleManagement({ hasPermission }: ScheduleManagementProps) {
           let dayNameToUse = pending.diaSemana || "";
           
           if (!dayNameToUse) {
-            const oldDayRecord = horarios.flatMap(h => extractArray(h.dias)).find(d => d.horarioDiaId === pending.horarioId);
+            const allDaysInSystem = horarios.flatMap(h => extractArray(h));
+            const oldDayRecord = allDaysInSystem.find(d => d.horarioDiaId === pending.horarioId);
             if (oldDayRecord) {
               dayNameToUse = oldDayRecord.diaSemana || "";
             } else {
@@ -358,24 +362,20 @@ export function ScheduleManagement({ hasPermission }: ScheduleManagementProps) {
         }
 
         // Send assignments in bulk
-        const bulkData = {
-          dias: Object.entries(assignmentsByDay).map(([horarioDiaId, empleados]) => ({
-            horarioDiaId: parseInt(horarioDiaId),
-            empleados
-          }))
-        };
+        const diasParaEnviar = Object.entries(assignmentsByDay)
+          .map(([horarioDiaId, empleados]) => {
+            const validEmpleados = empleados.filter(doc => doc && doc.trim() !== "");
+            return {
+              horarioDiaId: parseInt(horarioDiaId),
+              empleados: validEmpleados
+            };
+          })
+          .filter(d => d.empleados.length > 0 && d.horarioDiaId > 0);
 
-        if (bulkData.dias.length > 0) {
+        if (diasParaEnviar.length > 0) {
+          const bulkData = { dias: diasParaEnviar };
           console.log('[ScheduleManagement] Enviando asignaciones bulk:', JSON.stringify(bulkData, null, 2));
           await horarioEmpleadoService.createBulk(bulkData);
-        }
-      } else {
-        const errorMsg = 'No se pudo mapear las asignaciones de empleados porque no se obtuvieron los detalles de los días del servidor.';
-        console.error(`[ScheduleManagement] ${errorMsg}`);
-        if (assignmentsToCreate.length > 0) {
-          showAlert('error', 'El horario se guardó, pero no se pudieron asignar los empleados automáticamente. Intenta asignarlos nuevamente editando el horario.');
-          setSaving(false);
-          return; // Stop flow if mapping fails and we have assignments
         }
       }
 
@@ -401,11 +401,19 @@ export function ScheduleManagement({ hasPermission }: ScheduleManagementProps) {
         throw new Error("ID de día de horario no válido (0 o undefined)");
       }
 
+      const validEmpleados = documentosEmpleado.filter(doc => doc && doc.trim() !== "");
+
+      if (validEmpleados.length === 0) {
+        showAlert('error', 'No se ha seleccionado ningún empleado válido para asignar.');
+        setSaving(false);
+        return;
+      }
+
       const bulkData = {
         dias: [
           {
             horarioDiaId,
-            empleados: documentosEmpleado
+            empleados: validEmpleados
           }
         ]
       };
@@ -413,7 +421,7 @@ export function ScheduleManagement({ hasPermission }: ScheduleManagementProps) {
       console.log('[ScheduleManagement] Enviando asignación individual bulk:', JSON.stringify(bulkData, null, 2));
       await horarioEmpleadoService.createBulk(bulkData);
       
-      showAlert('success', `${documentosEmpleado.length} empleado(s) asignado(s) correctamente`);
+      showAlert('success', `${validEmpleados.length} empleado(s) asignado(s) correctamente`);
       setShowAssignModal(false);
       await loadData();
     } catch (error) {

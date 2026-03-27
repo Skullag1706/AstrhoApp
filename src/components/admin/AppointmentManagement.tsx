@@ -340,24 +340,14 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
       const fecha = apt.fechaCita.split('T')[0];
 
       const payload = {
-        agendaId: apt.agendaId,
-        AgendaId: apt.agendaId,
         documentoCliente: apt.documentoCliente,
-        DocumentoCliente: apt.documentoCliente,
         documentoEmpleado: apt.documentoEmpleado,
-        DocumentoEmpleado: apt.documentoEmpleado,
         fechaCita: fecha,
-        FechaCita: fecha,
         horaInicio: hora,
-        HoraInicio: hora,
         metodoPagoId: metodoPagoId,
-        MetodoPagoId: metodoPagoId,
         observaciones: observaciones,
-        Observaciones: observaciones,
         serviciosIds: servicioIds,
-        ServiciosIds: servicioIds,
         estadoId: newStatusId,
-        EstadoId: newStatusId
       };
 
       await handleSaveAppointment(payload, true, apt.agendaId);
@@ -892,7 +882,7 @@ function AppointmentModal({
     }
 
     const slots: string[] = [];
-    const interval = 15; // 15-minute granularity for slots
+    const interval = 30; // 30-minute granularity for slots
 
     effectiveSchedules.forEach((sched) => {
       const startMin = timeStrToMinutes(sched.horaInicio);
@@ -987,24 +977,14 @@ function AppointmentModal({
       const obs = formData.observaciones || 'Sin observaciones';
 
       const payload: any = {
-        agendaId: isEdit && appointment ? appointment.agendaId : 0,
-        AgendaId: isEdit && appointment ? appointment.agendaId : 0,
         documentoCliente: formData.documentoCliente,
-        DocumentoCliente: formData.documentoCliente,
         documentoEmpleado: formData.documentoEmpleado,
-        DocumentoEmpleado: formData.documentoEmpleado,
         fechaCita: formData.fechaCita,
-        FechaCita: formData.fechaCita,
         horaInicio: hora,
-        HoraInicio: hora,
         metodoPagoId: formData.metodoPagoId,
-        MetodoPagoId: formData.metodoPagoId,
         observaciones: obs,
-        Observaciones: obs,
         serviciosIds: formData.serviciosIds.filter((id) => id > 0),
-        ServiciosIds: formData.serviciosIds.filter((id) => id > 0),
-        estadoId: formData.estadoId, // Add this just in case backend expects it
-        EstadoId: formData.estadoId, // Add this just in case backend expects it
+        estadoId: formData.estadoId,
       };
 
       if (isEdit) {
@@ -1159,7 +1139,12 @@ function AppointmentModal({
                           <option value="">No hay disponibilidad</option>
                         ) : (
                           <>
-                            {!availableSlots.includes(formData.horaInicio) && <option value="">Seleccionar hora...</option>}
+                            {formData.horaInicio && !availableSlots.includes(formData.horaInicio) && (
+                              <option value={formData.horaInicio}>
+                                {formData.horaInicio} {isEdit ? '(Actual)' : 'Seleccionada'}
+                              </option>
+                            )}
+                            {!formData.horaInicio && <option value="">Seleccionar hora...</option>}
                             {availableSlots.map((slot) => (
                               <option key={slot} value={slot}>{slot}</option>
                             ))}

@@ -161,7 +161,14 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
       setLoading(true);
       const createdSale = await salesService.create(saleData);
       if (createdSale) {
-        setSales([createdSale, ...sales]);
+        // En lugar de agregar manualmente el objeto que puede estar incompleto, 
+        // recargamos la lista desde el servidor para obtener los datos completos.
+        if (currentPage === 1) {
+          await load();
+        } else {
+          setCurrentPage(1);
+        }
+        
         toast.success(`Venta ${createdSale.id} registrada correctamente`);
         setShowNewSaleModal(false);
       } else {
