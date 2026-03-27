@@ -432,7 +432,7 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
             className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all flex items-center space-x-2"
           >
             <Plus className="w-5 h-5" />
-            <span>Nueva Entrega</span>
+            <span>Registrar Entrega</span>
           </button>
         )}
       </div>
@@ -958,7 +958,7 @@ function CreateDeliveryModal({ onClose, onSave, supplies, users, isProcessing }:
                 <Plus className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h3 className="text-2xl font-black tracking-tight">Nueva Entrega de Insumos</h3>
+                <h3 className="text-2xl font-black tracking-tight">Registrar Entrega de Insumos</h3>
                 <p className="text-pink-100 text-xs font-medium uppercase tracking-widest opacity-80">Registro de entrega interna para el salón</p>
               </div>
             </div>
@@ -1190,7 +1190,7 @@ function CreateDeliveryModal({ onClose, onSave, supplies, users, isProcessing }:
                 disabled={isProcessing || formData.items.length === 0}
                 className="px-8 py-3 bg-white text-purple-600 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-pink-50 transition-all active:scale-95 disabled:opacity-50 shadow-lg"
               >
-                {isProcessing ? 'Procesando...' : 'Confirmar Entrega'}
+                {isProcessing ? 'Procesando...' : 'Registrar Entrega'}
               </button>
             </div>
           </div>

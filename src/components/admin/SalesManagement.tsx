@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { 
-  CheckCircle, 
+import {
+  CheckCircle,
   DollarSign, Plus, Search, Filter, Eye, X, Calendar,
   CreditCard, TrendingUp, Users, User,
   Ban, FileText, Scissors,
@@ -127,15 +127,15 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
         setLoading(true);
         // Llamada real a la API para anular
         await salesService.cancel(saleToCancel.id, observacion);
-        
-        const updatedSale = { 
-          ...saleToCancel, 
-          status: 'refunded' as const, 
-          notes: observacion, 
-          updatedAt: new Date().toISOString().split('T')[0] 
+
+        const updatedSale = {
+          ...saleToCancel,
+          status: 'refunded' as const,
+          notes: observacion,
+          updatedAt: new Date().toISOString().split('T')[0]
         };
 
-        setSales(sales.map(sale => 
+        setSales(sales.map(sale =>
           sale.id === saleToCancel.id ? updatedSale : sale
         ));
 
@@ -143,7 +143,7 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
         if (selectedSale && selectedSale.id === saleToCancel.id) {
           setSelectedSale(updatedSale);
         }
-        
+
         toast.success(`Venta ${saleToCancel.id} anulada correctamente`);
         setCancelModal(false);
         setSaleToCancel(null);
@@ -179,7 +179,7 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
     // Crear contenido del recibo
     const customerName = sale.customerName || '';
     const employeeName = sale.employeeName || '';
-    
+
     const receiptContent = `
       <div style="font-family: Arial, sans-serif; max-width: 400px; margin: 0 auto; padding: 20px;">
         <div style="text-align: center; border-bottom: 2px solid #e91e63; padding-bottom: 15px; margin-bottom: 15px;">
@@ -200,11 +200,11 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
           <div style="margin-bottom: 15px;">
             <h4 style="margin: 0 0 10px 0; color: #333;">SERVICIOS:</h4>
             ${sale.services.map(service => {
-              return `<div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+      return `<div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
                 <span>${service.name || service.serviceId}</span>
                 <span>$${(service.totalPrice || 0).toLocaleString()}</span>
               </div>`;
-            }).join('')}
+    }).join('')}
           </div>
         ` : ''}
         
@@ -226,12 +226,11 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
         </div>
         
         <div style="margin-top: 15px; font-size: 12px; color: #666;">
-          <p><strong>Método de Pago:</strong> ${
-            sale.paymentMethod === 'cash' ? 'Efectivo' :
-            sale.paymentMethod === 'transfer' ? 'Transferencia' : 
-            sale.paymentMethod === 'nequi' ? 'Nequi' :
+          <p><strong>Método de Pago:</strong> ${sale.paymentMethod === 'cash' ? 'Efectivo' :
+        sale.paymentMethod === 'transfer' ? 'Transferencia' :
+          sale.paymentMethod === 'nequi' ? 'Nequi' :
             sale.paymentMethod === 'daviplata' ? 'Daviplata' : 'Otro'
-          }</p>
+      }</p>
           ${sale.notes ? `<p><strong>Observaciones:</strong> ${sale.notes}</p>` : ''}
         </div>
         
@@ -278,7 +277,7 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
         {hasPermission('manage_sales') && (
           <button
             onClick={() => setShowNewSaleModal(true)}
-            className="flex items-center space-x-2 bg-pink-500 hover:bg-pink-600 text-white px-6 py-3 rounded-xl transition-all shadow-lg hover:shadow-pink-200 active:scale-95 font-bold"
+            className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all flex items-center space-x-2"
           >
             <Plus className="w-5 h-5" />
             <span>Registrar Venta</span>
@@ -299,7 +298,7 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
               className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent"
             />
           </div>
-          
+
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
@@ -343,26 +342,26 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
                       <td className="px-6 py-4">
                         <div className="font-medium text-gray-800">{sale.customerName || 'Cliente'}</div>
                       </td>
-                      
+
                       <td className="px-6 py-4">
                         <div className="flex items-center space-x-1">
                           <Scissors className="w-4 h-4 text-purple-600" />
                           <span className="text-sm text-purple-600">{sale.services?.length || 0}</span>
                         </div>
                       </td>
-                      
+
                       <td className="px-6 py-4">
                         <div className="font-bold text-green-600">
                           ${(sale.total || 0).toLocaleString()}
                         </div>
                       </td>
-                      
+
                       <td className="px-6 py-4">
                         <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(sale.status)}`}>
                           {getStatusLabel(sale.status)}
                         </span>
                       </td>
-                      
+
                       <td className="px-6 py-4">
                         <div className="flex space-x-2">
                           <button
@@ -372,7 +371,7 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
                           >
                             <Eye className="w-4 h-4" />
                           </button>
-                          
+
                           {hasPermission('manage_sales') && (
                             <>
                               <button
@@ -382,7 +381,7 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
                               >
                                 <FileText className="w-4 h-4" />
                               </button>
-                              
+
                               {sale.status === 'completed' && (
                                 <button
                                   onClick={() => handleCancelSale(sale)}
@@ -459,7 +458,7 @@ function NewSaleModal({ onClose, onSubmit, currentUser }: {
   currentUser: any;
 }) {
   const [submitting, setSubmitting] = useState(false);
-  
+
   // Form state
   const [selectedClientId, setSelectedClientId] = useState('');
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
@@ -517,7 +516,7 @@ function NewSaleModal({ onClose, onSubmit, currentUser }: {
     if (!selectedEmployeeId) newErrors.empleado = 'Selecciona un profesional';
     if (selectedServices.length === 0) newErrors.servicios = 'Agrega al menos un servicio';
     if (!paymentMethodId) newErrors.metodoPago = 'Selecciona un método de pago';
-    
+
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) return;
 
@@ -564,22 +563,12 @@ function NewSaleModal({ onClose, onSubmit, currentUser }: {
                 <p className="text-pink-100 text-sm">Registra servicios realizados y procesa el pago</p>
               </div>
             </div>
-            <div className="flex items-center space-x-3">
-              <button
-                onClick={handleFormSubmit}
-                disabled={submitting}
-                className="flex items-center space-x-2 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-xl transition-all font-bold text-xs uppercase tracking-widest backdrop-blur-sm shadow-sm"
-              >
-                {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                <span>{submitting ? 'Guardando...' : 'Finalizar'}</span>
-              </button>
-              <button
-                onClick={onClose}
-                className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+            <button
+              onClick={onClose}
+              className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
         </div>
 
@@ -982,7 +971,7 @@ function ClientSearchSelect({ onSelect, selectedDocument, error, disabled }: any
         <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200">
           <div className="max-h-60 overflow-y-auto py-1">
             {loading && searchResults.length === 0 ? (
-               <div className="p-4 text-sm text-gray-500 text-center">Buscando...</div>
+              <div className="p-4 text-sm text-gray-500 text-center">Buscando...</div>
             ) : searchResults.length === 0 ? (
               <div className="p-4 text-sm text-gray-500 text-center">
                 {searchTerm ? 'No se encontraron clientes' : 'Escribe para buscar...'}
@@ -1143,7 +1132,7 @@ function ProfessionalSearchSelect({
         <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200">
           <div className="max-h-[280px] overflow-y-auto py-1">
             {loading && searchResults.length === 0 ? (
-               <div className="p-4 text-sm text-gray-500 text-center">Buscando...</div>
+              <div className="p-4 text-sm text-gray-500 text-center">Buscando...</div>
             ) : searchResults.length === 0 ? (
               <div className="p-4 text-sm text-gray-500 text-center">
                 {searchTerm ? 'No se encontraron profesionales' : 'Escribe para buscar...'}
@@ -1156,8 +1145,8 @@ function ProfessionalSearchSelect({
                 const statusText = occupied
                   ? 'Ocupado'
                   : !isWithinSchedule
-                  ? 'Fuera de horario'
-                  : '';
+                    ? 'Fuera de horario'
+                    : '';
 
                 return (
                   <div
@@ -1308,7 +1297,7 @@ function ServiceSearchSelect({
         <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200">
           <div className="max-h-[250px] overflow-y-auto py-1">
             {loading && searchResults.length === 0 ? (
-               <div className="p-4 text-sm text-gray-500 text-center">Buscando...</div>
+              <div className="p-4 text-sm text-gray-500 text-center">Buscando...</div>
             ) : searchResults.length === 0 ? (
               <div className="p-4 text-sm text-gray-500 text-center">
                 {searchTerm ? 'No se encontraron servicios' : 'Escribe para buscar...'}
@@ -1317,7 +1306,7 @@ function ServiceSearchSelect({
               searchResults.map((svc) => {
                 const isSelected = svc.servicioId === selectedServiceId;
                 const isAlreadyAdded = allSelectedIds.includes(svc.servicioId) && !isSelected;
-                
+
                 return (
                   <div
                     key={svc.servicioId}
@@ -1373,7 +1362,7 @@ function SaleDetailModal({ sale, onClose, onCancel, onPrint, hasPermission }) {
   useEffect(() => {
     const fetchExtraInfo = async () => {
       if (customerInfo.email && customerInfo.phone) return;
-      
+
       setLoadingInfo(true);
       try {
         // 1. Try to find by customerId if it's a usuarioId
@@ -1387,16 +1376,16 @@ function SaleDetailModal({ sale, onClose, onCancel, onPrint, hasPermission }) {
 
         // 2. Try to find in Clientes to get phone/email
         const clients = await personService.getPersons('client');
-        const client = clients.find(c => 
+        const client = clients.find(c =>
           (sale.customerId && (String(c.usuarioId) === String(sale.customerId) || String(c.documentId) === String(sale.customerId))) ||
           (sale.customerName && c.name === sale.customerName)
         );
 
         if (client) {
-          setCustomerInfo(prev => ({ 
-            ...prev, 
-            email: prev.email || client.email, 
-            phone: prev.phone || client.phone 
+          setCustomerInfo(prev => ({
+            ...prev,
+            email: prev.email || client.email,
+            phone: prev.phone || client.phone
           }));
         }
       } catch (err) {
@@ -1495,14 +1484,12 @@ function SaleDetailModal({ sale, onClose, onCancel, onPrint, hasPermission }) {
               </div>
 
               {/* Status Card */}
-              <div className={`rounded-2xl p-5 border shadow-sm flex flex-col items-center justify-center ${
-                sale.status === 'completed' 
-                ? 'bg-green-50/50 border-green-100 text-green-600' 
-                : 'bg-red-50/50 border-red-100 text-red-600'
-              }`}>
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-2 ${
-                  sale.status === 'completed' ? 'bg-green-100' : 'bg-red-100'
+              <div className={`rounded-2xl p-5 border shadow-sm flex flex-col items-center justify-center ${sale.status === 'completed'
+                  ? 'bg-green-50/50 border-green-100 text-green-600'
+                  : 'bg-red-50/50 border-red-100 text-red-600'
                 }`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-2 ${sale.status === 'completed' ? 'bg-green-100' : 'bg-red-100'
+                  }`}>
                   {sale.status === 'completed' ? <CheckCircle className="w-5 h-5" /> : <Ban className="w-5 h-5" />}
                 </div>
                 <span className="font-black uppercase text-[10px] tracking-[0.2em]">
@@ -1522,7 +1509,7 @@ function SaleDetailModal({ sale, onClose, onCancel, onPrint, hasPermission }) {
                   {sale.services?.length || 0} ítems
                 </span>
               </div>
-              
+
               <div className="max-h-[250px] overflow-y-auto no-scrollbar">
                 <table className="w-full">
                   <thead className="bg-gray-50/80 sticky top-0 backdrop-blur-sm z-10">

@@ -947,22 +947,12 @@ function UserModal({ user, onClose, onSave, roles }: { user: any; onClose: () =>
                 </p>
               </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={handleSubmit}
-                disabled={isSaving}
-                className="flex items-center space-x-2 px-4 py-2 bg-green-500 hover:bg-green-600 rounded-xl transition-all text-sm font-bold border border-green-400 shadow-lg disabled:opacity-50"
-              >
-                {isSaving ? <CheckCircle className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                <span>{isSaving ? 'Guardando...' : 'Guardar Datos'}</span>
-              </button>
-              <button
-                onClick={onClose}
-                className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+            <button
+              onClick={onClose}
+              className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
         </div>
 

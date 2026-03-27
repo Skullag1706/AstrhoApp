@@ -117,22 +117,12 @@ function SingleSupplyForm({ supply, onClose, onSave, suppliers }) {
                 <p className="text-pink-100 text-sm">Actualiza la información y el stock del insumo</p>
               </div>
             </div>
-            <div className="flex items-center space-x-3">
-              <button
-                onClick={handleSubmit}
-                disabled={isSaving}
-                className="flex items-center space-x-2 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-xl transition-all font-bold text-xs uppercase tracking-widest backdrop-blur-sm shadow-sm"
-              >
-                {isSaving ? <Plus className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                <span>{isSaving ? 'Guardando...' : 'Guardar'}</span>
-              </button>
-              <button
-                onClick={onClose}
-                className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+            <button
+              onClick={onClose}
+              className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
         </div>
 

@@ -176,7 +176,7 @@ export function PersonManagement({ hasPermission, initialType = 'client' }: Pers
                 if (!targetUserId) {
                     try {
                         const allUsers = await userService.getAll();
-                        const foundUser = allUsers.find(u => 
+                        const foundUser = allUsers.find(u =>
                             (personToDelete.email && u.email?.toLowerCase() === personToDelete.email.toLowerCase()) ||
                             (personToDelete.name && u.nombreUsuario?.toLowerCase() === personToDelete.name.toLowerCase()) ||
                             (u.email?.toLowerCase().includes((personToDelete.email || '').toLowerCase()))
@@ -657,11 +657,10 @@ function PersonProfileModal({ person, onClose, personType }: { person: Person, o
                             <h4 className="text-2xl font-bold text-gray-800 mb-1">{person.name}</h4>
                             <p className="text-gray-500 text-sm mb-4">{person.documentType || 'CC'}: {person.documentId}</p>
                             <div className="flex justify-center">
-                                <span className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest shadow-sm ${
-                                    person.status === 'active' 
-                                    ? 'bg-green-100 text-green-700 border border-green-200' 
-                                    : 'bg-red-100 text-red-700 border border-red-200'
-                                }`}>
+                                <span className={`px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest shadow-sm ${person.status === 'active'
+                                        ? 'bg-green-100 text-green-700 border border-green-200'
+                                        : 'bg-red-100 text-red-700 border border-red-200'
+                                    }`}>
                                     {person.status === 'active' ? 'Estado Activo' : 'Estado Inactivo'}
                                 </span>
                             </div>
@@ -674,7 +673,7 @@ function PersonProfileModal({ person, onClose, personType }: { person: Person, o
                                     <Phone className="w-5 h-5" />
                                     <h4 className="font-bold uppercase text-[10px] tracking-widest">Información de Contacto</h4>
                                 </div>
-                                
+
                                 <div className="space-y-4">
                                     <div className="p-4 bg-gray-50/50 rounded-2xl border border-gray-100 hover:bg-gray-50 transition-colors">
                                         <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Teléfono Principal</span>
@@ -700,7 +699,7 @@ function PersonProfileModal({ person, onClose, personType }: { person: Person, o
                                     <Shield className="w-5 h-5" />
                                     <h4 className="font-bold uppercase text-[10px] tracking-widest">Detalles del Registro</h4>
                                 </div>
-                                
+
                                 <div className="space-y-4">
                                     <div className="p-4 bg-gray-50/50 rounded-2xl border border-gray-100 hover:bg-gray-50 transition-colors">
                                         <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Correo Electrónico</span>
@@ -756,9 +755,9 @@ function NewPersonModal({ onClose, onSave, editingPerson, personType, roles }: {
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [isSaving, setIsSaving] = useState(false);
 
-    const filteredRoles = roles.filter(r => 
-        r.nombre.toLowerCase() !== 'cliente' && 
-        r.nombre.toLowerCase() !== 'super admin' && 
+    const filteredRoles = roles.filter(r =>
+        r.nombre.toLowerCase() !== 'cliente' &&
+        r.nombre.toLowerCase() !== 'super admin' &&
         r.nombre.toLowerCase() !== 'super administrador'
     );
 
@@ -812,22 +811,12 @@ function NewPersonModal({ onClose, onSave, editingPerson, personType, roles }: {
                                 </p>
                             </div>
                         </div>
-                        <div className="flex items-center space-x-2">
-                            <button
-                                onClick={handleSubmit}
-                                disabled={isSaving}
-                                className="flex items-center space-x-2 px-4 py-2 bg-green-500 hover:bg-green-600 rounded-xl transition-all text-sm font-bold border border-green-400 shadow-lg disabled:opacity-50"
-                            >
-                                {isSaving ? <Clock className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                                <span>{isSaving ? 'Guardando...' : 'Guardar Datos'}</span>
-                            </button>
-                            <button
-                                onClick={onClose}
-                                className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
+                        <button
+                            onClick={onClose}
+                            className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
                     </div>
                 </div>
 
@@ -881,9 +870,8 @@ function NewPersonModal({ onClose, onSave, editingPerson, personType, roles }: {
                                                     type="text"
                                                     value={formData.documentId}
                                                     onChange={(e) => handleChange('documentId', e.target.value)}
-                                                    className={`w-full pl-10 pr-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all outline-none ${
-                                                        errors.documentId ? 'border-red-300 ring-1 ring-red-100' : 'border-gray-200'
-                                                    }`}
+                                                    className={`w-full pl-10 pr-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all outline-none ${errors.documentId ? 'border-red-300 ring-1 ring-red-100' : 'border-gray-200'
+                                                        }`}
                                                     placeholder="1234567890"
                                                     disabled={!!editingPerson}
                                                 />
@@ -899,9 +887,8 @@ function NewPersonModal({ onClose, onSave, editingPerson, personType, roles }: {
                                                 type="text"
                                                 value={formData.name}
                                                 onChange={(e) => handleChange('name', e.target.value)}
-                                                className={`w-full pl-10 pr-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all outline-none ${
-                                                    errors.name ? 'border-red-300 ring-1 ring-red-100' : 'border-gray-200'
-                                                }`}
+                                                className={`w-full pl-10 pr-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all outline-none ${errors.name ? 'border-red-300 ring-1 ring-red-100' : 'border-gray-200'
+                                                    }`}
                                                 placeholder="Nombres y Apellidos"
                                             />
                                         </div>
@@ -944,9 +931,8 @@ function NewPersonModal({ onClose, onSave, editingPerson, personType, roles }: {
                                                 type="tel"
                                                 value={formData.phone}
                                                 onChange={(e) => handleChange('phone', e.target.value)}
-                                                className={`w-full pl-10 pr-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all outline-none ${
-                                                    errors.phone ? 'border-red-300 ring-1 ring-red-100' : 'border-gray-200'
-                                                }`}
+                                                className={`w-full pl-10 pr-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all outline-none ${errors.phone ? 'border-red-300 ring-1 ring-red-100' : 'border-gray-200'
+                                                    }`}
                                                 placeholder="300 123 4567"
                                             />
                                         </div>
@@ -975,9 +961,8 @@ function NewPersonModal({ onClose, onSave, editingPerson, personType, roles }: {
                                                     type="email"
                                                     value={formData.email}
                                                     onChange={(e) => handleChange('email', e.target.value)}
-                                                    className={`w-full pl-10 pr-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all outline-none ${
-                                                        errors.email ? 'border-red-300 ring-1 ring-red-100' : 'border-gray-200'
-                                                    }`}
+                                                    className={`w-full pl-10 pr-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all outline-none ${errors.email ? 'border-red-300 ring-1 ring-red-100' : 'border-gray-200'
+                                                        }`}
                                                     placeholder="correo@ejemplo.com"
                                                 />
                                             </div>
@@ -994,8 +979,8 @@ function NewPersonModal({ onClose, onSave, editingPerson, personType, roles }: {
                                 <h4 className="font-black text-[10px] uppercase tracking-[0.2em] text-gray-700">Resumen del Registro</h4>
                             </div>
                             <p className="text-sm text-gray-600 italic">
-                                {editingPerson 
-                                    ? `Está modificando la información de un ${personType === 'client' ? 'cliente' : 'empleado'} existente.` 
+                                {editingPerson
+                                    ? `Está modificando la información de un ${personType === 'client' ? 'cliente' : 'empleado'} existente.`
                                     : `Está registrando un nuevo ${personType === 'client' ? 'cliente' : 'empleado'} en el sistema AsthroApp.`}
                             </p>
                         </div>
@@ -1016,11 +1001,10 @@ function NewPersonModal({ onClose, onSave, editingPerson, personType, roles }: {
                         form="person-form"
                         type="submit"
                         disabled={isSaving}
-                        className={`px-8 py-2.5 rounded-xl font-black text-white active:scale-95 transition-all text-sm uppercase tracking-widest shadow-lg flex items-center space-x-2 ${
-                            personType === 'client' 
-                                ? 'bg-gradient-to-r from-pink-500 to-purple-600 hover:shadow-pink-200' 
+                        className={`px-8 py-2.5 rounded-xl font-black text-white active:scale-95 transition-all text-sm uppercase tracking-widest shadow-lg flex items-center space-x-2 ${personType === 'client'
+                                ? 'bg-gradient-to-r from-pink-500 to-purple-600 hover:shadow-pink-200'
                                 : 'bg-gradient-to-r from-purple-500 to-blue-600 hover:shadow-purple-200'
-                        } disabled:opacity-50`}
+                            } disabled:opacity-50`}
                     >
                         {isSaving ? <Clock className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                         <span>{editingPerson ? 'Actualizar' : 'Registrar'}</span>

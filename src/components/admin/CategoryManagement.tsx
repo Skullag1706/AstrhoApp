@@ -592,22 +592,12 @@ function CategoryEditModal({ category, onClose, onSave }) {
                 </p>
               </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={handleSubmit}
-                disabled={isSaving}
-                className="flex items-center space-x-2 px-4 py-2 bg-green-500 hover:bg-green-600 rounded-xl transition-all text-sm font-bold border border-green-400 shadow-lg disabled:opacity-50"
-              >
-                {isSaving ? <CheckCircle className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                <span>{isSaving ? 'Guardando...' : 'Guardar Datos'}</span>
-              </button>
-              <button
-                onClick={onClose}
-                className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+            <button
+              onClick={onClose}
+              className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
         </div>
 
@@ -642,9 +632,8 @@ function CategoryEditModal({ category, onClose, onSave }) {
                       name="name"
                       value={formData.name}
                       onChange={handleInputChange}
-                      className={`w-full pl-10 pr-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all outline-none ${
-                        errors.name ? 'border-red-300 ring-1 ring-red-100' : 'border-gray-200'
-                      }`}
+                      className={`w-full pl-10 pr-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all outline-none ${errors.name ? 'border-red-300 ring-1 ring-red-100' : 'border-gray-200'
+                        }`}
                       placeholder="Ej: Cuidado Capilar, Tratamientos..."
                     />
                   </div>
@@ -659,9 +648,8 @@ function CategoryEditModal({ category, onClose, onSave }) {
                       value={formData.description}
                       onChange={handleInputChange}
                       rows={3}
-                      className={`w-full pl-10 pr-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all outline-none ${
-                        errors.description ? 'border-red-300 ring-1 ring-red-100' : 'border-gray-200'
-                      }`}
+                      className={`w-full pl-10 pr-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-pink-300 focus:border-transparent transition-all outline-none ${errors.description ? 'border-red-300 ring-1 ring-red-100' : 'border-gray-200'
+                        }`}
                       placeholder="Describa qué incluye esta categoría..."
                     />
                   </div>
@@ -750,7 +738,7 @@ function CategoryDetailModal({ category, onClose, getProductsByCategory }) {
             .no-scrollbar::-webkit-scrollbar { display: none; }
             .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
           `}</style>
-          
+
           <div className="max-w-2xl mx-auto space-y-6">
             {/* Main Info Card */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -810,13 +798,13 @@ function CategoryDetailModal({ category, onClose, getProductsByCategory }) {
 
             {/* Resumen Card */}
             <div className="bg-gradient-to-br from-pink-50 to-purple-50 rounded-3xl p-6 border border-pink-100 shadow-sm">
-                <div className="flex items-center space-x-3 mb-3">
-                  <Star className="w-5 h-5 text-pink-400" />
-                  <h4 className="font-black text-[10px] uppercase tracking-[0.2em] text-gray-700">Resumen Asthro</h4>
-                </div>
-                <p className="text-sm text-gray-600 italic leading-relaxed">
-                  Las categorías permiten organizar el inventario para facilitar el control de stock y auditorías periódicas.
-                </p>
+              <div className="flex items-center space-x-3 mb-3">
+                <Star className="w-5 h-5 text-pink-400" />
+                <h4 className="font-black text-[10px] uppercase tracking-[0.2em] text-gray-700">Resumen Asthro</h4>
+              </div>
+              <p className="text-sm text-gray-600 italic leading-relaxed">
+                Las categorías permiten organizar el inventario para facilitar el control de stock y auditorías periódicas.
+              </p>
             </div>
           </div>
         </div>
@@ -870,10 +858,10 @@ function DeleteConfirmationModal({ category, onConfirm, onClose }) {
               ¿Eliminar categoría "{category.name}"?
             </h4>
             <p className="text-sm text-gray-500 leading-relaxed mb-6">
-              Estás a punto de eliminar esta categoría de forma permanente. 
+              Estás a punto de eliminar esta categoría de forma permanente.
               Esta acción no se puede deshacer y puede afectar los registros asociados.
             </p>
-            
+
             <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 flex items-center space-x-4">
               <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center">
                 <FolderTree className="w-6 h-6 text-pink-500" />

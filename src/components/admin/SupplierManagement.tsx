@@ -8,21 +8,30 @@ import { supplierService } from '../../services/supplierService';
 import { purchaseService } from '../../services/purchaseService';
 import { SimplePagination } from '../ui/simple-pagination';
 
-const mapApiToFrontend = (apiData: any) => {
-  if (!apiData) return null;
+const mapApiToFrontend = (rawApiData: any) => {
+  if (!rawApiData) return null;
+  
+  // Unwrap if the data is nested (common in single-item API responses like getById)
+  // Check for .data or .result, ignoring paginated or array wrappers
+  const apiData = (rawApiData.data && typeof rawApiData.data === 'object' && !Array.isArray(rawApiData.data)) 
+    ? rawApiData.data 
+    : (rawApiData.result && typeof rawApiData.result === 'object' && !Array.isArray(rawApiData.result))
+    ? rawApiData.result
+    : rawApiData;
+
   return {
-    id: apiData.proveedorId || Math.floor(Math.random() * 10000),
-    supplierType: apiData.tipoProveedor === 'Juridico' ? 'juridica' : 'natural',
-    name: apiData.nombre || '',
-    documentType: apiData.tipoDocumento || (apiData.tipoProveedor === 'Juridico' ? 'NIT' : 'CC'),
-    taxId: apiData.documento || '',
-    contactPerson: apiData.personaContacto || apiData.persona_Contacto || apiData.nombre || '',
-    email: apiData.correo || '',
-    phone: apiData.telefono || '',
-    address: apiData.direccion || '',
-    department: apiData.departamento || '',
-    city: apiData.ciudad || '',
-    status: apiData.estado === false ? 'inactive' : 'active',
+    id: apiData.proveedorId || apiData.ProveedorId || Math.floor(Math.random() * 10000),
+    supplierType: (apiData.tipoProveedor || apiData.TipoProveedor) === 'Juridico' ? 'juridica' : 'natural',
+    name: apiData.nombre || apiData.Nombre || '',
+    documentType: apiData.tipoDocumento || apiData.TipoDocumento || ((apiData.tipoProveedor || apiData.TipoProveedor) === 'Juridico' ? 'NIT' : 'CC'),
+    taxId: apiData.documento || apiData.Documento || '',
+    contactPerson: apiData.personaContacto || apiData.PersonaContacto || apiData.persona_Contacto || apiData.Persona_Contacto || apiData.nombre || apiData.Nombre || '',
+    email: apiData.correo || apiData.Correo || '',
+    phone: apiData.telefono || apiData.Telefono || '',
+    address: apiData.direccion || apiData.Direccion || '',
+    department: apiData.departamento || apiData.Departamento || '',
+    city: apiData.ciudad || apiData.Ciudad || '',
+    status: (apiData.estado !== undefined ? apiData.estado : apiData.Estado) === false ? 'inactive' : 'active',
     totalOrders: 0,
     rating: 0,
     products: []
@@ -888,22 +897,12 @@ function SupplierEditModal({ supplier, existingSuppliers = [], onClose, onSave }
                 </p>
               </div>
             </div>
-            <div className="flex items-center space-x-3">
-              <button
-                onClick={handleSubmit}
-                disabled={isSubmitting || hasErrors}
-                className="flex items-center space-x-2 bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-xl transition-all font-bold text-xs uppercase tracking-widest backdrop-blur-sm shadow-sm"
-              >
-                {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                <span>{isSubmitting ? 'Guardando...' : 'Guardar'}</span>
-              </button>
-              <button
-                onClick={onClose}
-                className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+            <button
+              onClick={onClose}
+              className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
         </div>
 
