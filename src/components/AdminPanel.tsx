@@ -47,7 +47,7 @@ export function AdminPanel({ currentUser, hasPermission }: AdminPanelProps) {
       case 'appointments':
         return <AppointmentManagement hasPermission={hasPermission} currentUser={currentUser} />;
       case 'schedules':
-        return <ScheduleManagement hasPermission={hasPermission} />;
+        return <ScheduleManagement hasPermission={hasPermission} currentUser={currentUser} />;
       case 'services':
         return <ServiceManagement hasPermission={hasPermission} />;
       case 'products':

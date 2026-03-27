@@ -1,4 +1,5 @@
 import { apiClient, PaginatedResponse } from "./apiClient";
+import { Motivo } from "./motivoService";
 
 // ── Interfaces ──
 
@@ -8,12 +9,13 @@ export interface AgendaItem {
   cliente: string;
   documentoEmpleado: string;
   empleado: string;
-  fechaCita: string;
-  horaInicio: string;
-  estado: string;
+  fechaCita: string; // ISO "YYYY-MM-DD"
+  horaInicio: string; // ISO "HH:mm:ss"
   metodoPago: string;
-  servicios: string[];
   observaciones: string;
+  estado: string;
+  estadoId: number;
+  servicios: string[];
 }
 
 export interface CreateAgendaData {
@@ -75,14 +77,16 @@ function timeToMinutes(time: string): number {
 }
 
 /**
- * Check if an employee is occupied during a proposed time window.
- *
+ * Checks if an employee is occupied at a given date/time window.
+ * Returns true if there's an overlapping appointment OR an absence reason.
+ * 
  * @param employeeDoc - documento del empleado
  * @param date        - fecha propuesta "YYYY-MM-DD"
  * @param startTime   - hora de inicio propuesta "HH:mm"
  * @param totalDurationMinutes - duración total (suma de servicios)
  * @param allAppointments - todas las citas existentes
  * @param serviciosMap - mapa servicioNombre → duración (minutos)
+ * @param motivos - lista de motivos de ausencia (opcional)
  * @param excludeAgendaId - id de la cita a excluir (para edición)
  */
 export function isEmployeeOccupied(
@@ -92,6 +96,7 @@ export function isEmployeeOccupied(
   totalDurationMinutes: number,
   allAppointments: AgendaItem[],
   serviciosMap: Map<string, number>,
+  motivos: Motivo[] = [],
   excludeAgendaId?: number,
 ): boolean {
   if (!startTime || !date || totalDurationMinutes <= 0) return false;
@@ -99,8 +104,21 @@ export function isEmployeeOccupied(
   const proposedStart = timeToMinutes(startTime);
   const proposedEnd = proposedStart + totalDurationMinutes;
 
-  // States that do NOT block the schedule (freed slots)
-  // API real IDs: 1=Pendiente, 2=Confirmado, 3=Cancelado, 4=Completado, 5=Sin Agendar
+  // 1. Check absence motives (ALL motives block the schedule)
+  for (const m of motivos) {
+    if (String(m.documentoEmpleado) !== String(employeeDoc)) continue;
+    if (m.fecha.split('T')[0] !== date) continue;
+
+    const mStart = timeToMinutes(m.horaInicio);
+    const mEnd = timeToMinutes(m.horaFin);
+
+    // Overlap: [a, b) and [c, d) overlap if a < d && c < b
+    if (proposedStart < mEnd && mStart < proposedEnd) {
+      return true;
+    }
+  }
+
+  // 2. Check existing appointments
   const NON_BLOCKING_STATES = ["cancelado", "cancelled", "sin agendar", "sin_agendar"];
 
   for (const apt of allAppointments) {
@@ -187,6 +205,7 @@ function normalizeAgendaItem(raw: any): AgendaItem {
     fechaCita:          raw.fechaCita          ?? raw.FechaCita         ?? '',
     horaInicio:         raw.horaInicio         ?? raw.HoraInicio        ?? '',
     estado:             normalizeEstado(raw.estado ?? raw.Estado ?? raw.estadoId ?? raw.EstadoId),
+    estadoId:           raw.estadoId           ?? raw.EstadoId          ?? 1,
     metodoPago:         raw.metodoPago         ?? raw.MetodoPago        ?? '',
     servicios:          Array.isArray(raw.servicios)
                           ? raw.servicios
@@ -273,8 +292,8 @@ export const metodoPagoService = {
 // ── Empleado Service (for agenda module) ──
 
 export const empleadoAgendaService = {
-  async getAll(): Promise<EmpleadoAPI[]> {
-    return apiClient.get("/Empleados");
+  async getAll(params?: { page?: number; pageSize?: number; search?: string }): Promise<PaginatedResponse<EmpleadoAPI>> {
+    return apiClient.get("/Empleados", params);
   },
 };
 

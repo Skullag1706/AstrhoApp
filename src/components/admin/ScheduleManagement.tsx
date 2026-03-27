@@ -9,11 +9,13 @@ import { SimplePagination } from '../ui/simple-pagination';
 import {
   horarioService, horarioEmpleadoService, empleadoService,
   Horario, HorarioEmpleado, Empleado, CreateHorarioData, CreateHorarioEmpleadoData,
-  ScheduleGroup, DaySchedule, scheduleGroupService
+  ScheduleGroup, DaySchedule, scheduleGroupService, HorarioDia
 } from '../../services/scheduleService';
+import { motivoService, Motivo, CreateMotivoData, UpdateMotivoData } from '../../services/motivoService';
 
 interface ScheduleManagementProps {
   hasPermission: (permission: string) => boolean;
+  currentUser: any;
 }
 
 // ── Helpers ──
@@ -44,7 +46,7 @@ const DIAS_SHORT: Record<string, string> = {
   'Jueves': 'Jue', 'Viernes': 'Vie', 'Sábado': 'Sáb', 'Domingo': 'Dom'
 };
 
-export function ScheduleManagement({ hasPermission }: ScheduleManagementProps) {
+export function ScheduleManagement({ hasPermission, currentUser }: ScheduleManagementProps) {
   // Data states
   const [horarios, setHorarios] = useState<Horario[]>([]);
   const [horarioEmpleados, setHorarioEmpleados] = useState<HorarioEmpleado[]>([]);
@@ -58,6 +60,7 @@ export function ScheduleManagement({ hasPermission }: ScheduleManagementProps) {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const [showMotivoModal, setShowMotivoModal] = useState(false);
   const [selectedGroup, setSelectedGroup] = useState<ScheduleGroup | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(5);
@@ -156,6 +159,25 @@ export function ScheduleManagement({ hasPermission }: ScheduleManagementProps) {
   const handleAssignEmployee = (group: ScheduleGroup) => {
     setSelectedGroup(group);
     setShowAssignModal(true);
+  };
+
+  const handleCreateMotivo = () => {
+    setShowMotivoModal(true);
+  };
+
+  const handleSaveMotivo = async (data: CreateMotivoData) => {
+    setSaving(true);
+    try {
+      await motivoService.create(data);
+      showAlert('success', 'Motivo registrado correctamente');
+      setShowMotivoModal(false);
+      await loadData();
+    } catch (error) {
+      console.error('Error saving motivo:', error);
+      showAlert('error', 'Error al registrar el motivo de ausencia');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const confirmDeleteSchedule = async () => {
@@ -534,13 +556,23 @@ export function ScheduleManagement({ hasPermission }: ScheduleManagementProps) {
           </button>
 
           {hasPermission('manage_schedules') && (
-            <button
-              onClick={handleCreateSchedule}
-              className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all flex items-center space-x-2"
-            >
-              <Plus className="w-5 h-5" />
-              <span>Registrar Horario</span>
-            </button>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={handleCreateMotivo}
+                className="bg-gradient-to-r from-blue-400 to-indigo-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all flex items-center space-x-2"
+              >
+                <Clock className="w-5 h-5" />
+                <span>Registrar Motivo</span>
+              </button>
+              
+              <button
+                onClick={handleCreateSchedule}
+                className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all flex items-center space-x-2"
+              >
+                <Plus className="w-5 h-5" />
+                <span>Registrar Horario</span>
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -753,6 +785,164 @@ export function ScheduleManagement({ hasPermission }: ScheduleManagementProps) {
           checkOverlap={checkOverlap}
         />
       )}
+
+      {showMotivoModal && (
+        <MotivoModal
+          onClose={() => setShowMotivoModal(false)}
+          onSave={handleSaveMotivo}
+          saving={saving}
+        />
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════
+// MotivoModal
+// ══════════════════════════════════════════
+
+interface MotivoModalProps {
+  onClose: () => void;
+  onSave: (data: CreateMotivoData) => void;
+  saving: boolean;
+}
+
+function MotivoModal({ onClose, onSave, saving }: MotivoModalProps) {
+  const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
+  const [horaInicio, setHoraInicio] = useState('08:00');
+  const [horaFin, setHoraFin] = useState('18:00');
+  const [descripcion, setDescripcion] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    if (!fecha || !horaInicio || !horaFin || !descripcion.trim()) {
+      setError('Todos los campos son obligatorios');
+      return;
+    }
+
+    if (horaFin <= horaInicio) {
+      setError('La hora de fin debe ser posterior a la hora de inicio');
+      return;
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+    if (fecha < today) {
+      setError('No puedes registrar motivos en fechas pasadas');
+      return;
+    }
+
+    // Ensure time format is HH:mm:ss as required by backend TimeOnly
+    const formatTimeWithSeconds = (timeStr: string) => {
+      if (!timeStr) return "00:00:00";
+      const parts = timeStr.split(':');
+      if (parts.length === 2) return `${timeStr}:00`;
+      if (parts.length === 3) return timeStr;
+      return `${timeStr}:00:00`.substring(0, 8);
+    };
+
+    onSave({
+      fecha,
+      horaInicio: formatTimeWithSeconds(horaInicio),
+      horaFin: formatTimeWithSeconds(horaFin),
+      descripcion: descripcion.trim()
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="bg-gradient-to-r from-blue-500 to-indigo-600 p-5 text-white flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <Clock className="w-6 h-6" />
+            <h3 className="text-xl font-bold">Registrar Motivo de Ausencia</h3>
+          </div>
+          <button onClick={onClose} className="hover:bg-white/20 p-1 rounded-full transition-colors">
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {error && (
+            <div className="bg-red-50 border border-red-100 text-red-600 px-4 py-2 rounded-xl text-sm font-medium flex items-center space-x-2">
+              <AlertCircle className="w-4 h-4" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Fecha</label>
+            <input
+              type="date"
+              value={fecha}
+              onChange={(e) => setFecha(e.target.value)}
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-medium"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Hora Inicio</label>
+              <input
+                type="time"
+                value={horaInicio}
+                onChange={(e) => setHoraInicio(e.target.value)}
+                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-medium"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Hora Fin</label>
+              <input
+                type="time"
+                value={horaFin}
+                onChange={(e) => setHoraFin(e.target.value)}
+                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-medium"
+                required
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Descripción / Motivo</label>
+            <textarea
+              value={descripcion}
+              onChange={(e) => setDescripcion(e.target.value)}
+              rows={3}
+              placeholder="Ej: Cita médica, Trámite personal..."
+              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-medium resize-none"
+              required
+            />
+          </div>
+
+          <div className="pt-4 flex space-x-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-600 rounded-xl font-bold hover:bg-gray-50 transition-all"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex-1 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl font-bold hover:shadow-lg transition-all flex items-center justify-center space-x-2 disabled:opacity-50"
+            >
+              {saving ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <>
+                  <Save className="w-5 h-5" />
+                  <span>Guardar</span>
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
