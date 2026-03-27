@@ -406,7 +406,7 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
   const completedDeliveries = deliveries.filter(d => d.estado.toLowerCase() === 'completado').length;
   const todayDeliveries = deliveries.filter(d => d.fechaEntrega.split('T')[0] === new Date().toISOString().split('T')[0]).length;
 
-  if (loading) {
+  if (loading && deliveries.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
         <Loader2 className="w-12 h-12 text-pink-500 animate-spin" />
@@ -452,7 +452,13 @@ export function SupplyDeliveryManagement({ hasPermission }: SupplyDeliveryManage
       </div>
 
       {/* Deliveries Table */}
-      <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100">
+      <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100 relative min-h-[400px]">
+        {loading && deliveries.length > 0 && (
+          <div className="absolute inset-0 bg-white/60 backdrop-blur-sm z-10 flex flex-col items-center justify-center">
+            <Loader2 className="w-8 h-8 text-pink-500 animate-spin mb-2" />
+            <span className="text-sm font-medium text-gray-500">Buscando...</span>
+          </div>
+        )}
         <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-6 border-b border-gray-100">
           <h3 className="text-xl font-bold text-gray-800">Lista de Entregas</h3>
           <p className="text-gray-600">

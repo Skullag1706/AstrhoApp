@@ -358,16 +358,8 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
         </div>
       </div>
 
-      {/* Loading State */}
-      {loading && (
-        <div className="bg-white rounded-2xl shadow-lg p-12 text-center mb-8">
-          <Loader2 className="w-8 h-8 text-pink-500 animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">Cargando compras...</p>
-        </div>
-      )}
-
       {/* Error State */}
-      {error && !loading && (
+      {error && (
         <div className="bg-red-50 border border-red-200 rounded-2xl p-6 mb-8 text-center">
           <AlertTriangle className="w-8 h-8 text-red-500 mx-auto mb-2" />
           <p className="text-red-700">{error}</p>
@@ -381,8 +373,14 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
       )}
 
       {/* Purchases Table */}
-      {!loading && !error && (
-        <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+      {!error && (
+        <div className="bg-white rounded-2xl shadow-lg overflow-hidden relative min-h-[400px]">
+          {loading && (
+            <div className="absolute inset-0 bg-white/60 backdrop-blur-sm z-10 flex flex-col items-center justify-center">
+              <Loader2 className="w-8 h-8 text-pink-500 animate-spin mb-2" />
+              <span className="text-sm font-medium text-gray-500">Buscando...</span>
+            </div>
+          )}
           <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-6 border-b border-gray-100">
             <h3 className="text-xl font-bold text-gray-800">Historial de Compras</h3>
             <p className="text-gray-600">
@@ -476,7 +474,7 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
       )}
 
       {/* Pagination - Always visible */}
-      {!loading && !error && (
+      {!error && (
         <div className="px-6 py-4 bg-gray-50/50 rounded-b-2xl border-t border-gray-100">
           <SimplePagination
             totalPages={totalPages}

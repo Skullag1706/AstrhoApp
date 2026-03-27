@@ -354,7 +354,13 @@ export function SupplierManagement({ hasPermission }: SupplierManagementProps) {
       </div>
 
       {/* Suppliers List */}
-      <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-lg overflow-hidden relative min-h-[400px]">
+        {isLoading && currentSuppliers.length > 0 && (
+          <div className="absolute inset-0 bg-white/60 backdrop-blur-sm z-10 flex flex-col items-center justify-center">
+            <Loader2 className="w-8 h-8 text-pink-500 animate-spin mb-2" />
+            <span className="text-sm font-medium text-gray-500">Cargando...</span>
+          </div>
+        )}
         <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-6 border-b border-gray-100">
           <h3 className="text-xl font-bold text-gray-800">Lista de Proveedores</h3>
           <p className="text-gray-600">

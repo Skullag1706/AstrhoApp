@@ -319,7 +319,13 @@ export function SalesManagement({ hasPermission, currentUser }: SalesManagementP
       </div>
 
       {/* Sales Table */}
-      <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-lg overflow-hidden relative min-h-[400px]">
+        {loading && sales.length > 0 && (
+          <div className="absolute inset-0 bg-white/60 backdrop-blur-sm z-10 flex flex-col items-center justify-center">
+            <div className="w-8 h-8 rounded-full border-4 border-pink-300 border-t-transparent animate-spin mb-2" />
+            <span className="text-sm font-medium text-gray-500">Buscando...</span>
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50">

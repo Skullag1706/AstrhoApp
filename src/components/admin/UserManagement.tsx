@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   Users, Plus, Edit, Trash2, Eye, Search, Filter, CheckCircle, XCircle, X, Save,
   AlertCircle, Mail, Phone, Calendar, Shield, UserCog, Download, Upload,
-  FileText, Camera, MapPin, IdCard, UserCheck, User, Star
+  FileText, Camera, MapPin, IdCard, UserCheck, User, Star, Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { SimplePagination } from '../ui/simple-pagination';
@@ -387,7 +387,13 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
       </div>
 
       {/* Users Table */}
-      <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-lg overflow-hidden relative min-h-[400px]">
+        {loading && paginatedUsers.length > 0 && (
+          <div className="absolute inset-0 bg-white/60 backdrop-blur-sm z-10 flex flex-col items-center justify-center">
+            <Loader2 className="w-8 h-8 text-pink-500 animate-spin mb-2" />
+            <span className="text-sm font-medium text-gray-500">Cargando...</span>
+          </div>
+        )}
         <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-6 border-b border-gray-100">
           <h3 className="text-xl font-bold text-gray-800">Lista de Usuarios</h3>
           <p className="text-gray-600">
@@ -406,7 +412,7 @@ export function UserManagement({ hasPermission }: UserManagementProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {loading ? (
+              {loading && paginatedUsers.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
                     Cargando usuarios...

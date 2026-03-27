@@ -172,8 +172,8 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
 
       // Trigger auto-cancellation for overdue appointments
       const currentAppointments = agendaResponse.data || [];
-      const currentServicios = extract(results[3]).filter((s: any) => s.estado);
-      const currentMetodos = extract(results[4]);
+      const currentServicios = extract(results[2]).filter((s: any) => s.estado);
+      const currentMetodos = extract(results[3]);
       autoCancelOverdue(currentAppointments, currentServicios, currentMetodos);
 
       const anyFailed = results.some((r) => r.status === 'rejected');
@@ -360,41 +360,41 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
   };
 
   // ── Loading state ──
-  if (loading) {
+  if (loading && appointments.length === 0) {
     return (
       <div className="p-8 flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <Loader2 className="w-12 h-12 text-purple-500 animate-spin mx-auto mb-4" />
           <p className="text-gray-600 text-lg">Cargando agendamiento...</p>
         </div>
-
-        {/* Success Alert */}
-        {showSuccessAlert && (
-          <div className="fixed top-4 right-4 z-[9999] animate-in slide-in-from-top-5 duration-300">
-            <div className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center space-x-4 min-w-[320px]">
-              <div className="flex-shrink-0">
-                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                  <CheckCircle className="w-6 h-6 text-white" />
-                </div>
-              </div>
-              <div className="flex-1">
-                <p className="font-semibold">{alertMessage}</p>
-              </div>
-              <button
-                onClick={() => setShowSuccessAlert(false)}
-                className="flex-shrink-0 w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     );
   }
 
   return (
     <div className="p-8">
+      {/* Success Alert */}
+      {showSuccessAlert && (
+        <div className="fixed top-4 right-4 z-[9999] animate-in slide-in-from-top-5 duration-300">
+          <div className="bg-gradient-to-r from-pink-400 to-purple-500 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center space-x-4 min-w-[320px]">
+            <div className="flex-shrink-0">
+              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                <CheckCircle className="w-6 h-6 text-white" />
+              </div>
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold">{alertMessage}</p>
+            </div>
+            <button
+              onClick={() => setShowSuccessAlert(false)}
+              className="flex-shrink-0 w-8 h-8 bg-white/20 rounded-full flex items-center justify-center hover:bg-white/30 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
+      
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
@@ -473,7 +473,13 @@ export function AppointmentManagement({ hasPermission }: AppointmentManagementPr
       </div>
 
       {/* Appointments List */}
-      <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-lg overflow-hidden relative min-h-[400px]">
+        {loading && appointments.length > 0 && (
+          <div className="absolute inset-0 bg-white/60 backdrop-blur-sm z-10 flex flex-col items-center justify-center">
+            <Loader2 className="w-8 h-8 text-pink-500 animate-spin mb-2" />
+            <span className="text-sm font-medium text-gray-500">Buscando...</span>
+          </div>
+        )}
         <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-6 border-b border-gray-100">
           <h3 className="text-xl font-bold text-gray-800">Lista de Citas</h3>
           <p className="text-gray-600">
@@ -885,12 +891,22 @@ function AppointmentModal({
     const slots: string[] = [];
     const interval = 30; // 30-minute granularity for slots
 
+    // Block past hours if the selected date is today
+    const now = new Date();
+    const selectedDateStr = formData.fechaCita;
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const isToday = selectedDateStr === todayStr;
+    const nowMinutes = isToday ? now.getHours() * 60 + now.getMinutes() : 0;
+
     effectiveSchedules.forEach((sched) => {
       const startMin = timeStrToMinutes(sched.horaInicio);
       const endMin = timeStrToMinutes(sched.horaFin);
 
       // Generate possible start times within this schedule
       for (let current = startMin; current + totalDuration <= endMin; current += interval) {
+        // Skip past time slots if scheduling for today
+        if (isToday && current <= nowMinutes) continue;
+
         const hh = Math.floor(current / 60);
         const mm = current % 60;
         const timeStr = `${hh.toString().padStart(2, '0')}:${mm.toString().padStart(2, '0')}`;

@@ -132,7 +132,7 @@ export function SupplyManagement({ hasPermission }: SupplyManagementProps) {
 
   const confirmDeleteSupply = async () => {
     if (!supplyToDelete) return;
-    
+
     try {
       await supplyService.deleteSupply(supplyToDelete.insumoId);
       await fetchSupplies();
@@ -222,16 +222,8 @@ export function SupplyManagement({ hasPermission }: SupplyManagementProps) {
         </div>
       </div>
 
-      {/* Loading State */}
-      {loading && (
-        <div className="bg-white rounded-2xl shadow-lg p-12 text-center mb-8">
-          <Loader2 className="w-8 h-8 text-pink-500 animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">Cargando insumos...</p>
-        </div>
-      )}
-
       {/* Error State */}
-      {error && !loading && (
+      {error && (
         <div className="bg-red-50 border border-red-200 rounded-2xl p-6 mb-8 text-center">
           <AlertTriangle className="w-8 h-8 text-red-500 mx-auto mb-2" />
           <p className="text-red-700">{error}</p>
@@ -245,8 +237,14 @@ export function SupplyManagement({ hasPermission }: SupplyManagementProps) {
       )}
 
       {/* Table */}
-      {!loading && !error && (
-        <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+      {!error && (
+        <div className="bg-white rounded-2xl shadow-lg overflow-hidden relative min-h-[400px]">
+          {loading && supplies.length > 0 && (
+            <div className="absolute inset-0 bg-white/60 backdrop-blur-sm z-10 flex flex-col items-center justify-center">
+              <Loader2 className="w-8 h-8 text-pink-500 animate-spin mb-2" />
+              <span className="text-sm font-medium text-gray-500">Buscando...</span>
+            </div>
+          )}
           <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-6 border-b border-gray-100">
             <h3 className="text-xl font-bold text-gray-800">Lista de Insumos</h3>
             <p className="text-gray-600">
@@ -275,18 +273,18 @@ export function SupplyManagement({ hasPermission }: SupplyManagementProps) {
                     <td className="px-6 py-4 text-sm text-gray-700">{supply.categoriaNombre || 'N/A'}</td>
                     <td className="px-6 py-4">
                       <span className={`px-3 py-1 rounded-full text-sm font-semibold ${(supply.stock ?? 0) <= 0
-                          ? 'bg-red-100 text-red-800'
-                          : (supply.stock ?? 0) <= 5
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-green-100 text-green-800'
+                        ? 'bg-red-100 text-red-800'
+                        : (supply.stock ?? 0) <= 5
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : 'bg-green-100 text-green-800'
                         }`}>
                         {supply.stock ?? 0}
                       </span>
                     </td>
                     <td className="px-6 py-4">
                       <span className={`px-2 py-1 rounded-full text-xs font-semibold ${supply.estado
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-red-100 text-red-800'
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-red-100 text-red-800'
                         }`}>
                         {supply.estado ? 'Activo' : 'Inactivo'}
                       </span>
@@ -396,14 +394,12 @@ export function SupplyManagement({ hasPermission }: SupplyManagementProps) {
                   </div>
 
                   {/* Status Card */}
-                  <div className={`rounded-2xl p-5 border shadow-sm flex flex-col items-center justify-center ${
-                    selectedSupply.estado 
-                    ? 'bg-green-50/50 border-green-100 text-green-600' 
-                    : 'bg-red-50/50 border-red-100 text-red-600'
-                  }`}>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-2 ${
-                      selectedSupply.estado ? 'bg-green-100' : 'bg-red-100'
+                  <div className={`rounded-2xl p-5 border shadow-sm flex flex-col items-center justify-center ${selectedSupply.estado
+                      ? 'bg-green-50/50 border-green-100 text-green-600'
+                      : 'bg-red-50/50 border-red-100 text-red-600'
                     }`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-2 ${selectedSupply.estado ? 'bg-green-100' : 'bg-red-100'
+                      }`}>
                       <CheckCircle className="w-5 h-5" />
                     </div>
                     <span className="font-black uppercase text-[10px] tracking-[0.2em]">
@@ -485,10 +481,10 @@ export function SupplyManagement({ hasPermission }: SupplyManagementProps) {
                   ¿Eliminar insumo "{supplyToDelete.nombre}"?
                 </h4>
                 <p className="text-sm text-gray-500 leading-relaxed mb-6">
-                  Estás a punto de eliminar este insumo de forma permanente. 
+                  Estás a punto de eliminar este insumo de forma permanente.
                   Esta acción afectará los registros históricos y el inventario actual.
                 </p>
-                
+
                 <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 flex items-center space-x-4">
                   <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center">
                     <Package className="w-6 h-6 text-pink-500" />
