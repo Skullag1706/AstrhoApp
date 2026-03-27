@@ -9,6 +9,7 @@ import { supplyService, Supply } from '../../services/supplyService';
 import { personService, Person } from '../../services/personService';
 import { authService } from '../../services/authService';
 import { Loader2 } from 'lucide-react';
+import { cn } from '../ui/utils';
 
 interface SupplyDeliveryManagementProps {
   hasPermission: (permission: string) => boolean;
@@ -975,32 +976,24 @@ function CreateDeliveryModal({ onClose, onSave, supplies, users, isProcessing }:
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 border border-white/20">
-        {/* Header - Fixed at top like UserManagement */}
-        <div className="bg-gradient-to-r from-pink-500 to-purple-600 p-6 text-white shrink-0 shadow-md z-20">
+        {/* Header - Fixed at top */}
+        <div className="bg-gradient-to-r from-pink-500 to-purple-600 p-5 text-white shrink-0 shadow-md z-20">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                <Plus className="w-6 h-6 text-white" />
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm shadow-inner">
+                <Package className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h3 className="text-2xl font-black tracking-tight">Registrar Entrega de Insumos</h3>
-                <p className="text-pink-100 text-xs font-medium uppercase tracking-widest opacity-80">Registro de entrega interna para el salón</p>
+                <h3 className="text-xl font-bold leading-tight">Registrar Entrega de Insumos</h3>
+                <p className="text-pink-100 text-sm">Registro de entrega interna para el salón</p>
               </div>
             </div>
             <div className="flex items-center space-x-3">
               <button
-                onClick={() => handleSubmit()}
-                disabled={isProcessing || formData.items.length === 0}
-                className="flex items-center space-x-2 px-6 py-2.5 bg-green-500 hover:bg-green-600 rounded-xl transition-all text-sm font-bold border border-green-400 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                <span>{isProcessing ? 'Procesando...' : 'Registrar Entrega'}</span>
-              </button>
-              <button
                 onClick={onClose}
-                className="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-2xl flex items-center justify-center transition-all shadow-sm"
+                className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
               >
-                <X className="w-6 h-6" />
+                <X className="w-5 h-5" />
               </button>
             </div>
           </div>
@@ -1088,138 +1081,123 @@ function CreateDeliveryModal({ onClose, onSave, supplies, users, isProcessing }:
                 </div>
               </div>
 
-              {/* Right Column: Insumos (Multi-Product Table Style) */}
+              {/* Right Column: Insumos (Matching Purchase Form Style) */}
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
                 <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100 flex items-center justify-between">
                   <div className="flex items-center space-x-2">
-                    <Package className="w-4 h-4 text-blue-500" />
-                    <h4 className="font-bold text-gray-700 text-sm uppercase tracking-wider">Insumos a Entregar</h4>
+                    <Package className="w-4 h-4 text-pink-400" />
+                    <h4 className="font-bold text-gray-700 text-sm">Insumos a Entregar</h4>
                   </div>
                   <button
                     type="button"
                     onClick={addInsumo}
-                    className="bg-pink-500 hover:bg-pink-600 text-white p-2 rounded-lg transition-all shadow-md active:scale-95"
-                    title="Agregar Insumo"
+                    className="bg-gradient-to-r from-pink-500 to-purple-600 text-white px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:shadow-lg transition-all flex items-center space-x-2"
                   >
                     <Plus className="w-4 h-4" />
+                    <span>Añadir Insumo</span>
                   </button>
                 </div>
 
-                <div className="p-6 flex-1 space-y-4 max-h-[500px] overflow-y-auto no-scrollbar">
-                  {errors.items && (
-                    <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-xs font-semibold text-center">
-                      {errors.items}
-                    </div>
-                  )}
+                <div className="p-6 flex-1 max-h-[500px] overflow-y-auto no-scrollbar">
+                  {formData.items.length > 0 ? (
+                    <div className="divide-y divide-gray-100">
+                      {formData.items.map((item: any, index: number) => {
+                        const supplyIdNum = parseInt(item.supplyId);
+                        const supply = supplies.find((s: any) => s.insumoId === supplyIdNum);
+                        const rawStock = supply?.cantidad ?? supply?.stock ?? supply?.existencia ?? supply?.stock_quantity;
+                        const availableStock = rawStock !== undefined ? parseFloat(rawStock as any) : 0;
+                        const isOverStock = item.supplyId && parseFloat(item.quantity) > availableStock;
 
-                  {formData.items.length === 0 ? (
-                    <div className="bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl p-12 text-center">
-                      <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mx-auto mb-4">
-                        <ShoppingCart className="w-8 h-8 text-gray-300" />
-                      </div>
-                      <p className="text-gray-400 font-bold text-sm uppercase tracking-widest">No hay insumos</p>
-                      <button
-                        type="button"
-                        onClick={addInsumo}
-                        className="mt-4 text-pink-500 font-bold text-xs uppercase tracking-widest hover:text-pink-600 transition-colors"
-                      >
-                        + Agregar el primero
-                      </button>
-                    </div>
-                  ) : (
-                    formData.items.map((item: any, index: number) => {
-                      const supplyIdNum = parseInt(item.supplyId);
-                      const supply = supplies.find((s: any) => s.insumoId === supplyIdNum);
-                      const rawStock = supply?.cantidad ?? supply?.stock ?? supply?.existencia ?? supply?.stock_quantity;
-                      const availableStock = rawStock !== undefined ? parseFloat(rawStock as any) : 0;
-                      const isOverStock = item.supplyId && parseFloat(item.quantity) > availableStock;
-
-                      return (
-                        <div key={index} className={`bg-gray-50/50 p-4 rounded-2xl border transition-all ${isOverStock || errors[`supply_${index}`] ? 'border-red-200 bg-red-50/30' : 'border-gray-100'}`}>
-                          <div className="flex items-start gap-3">
-                            <div className="flex-1 space-y-3">
-                              <div>
-                                <label className="block text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Insumo *</label>
-                                <select
-                                  value={item.supplyId}
-                                  onChange={(e) => updateInsumo(index, 'supplyId', e.target.value)}
-                                  className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-pink-300 transition-all appearance-none"
-                                  required
-                                >
-                                  <option value="">Seleccionar...</option>
-                                  {supplies.filter((s: any) => s.estado === true || s.Estado === true).map((s: any) => (
-                                    <option key={s.insumoId} value={s.insumoId}>
-                                      {s.nombre || s.Nombre}
-                                    </option>
-                                  ))}
-                                </select>
-                                {errors[`supply_${index}`] && <p className="text-[9px] text-red-500 mt-1">{errors[`supply_${index}`]}</p>}
-                              </div>
-
-                              <div className="flex items-center gap-4">
-                                <div className="flex-1">
-                                  <label className="block text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Cantidad *</label>
-                                  <input
-                                    type="number"
-                                    value={item.quantity}
-                                    onChange={(e) => updateInsumo(index, 'quantity', e.target.value)}
-                                    min="1"
-                                    className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-pink-300 transition-all"
-                                    required
-                                  />
-                                </div>
-                                {item.supplyId && (
-                                  <div className="flex-1">
-                                    <label className="block text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Disponible</label>
-                                    <div className="px-3 py-2.5 bg-gray-100 rounded-xl text-xs font-bold text-gray-500">
-                                      {availableStock} {supply?.unidad_medida || ''}
-                                    </div>
-                                  </div>
+                        return (
+                          <div key={index} className="flex flex-wrap md:flex-nowrap items-end gap-4 py-4 group">
+                            <div className="flex-1 min-w-[200px]">
+                              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Insumo *</label>
+                              <select
+                                value={item.supplyId}
+                                onChange={(e) => updateInsumo(index, 'supplyId', e.target.value)}
+                                className={cn(
+                                  "w-full px-3 py-2 bg-white border rounded-xl focus:ring-2 focus:ring-pink-300 transition-all font-medium text-gray-700 text-sm appearance-none",
+                                  errors[`supply_${index}`] ? 'border-red-300' : 'border-gray-200'
                                 )}
-                              </div>
-                              {isOverStock && <p className="text-[9px] text-red-500 font-bold uppercase tracking-tight">¡Stock insuficiente!</p>}
+                                required
+                              >
+                                <option value="">Seleccionar...</option>
+                                {supplies.filter((s: any) => s.estado === true || s.Estado === true).map((s: any) => (
+                                  <option key={s.insumoId} value={s.insumoId}>
+                                    {s.nombre || s.Nombre}
+                                  </option>
+                                ))}
+                              </select>
                             </div>
+
+                            <div className="w-24">
+                              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Cant. *</label>
+                              <input
+                                type="number"
+                                value={item.quantity}
+                                onChange={(e) => updateInsumo(index, 'quantity', e.target.value)}
+                                min="1"
+                                className={cn(
+                                  "w-full px-3 py-2 bg-white border rounded-xl focus:ring-2 focus:ring-pink-300 transition-all font-bold text-gray-700 text-sm",
+                                  isOverStock ? 'border-red-300' : 'border-gray-200'
+                                )}
+                                required
+                              />
+                            </div>
+
+                            {item.supplyId && (
+                              <div className="w-28">
+                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Disponible</label>
+                                <div className={`w-full px-3 py-2 bg-gray-100 border border-gray-200 rounded-xl font-bold text-sm ${isOverStock ? 'text-red-500' : 'text-gray-500'}`}>
+                                  {availableStock} {supply?.unidad_medida || ''}
+                                </div>
+                              </div>
+                            )}
 
                             <button
                               type="button"
                               onClick={() => removeInsumo(index)}
-                              className="mt-6 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                              className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all mb-1"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
-                        </div>
-                      );
-                    })
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-center py-10 border-2 border-dashed border-gray-100 rounded-3xl">
+                      <Package className="w-10 h-10 text-gray-200 mx-auto mb-2" />
+                      <p className="text-sm text-gray-400 font-medium">No has agregado ningún insumo aún</p>
+                    </div>
                   )}
+                  {errors.items && <p className="text-red-500 text-[10px] mt-2 text-center font-black uppercase tracking-widest">{errors.items}</p>}
                 </div>
               </div>
             </div>
 
-            {/* Summary Footer Card */}
-            <div className="bg-gradient-to-r from-pink-500 to-purple-600 rounded-3xl p-6 text-white shadow-xl flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
-                  <Package className="w-6 h-6" />
-                </div>
-                <div>
-                  <h4 className="font-black text-lg uppercase tracking-tight">Resumen de Carga</h4>
-                  <p className="text-pink-100 text-xs font-medium uppercase tracking-widest opacity-80">
-                    {formData.items.length} Insumos • {formData.items.reduce((sum: number, item: any) => sum + (parseFloat(item.quantity) || 0), 0)} Unidades Totales
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => handleSubmit()}
-                disabled={isProcessing || formData.items.length === 0}
-                className="px-8 py-3 bg-white text-purple-600 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-pink-50 transition-all active:scale-95 disabled:opacity-50 shadow-lg"
-              >
-                {isProcessing ? 'Procesando...' : 'Registrar Entrega'}
-              </button>
-            </div>
           </div>
         </form>
+
+        {/* Footer - Fixed at bottom */}
+        <div className="p-5 bg-white border-t border-gray-100 flex flex-wrap gap-3 justify-end shrink-0 z-20">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-8 py-2.5 rounded-xl font-black text-gray-500 hover:bg-gray-200 hover:text-gray-800 active:scale-95 transition-all text-sm uppercase tracking-widest shadow-sm"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSubmit()}
+            disabled={isProcessing || formData.items.length === 0}
+            className="px-8 py-2.5 bg-gradient-to-r from-pink-400 to-purple-500 text-white rounded-xl font-black hover:shadow-lg active:scale-95 transition-all text-sm uppercase tracking-widest shadow-md flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            <span>{isProcessing ? 'Procesando...' : 'Registrar Entrega'}</span>
+          </button>
+        </div>
       </div>
     </div>
   );
