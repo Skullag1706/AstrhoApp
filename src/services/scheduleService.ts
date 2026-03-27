@@ -160,7 +160,9 @@ export const horarioEmpleadoService = {
   },
 
   async createBulk(data: BulkHorarioEmpleadoData): Promise<void> {
-    return apiClient.post("/HorarioEmpleado", data);
+    const endpoint = "/HorarioEmpleado/masivo";
+    console.log(`[scheduleService] Llamando a ${endpoint} con payload:`, JSON.stringify(data, null, 2));
+    return apiClient.post(endpoint, data);
   },
 
   async createMasivo(data: { horarioId: number; documentosEmpleado: string[] }): Promise<void> {
