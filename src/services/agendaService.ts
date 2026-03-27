@@ -292,8 +292,8 @@ export const metodoPagoService = {
 // ── Empleado Service (for agenda module) ──
 
 export const empleadoAgendaService = {
-  async getAll(): Promise<EmpleadoAPI[]> {
-    return apiClient.get("/Empleados");
+  async getAll(params?: { page?: number; pageSize?: number; search?: string }): Promise<PaginatedResponse<EmpleadoAPI>> {
+    return apiClient.get("/Empleados", params);
   },
 };
 

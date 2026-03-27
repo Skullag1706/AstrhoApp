@@ -50,8 +50,26 @@ export interface UpdatePurchaseRequest {
 // ── Service ──
 
 export const purchaseService = {
-    getAll: async (params?: { page?: number; pageSize?: number; search?: string }): Promise<PaginatedResponse<PurchaseAPI>> => {
-        return apiClient.get<PaginatedResponse<PurchaseAPI>>('/Compras', params);
+    getAll: async (params?: { pagina?: number; registrosPorPagina?: number; buscar?: string }): Promise<PaginatedResponse<PurchaseAPI>> => {
+        const response = await apiClient.get<any>('/Compras', params);
+        
+        // Si el resultado ya tiene el formato PaginatedResponse
+        if (response && response.data && Array.isArray(response.data)) {
+            return response;
+        }
+
+        // Fallback para cuando la API devuelve un array directamente
+        if (Array.isArray(response)) {
+            return {
+                data: response,
+                totalCount: response.length,
+                page: params?.pagina || 1,
+                pageSize: params?.registrosPorPagina || response.length,
+                totalPages: 1
+            };
+        }
+
+        return { data: [], totalCount: 0, page: 1, pageSize: 10, totalPages: 0 };
     },
 
     getById: async (id: number): Promise<PurchaseAPI> => {

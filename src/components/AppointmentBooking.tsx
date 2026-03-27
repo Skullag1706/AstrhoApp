@@ -9,6 +9,7 @@ import { agendaService, empleadoAgendaService, metodoPagoService, AgendaItem } f
 import { userService } from '../services/userService';
 import { horarioEmpleadoService, HorarioEmpleado } from '../services/scheduleService';
 import { motivoService, Motivo } from '../services/motivoService';
+import { useServicios, useEmpleados } from '../hooks/useBookingData';
 
 const defaultTimeSlots = [
   '08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
@@ -31,75 +32,50 @@ export function AppointmentBooking({ currentUser, onBookingComplete, onBack, ini
   const [selectedMetodoPago, setSelectedMetodoPago] = useState<any>(null);
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [selectedTime, setSelectedTime] = useState<string>('');
-  const [services, setServices] = useState<any[]>([]);
-  const [professionals, setProfessionals] = useState<any[]>([]);
+  
+  const { 
+    data: services, 
+    loading: isLoadingServices, 
+    page: servicePage, 
+    setPage: setServicePage, 
+    search: serviceSearchTerm, 
+    setSearch: setServiceSearchTerm,
+    totalPages: totalServicePages
+  } = useServicios(6);
+
+  const { 
+    data: professionals, 
+    loading: isLoadingProfessionals, 
+    page: professionalPage, 
+    setPage: setProfessionalPage, 
+    search: professionalSearchTerm, 
+    setSearch: setProfessionalSearchTerm,
+    totalPages: totalProfessionalPages,
+    error: professionalError
+  } = useEmpleados(6);
+
   const [existingAppointments, setExistingAppointments] = useState<AgendaItem[]>([]);
   const [metodosPago, setMetodosPago] = useState<any[]>([]);
   const [horariosEmpleados, setHorariosEmpleados] = useState<HorarioEmpleado[]>([]);
   const [motivos, setMotivos] = useState<Motivo[]>([]);
-  const [isLoadingServices, setIsLoadingServices] = useState(true);
-  const [isLoadingProfessionals, setIsLoadingProfessionals] = useState(true);
   const [isBooking, setIsBooking] = useState(false);
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [clientDocument, setClientDocument] = useState<string>('');
-  const [professionalSearchTerm, setProfessionalSearchTerm] = useState('');
-  const [hasProfessionalPermissionError, setHasProfessionalPermissionError] = useState(false);
 
-  // Pagination and Search for Services
-  const [serviceSearchTerm, setServiceSearchTerm] = useState('');
-  const [debouncedServiceSearchTerm, setDebouncedServiceSearchTerm] = useState('');
-  const [servicePage, setServicePage] = useState(1);
-  const itemsPerPage = 6;
-
-  // Pagination for Professionals
-  const [professionalPage, setProfessionalPage] = useState(1);
-  const [debouncedProfessionalSearchTerm, setDebouncedProfessionalSearchTerm] = useState('');
+  const hasProfessionalPermissionError = professionalError?.includes('403');
 
   // Service Map for duration lookup
   const [serviciosMap, setServiciosMap] = useState<Map<string, number>>(new Map());
 
-  // Debounce effect for search terms
+  // Update serviciosMap whenever services change
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedServiceSearchTerm(serviceSearchTerm);
-      setServicePage(1); // Reset to first page on search
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [serviceSearchTerm]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedProfessionalSearchTerm(professionalSearchTerm);
-      setProfessionalPage(1); // Reset to first page on search
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [professionalSearchTerm]);
-
-  // Filter and Paginate Services
-  const filteredServices = services.filter(s => 
-    s.name.toLowerCase().includes(debouncedServiceSearchTerm.toLowerCase()) ||
-    s.description.toLowerCase().includes(debouncedServiceSearchTerm.toLowerCase()) ||
-    s.category.toLowerCase().includes(debouncedServiceSearchTerm.toLowerCase())
-  );
-
-  const totalServicePages = Math.ceil(filteredServices.length / itemsPerPage);
-  const paginatedServices = filteredServices.slice(
-    (servicePage - 1) * itemsPerPage,
-    servicePage * itemsPerPage
-  );
-
-  // Filter and Paginate Professionals
-  const filteredProfessionals = professionals.filter(p => 
-    p.name.toLowerCase().includes(debouncedProfessionalSearchTerm.toLowerCase()) ||
-    p.role.toLowerCase().includes(debouncedProfessionalSearchTerm.toLowerCase())
-  );
-
-  const totalProfessionalPages = Math.ceil(filteredProfessionals.length / itemsPerPage);
-  const paginatedProfessionals = filteredProfessionals.slice(
-    (professionalPage - 1) * itemsPerPage,
-    professionalPage * itemsPerPage
-  );
+    if (services.length > 0) {
+      const sMap = new Map<string, number>();
+      services.forEach(s => sMap.set(s.name, s.duration));
+      setServiciosMap(sMap);
+    }
+  }, [services]);
 
   // Initialize data for new booking or reschedule
   useEffect(() => {
@@ -129,18 +105,7 @@ export function AppointmentBooking({ currentUser, onBookingComplete, onBack, ini
     const fetchData = async () => {
       try {
         // Individual catch for each promise to avoid Promise.all failing completely
-        const [servicesData, professionalsData, appointmentsData, metodosData, horariosData, motivosData] = await Promise.all([
-          serviceService.getServices().catch(err => {
-            console.error('Error fetching services:', err);
-            return [];
-          }),
-          empleadoAgendaService.getAll().catch(err => {
-            console.error('Error fetching professionals:', err);
-            if (err.message?.includes('403')) {
-              setHasProfessionalPermissionError(true);
-            }
-            return [];
-          }),
+        const [appointmentsData, metodosData, horariosData, motivosData] = await Promise.all([
           agendaService.getAll().catch(err => {
             console.error('Error fetching appointments:', err);
             return [];
@@ -177,43 +142,6 @@ export function AppointmentBooking({ currentUser, onBookingComplete, onBack, ini
         }
         setHorariosEmpleados(horariosArray);
 
-        // Process Services
-        let servicesArray = [];
-        if (Array.isArray(servicesData)) {
-          servicesArray = servicesData;
-        } else if (servicesData && typeof servicesData === 'object') {
-          servicesArray = (servicesData as any).data || (servicesData as any).$values || [];
-        }
-
-        const activeServices = servicesArray
-          .filter((s: any) => {
-            // Improved robust isActive check
-            const estado = s.estado !== undefined ? s.estado : s.Estado;
-            
-            return estado === true || 
-                   estado === 1 || 
-                   estado === '1' || 
-                   String(estado).toLowerCase() === 'activo' ||
-                   estado === undefined || 
-                   estado === null;
-          })
-          .map((s: any) => ({
-            id: s.servicioId || s.ServicioId || s.id || s.Id,
-            name: s.nombre || s.Nombre || 'Sin nombre',
-            description: s.descripcion || s.Descripcion || '',
-            price: s.precio || s.Precio || 0,
-            duration: s.duracion || s.Duracion || 0,
-            category: s.categoriaNombre || s.CategoriaNombre || 'General',
-            icon: Scissors,
-            color: 'bg-pink-500'
-          }));
-        setServices(activeServices);
-
-        // Build duration map
-        const sMap = new Map<string, number>();
-        activeServices.forEach(s => sMap.set(s.name, s.duration));
-        setServiciosMap(sMap);
-
         // Process Payment Methods
         let metodosArray = [];
         if (Array.isArray(metodosData)) {
@@ -243,29 +171,6 @@ export function AppointmentBooking({ currentUser, onBookingComplete, onBack, ini
           setSelectedMetodoPago(defaultMetodo);
         }
 
-        // Process Professionals
-        let professionalsArray = [];
-        if (Array.isArray(professionalsData)) {
-          professionalsArray = professionalsData;
-        } else if (professionalsData && typeof professionalsData === 'object') {
-          professionalsArray = (professionalsData as any).data || (professionalsData as any).$values || [];
-        }
-
-        const activeProfessionals = professionalsArray
-          .filter((p: any) => {
-            const est = p.estado !== undefined ? p.estado : p.Estado;
-            return est === true || est === 1 || String(est).toLowerCase() === 'activo' || est === undefined || est === null;
-          })
-          .map((p: any, index: number) => ({
-            id: p.documentoEmpleado || p.DocumentoEmpleado,
-            name: p.nombre || p.Nombre,
-            role: 'Estilista Profesional',
-            rating: 4.8 + (index * 0.1) % 0.2, // Mock rating
-            color: ['bg-rose-500', 'bg-violet-500', 'bg-emerald-500', 'bg-blue-500', 'bg-amber-500'][index % 5],
-            avatar: (p.nombre || p.Nombre || 'P').split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()
-          }));
-        setProfessionals(activeProfessionals);
-
         setExistingAppointments(Array.isArray(appointmentsData) ? appointmentsData : (appointmentsData as any)?.$values || (appointmentsData as any)?.data || []);
         
         // Fetch client document
@@ -277,9 +182,6 @@ export function AppointmentBooking({ currentUser, onBookingComplete, onBack, ini
         }
       } catch (error) {
         console.error('Error fetching data for booking:', error);
-      } finally {
-        setIsLoadingServices(false);
-        setIsLoadingProfessionals(false);
       }
     };
     fetchData();
@@ -672,9 +574,9 @@ export function AppointmentBooking({ currentUser, onBookingComplete, onBack, ini
                   )}
                 </div>
 
-                {paginatedServices.length > 0 ? (
+                {services.length > 0 ? (
                   <div className="grid md:grid-cols-2 gap-6 mb-8">
-                    {paginatedServices.map((service) => {
+                    {services.map((service) => {
                       const isSelected = selectedServices.some(s => s.id === service.id);
                       return (
                         <div
@@ -944,10 +846,10 @@ export function AppointmentBooking({ currentUser, onBookingComplete, onBack, ini
                   )}
                 </div>
 
-                {paginatedProfessionals.length > 0 ? (
+                {professionals.length > 0 ? (
                   <>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-                      {paginatedProfessionals.map((professional) => (
+                      {professionals.map((professional) => (
                         <div
                           key={professional.id}
                           onClick={() => {

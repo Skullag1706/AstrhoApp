@@ -53,18 +53,34 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
   const [alertMessage, setAlertMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const itemsPerPage = 5;
+
+  // ── Debounce Search ──
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   // ── Fetch data from API ──
   const fetchPurchases = async () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await purchaseService.getAll({
-        page: currentPage,
-        pageSize: itemsPerPage,
-        search: searchTerm
-      });
+      
+      // Construir parámetros para la API
+      const params: any = {
+        pagina: currentPage,
+        registrosPorPagina: itemsPerPage,
+      };
+      
+      if (debouncedSearch.trim()) {
+        params.buscar = debouncedSearch.trim();
+      }
+
+      const response = await purchaseService.getAll(params);
 
       const items = response.data || [];
       setTotalCount(response.totalCount || 0);
@@ -102,7 +118,7 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
 
   useEffect(() => {
     fetchPurchases();
-  }, [currentPage, searchTerm]);
+  }, [currentPage, debouncedSearch]);
 
   useEffect(() => {
     fetchSuppliers();
@@ -297,8 +313,9 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
             ${receiptContent}
             <script>
               window.onload = function() {
-                window.print();
-                window.close();
+                setTimeout(function() {
+                  window.print();
+                }, 500);
               };
             </script>
           </body>
