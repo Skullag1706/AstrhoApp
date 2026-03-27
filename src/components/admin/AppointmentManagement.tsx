@@ -1572,56 +1572,65 @@ function DeleteAppointmentModal({ appointment, serviciosMap, onClose, onConfirm 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-        <div className="bg-gradient-to-r from-red-500 to-pink-600 p-6 text-white text-center">
-          <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-sm shadow-inner">
-            <AlertCircle className="w-10 h-10 text-white" />
+        {/* Header */}
+        <div className="bg-gradient-to-r from-red-500 to-pink-600 p-5 text-white shrink-0 shadow-md">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm shadow-inner">
+                <Trash2 className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold leading-tight">Confirmar Eliminación</h3>
+                <p className="text-red-100 text-xs font-medium">Esta acción no se puede deshacer</p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
+            >
+              <X className="w-5 h-5 text-white" />
+            </button>
           </div>
-          <h3 className="text-2xl font-black uppercase tracking-tight">¿Eliminar Cita?</h3>
-          <p className="text-red-100 text-sm mt-1">Esta acción no se puede deshacer</p>
         </div>
 
-        <div className="p-8 space-y-6">
-          <div className="text-center">
-            <p className="text-gray-600 leading-relaxed">
-              ¿Estás segura de que quieres eliminar permanentemente la cita de <span className="font-bold text-gray-800">{appointment.cliente}</span>?
+        <div className="p-8">
+          <div className="text-center mb-8">
+            <div className="w-20 h-20 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-red-100 rotate-3">
+              <AlertCircle className="w-10 h-10 text-red-500 -rotate-3" />
+            </div>
+            <h4 className="text-lg font-bold text-gray-800 mb-2">
+              ¿Eliminar cita de "{appointment.cliente}"?
+            </h4>
+            <p className="text-sm text-gray-500 leading-relaxed mb-6">
+              Estás a punto de eliminar permanentemente esta cita. 
+              Esta acción liberará el espacio en la agenda del profesional.
             </p>
-          </div>
-
-          <div className="bg-red-50 border border-red-100 rounded-2xl p-5 space-y-3">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-red-400 font-bold uppercase text-[10px] tracking-widest">Programación:</span>
-              <span className="font-bold text-red-700">
-                {new Date(appointment.fechaCita + 'T00:00:00').toLocaleDateString('es-ES')} - {appointment.horaInicio?.substring(0, 5) || '--:--'}
-              </span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-red-400 font-bold uppercase text-[10px] tracking-widest">Duración:</span>
-              <span className="font-bold text-red-700">{totalDuration} min</span>
-            </div>
-            <div className="pt-2 border-t border-red-100">
-              <span className="text-red-400 font-bold uppercase text-[10px] tracking-widest block mb-1">Servicios:</span>
-              <div className="flex flex-wrap gap-1">
-                {appointment.servicios.map((svc, i) => (
-                  <span key={i} className="bg-red-100 text-red-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                    {svc}
-                  </span>
-                ))}
+            
+            <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 flex items-center space-x-4 text-left">
+              <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center shrink-0">
+                <Calendar className="w-6 h-6 text-pink-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Información de la Cita</p>
+                <p className="font-bold text-gray-700 truncate">{new Date(appointment.fechaCita + 'T00:00:00').toLocaleDateString('es-ES')} - {appointment.horaInicio?.substring(0, 5) || '--:--'}</p>
+                <p className="text-[10px] font-mono text-gray-400 uppercase mt-0.5">Duración: {totalDuration} min</p>
               </div>
             </div>
           </div>
 
-          <div className="flex flex-col gap-3">
-            <button
-              onClick={onConfirm}
-              className="w-full py-4 bg-gradient-to-r from-red-500 to-pink-600 text-white rounded-2xl font-black uppercase tracking-[0.2em] shadow-lg hover:shadow-red-200 hover:scale-[1.02] active:scale-95 transition-all"
-            >
-              Sí, Eliminar Cita
-            </button>
+          <div className="flex space-x-3">
             <button
               onClick={onClose}
-              className="w-full py-4 bg-gray-100 text-gray-500 rounded-2xl font-black uppercase tracking-[0.2em] hover:bg-gray-200 hover:text-gray-700 transition-all"
+              className="flex-1 px-6 py-3 rounded-xl font-black text-gray-400 hover:bg-gray-100 transition-all text-[10px] uppercase tracking-widest"
             >
               Cancelar
+            </button>
+            <button
+              onClick={onConfirm}
+              className="flex-1 bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center justify-center space-x-2"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Eliminar</span>
             </button>
           </div>
         </div>

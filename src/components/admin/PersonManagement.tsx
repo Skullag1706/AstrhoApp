@@ -3,7 +3,7 @@ import {
     Users, Plus, Search, Filter, Eye, Edit, Calendar,
     Phone, Mail, MapPin, Heart, Scissors, ShoppingBag,
     X, Save, AlertCircle, Star, TrendingUp, Clock, Trash2, CheckCircle,
-    Briefcase, Shield, User, UserCheck, IdCard
+    Briefcase, Shield, User, UserCheck, IdCard, Loader2
 } from 'lucide-react';
 import { SimplePagination } from '../ui/simple-pagination';
 import { personService, Person, CreatePersonData } from '../../services/personService';
@@ -512,32 +512,56 @@ export function PersonManagement({ hasPermission, initialType = 'client' }: Pers
 
             {/* Delete Confirmation Modal */}
             {showDeleteModal && personToDelete && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
-                        <div className="p-6">
-                            <div className="flex items-center space-x-4 mb-6">
-                                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                                    <AlertCircle className="w-6 h-6 text-red-600" />
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+                        {/* Standardized Header */}
+                        <div className="bg-gradient-to-r from-red-500 to-pink-600 p-5 text-white shrink-0 shadow-md">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-4">
+                                    <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm shadow-inner">
+                                        <AlertCircle className="w-6 h-6 text-white" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-bold leading-tight">Eliminar {personType === 'client' ? 'Cliente' : 'Empleado'}</h3>
+                                        <p className="text-red-100 text-xs font-medium">Esta acción no se puede deshacer</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h3 className="text-xl font-bold text-gray-800">Confirmar Eliminación</h3>
-                                    <p className="text-gray-600">Esta acción no se puede deshacer</p>
-                                </div>
+                                <button
+                                    onClick={() => setShowDeleteModal(false)}
+                                    className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
+                                    disabled={loading}
+                                >
+                                    <X className="w-5 h-5 text-white" />
+                                </button>
                             </div>
+                        </div>
 
-                            <div className="mb-6">
-                                <p className="text-gray-700 mb-4">
-                                    ¿Estás seguro de que quieres eliminar a <strong>{personToDelete.name}</strong>?
+                        <div className="p-8">
+                            <div className="text-center mb-8">
+                                <div className="w-20 h-20 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-red-100 rotate-3">
+                                    <AlertCircle className="w-10 h-10 text-red-500 -rotate-3" />
+                                </div>
+                                
+                                <h4 className="text-lg font-bold text-gray-800 mb-2">
+                                    ¿Eliminar a {personToDelete.name}?
+                                </h4>
+                                
+                                <p className="text-sm text-gray-500 leading-relaxed mb-6">
+                                    Estás a punto de eliminar este {personType === 'client' ? 'cliente' : 'empleado'} de forma permanente. Todos sus datos y acceso al sistema serán borrados.
                                 </p>
-                                <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-                                    <div className="flex items-center space-x-3">
-                                        <div className="w-10 h-10 bg-gradient-to-r from-pink-400 to-purple-500 rounded-full flex items-center justify-center text-white font-bold">
-                                            {personToDelete.name.charAt(0).toUpperCase()}
-                                        </div>
-                                        <div>
-                                            <div className="font-semibold text-gray-800">{personToDelete.name}</div>
-                                            <div className="text-sm text-gray-600">Doc: {personToDelete.documentId}</div>
-                                        </div>
+
+                                <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 flex flex-col space-y-2">
+                                    <div className="flex items-center justify-between text-sm">
+                                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Documento:</span>
+                                        <span className="font-bold text-gray-700">{personToDelete.documentId}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-sm">
+                                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Nombre:</span>
+                                        <span className="font-bold text-gray-700">{personToDelete.name}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-sm">
+                                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Tipo:</span>
+                                        <span className="font-bold text-gray-700">{personType === 'client' ? 'Cliente' : 'Empleado'}</span>
                                     </div>
                                 </div>
                             </div>
@@ -545,15 +569,18 @@ export function PersonManagement({ hasPermission, initialType = 'client' }: Pers
                             <div className="flex space-x-3">
                                 <button
                                     onClick={() => setShowDeleteModal(false)}
-                                    className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition-colors"
+                                    disabled={loading}
+                                    className="flex-1 px-6 py-3 rounded-xl font-black text-gray-400 hover:bg-gray-100 transition-all text-[10px] uppercase tracking-widest disabled:opacity-50"
                                 >
                                     Cancelar
                                 </button>
                                 <button
                                     onClick={confirmDeletePerson}
-                                    className="flex-1 bg-gradient-to-r from-red-400 to-red-500 text-white px-6 py-3 rounded-xl font-semibold hover:shadow-lg transition-all"
+                                    disabled={loading}
+                                    className="flex-1 bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center justify-center space-x-2 disabled:opacity-50"
                                 >
-                                    Eliminar
+                                    {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                                    <span>{loading ? 'Eliminando...' : 'Eliminar'}</span>
                                 </button>
                             </div>
                         </div>

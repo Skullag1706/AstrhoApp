@@ -139,13 +139,13 @@ export function PurchaseManagement({ hasPermission }: PurchaseManagementProps) {
       setLoading(true);
       const raw = await purchaseService.getById(purchase.compraId);
       const unwrapped = unwrapValues(raw);
-      
+
       // Normalize: API may return wrapped in .data/.result or use PascalCase keys
       const src = unwrapped?.data && typeof unwrapped.data === 'object' && !Array.isArray(unwrapped.data)
         ? unwrapped.data
         : unwrapped?.result && typeof unwrapped.result === 'object' && !Array.isArray(unwrapped.result)
-        ? unwrapped.result
-        : unwrapped;
+          ? unwrapped.result
+          : unwrapped;
 
       const normalized: PurchaseAPI = {
         compraId: src?.compraId ?? src?.CompraId ?? purchase.compraId,
@@ -826,7 +826,7 @@ function SupplierSearchSelect({ onSelect, selectedId, error, disabled }: any) {
         <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200">
           <div className="max-h-60 overflow-y-auto py-1">
             {loading && searchResults.length === 0 ? (
-               <div className="p-4 text-sm text-gray-500 text-center">Buscando...</div>
+              <div className="p-4 text-sm text-gray-500 text-center">Buscando...</div>
             ) : searchResults.length === 0 ? (
               <div className="p-4 text-sm text-gray-500 text-center">
                 {searchTerm ? 'No se encontraron proveedores' : 'Escribe para buscar...'}
@@ -971,7 +971,7 @@ function SupplySearchSelect({ onSelect, selectedId, error, disabled, allSelected
         <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-2xl overflow-hidden z-[100] animate-in fade-in zoom-in-95 duration-200">
           <div className="max-h-60 overflow-y-auto py-1">
             {loading && searchResults.length === 0 ? (
-               <div className="p-4 text-sm text-gray-500 text-center">Buscando...</div>
+              <div className="p-4 text-sm text-gray-500 text-center">Buscando...</div>
             ) : searchResults.length === 0 ? (
               <div className="p-4 text-sm text-gray-500 text-center">
                 {searchTerm ? 'No se encontraron insumos' : 'Escribe para buscar...'}
@@ -1461,7 +1461,7 @@ function CancelConfirmationModal({ purchase, onClose, onConfirm }: {
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
         {/* Header */}
-        <div className="bg-gradient-to-r from-pink-500 to-red-500 p-4 text-white">
+        <div className="bg-gradient-to-r from-red-500 to-pink-600 p-5 text-white shrink-0 shadow-md">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center">

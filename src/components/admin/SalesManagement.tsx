@@ -792,72 +792,86 @@ function CancelSaleModal({ sale, isConfirming, onClose, onConfirm }: {
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-        <div className="bg-gradient-to-r from-red-500 to-pink-600 p-6 text-white text-center">
-          <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-sm shadow-inner">
-            {isConfirming ? (
-              <Loader2 className="w-10 h-10 text-white animate-spin" />
-            ) : (
-              <AlertCircle className="w-10 h-10 text-white" />
-            )}
-          </div>
-          <h3 className="text-2xl font-black uppercase tracking-tight">
-            {isConfirming ? 'Procesando...' : '¿Anular Venta?'}
-          </h3>
-          <p className="text-red-100 text-sm mt-1">Esta acción no se puede deshacer</p>
-        </div>
-
-        <div className="p-8 space-y-6">
-          <div className="text-center">
-            <p className="text-gray-600 leading-relaxed">
-              ¿Estás segura de que quieres anular la venta <span className="font-bold text-gray-800">#{sale.id}</span>? Se generará un registro de devolución.
-            </p>
-          </div>
-
-          <div className="bg-red-50 border border-red-100 rounded-2xl p-5 space-y-3">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-red-400 font-bold uppercase text-[10px] tracking-widest">Cliente:</span>
-              <span className="font-bold text-red-700">{sale.customerName || 'No registrado'}</span>
+        {/* Header */}
+        <div className="bg-gradient-to-r from-red-500 to-pink-600 p-5 text-white shrink-0 shadow-md">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm shadow-inner">
+                <Ban className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold leading-tight">Confirmar Anulación</h3>
+                <p className="text-red-100 text-xs font-medium">Esta acción no se puede deshacer</p>
+              </div>
             </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-red-400 font-bold uppercase text-[10px] tracking-widest">Hora:</span>
-              <span className="font-bold text-red-700">{sale.time}</span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-red-400 font-bold uppercase text-[10px] tracking-widest">Total:</span>
-              <span className="font-bold text-red-700">${(sale.total || 0).toLocaleString()}</span>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1">Motivo de Anulación *</label>
-            <textarea
-              value={observation}
-              onChange={(e) => setObservation(e.target.value)}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-300 focus:border-transparent transition-all font-medium text-gray-700 resize-none"
-              rows={3}
-              placeholder="Explica brevemente el motivo..."
-              disabled={isConfirming}
-            />
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <button
-              onClick={handleConfirm}
-              disabled={!observation.trim() || isConfirming}
-              className={`w-full py-4 rounded-2xl font-black uppercase tracking-[0.2em] shadow-lg transition-all flex items-center justify-center space-x-2 ${!observation.trim() || isConfirming
-                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                : 'bg-gradient-to-r from-red-500 to-pink-600 text-white hover:shadow-red-200 hover:scale-[1.02] active:scale-95'
-                }`}
-            >
-              {isConfirming && <Loader2 className="w-4 h-4 animate-spin" />}
-              <span>{isConfirming ? 'Anulando...' : 'Confirmar Anulación'}</span>
-            </button>
             <button
               onClick={onClose}
               disabled={isConfirming}
-              className="w-full py-4 bg-gray-100 text-gray-500 rounded-2xl font-black uppercase tracking-[0.2em] hover:bg-gray-200 hover:text-gray-700 transition-all"
+              className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/30 hover:scale-110 active:scale-95 transition-all shadow-sm"
             >
-              Regresar
+              <X className="w-5 h-5 text-white" />
+            </button>
+          </div>
+        </div>
+
+        <div className="p-8">
+          <div className="text-center mb-6">
+            <div className="w-20 h-20 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-red-100 rotate-3">
+              <AlertCircle className="w-10 h-10 text-red-500 -rotate-3" />
+            </div>
+            <h4 className="text-lg font-bold text-gray-800 mb-2">
+              ¿Anular venta #{sale.id}?
+            </h4>
+            <p className="text-sm text-gray-500 leading-relaxed mb-6">
+              Estás a punto de anular esta venta de forma permanente. 
+              Se generará un registro de devolución en el sistema.
+            </p>
+            
+            <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 flex items-center space-x-4 text-left">
+              <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center shrink-0">
+                <ShoppingBag className="w-6 h-6 text-pink-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Información de Venta</p>
+                <p className="font-bold text-gray-700 truncate">{sale.customerName || 'Cliente no registrado'}</p>
+                <p className="text-[10px] font-mono text-gray-400 uppercase mt-0.5">Total: ${(sale.total || 0).toLocaleString()}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4 mb-6">
+            <div>
+              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 ml-1 text-left">Motivo de Anulación *</label>
+              <textarea
+                value={observation}
+                onChange={(e) => setObservation(e.target.value)}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-300 focus:border-transparent transition-all font-medium text-gray-700 resize-none text-sm"
+                rows={3}
+                placeholder="Explica brevemente el motivo..."
+                disabled={isConfirming}
+              />
+            </div>
+          </div>
+
+          <div className="flex space-x-3">
+            <button
+              onClick={onClose}
+              disabled={isConfirming}
+              className="flex-1 px-6 py-3 rounded-xl font-black text-gray-400 hover:bg-gray-100 transition-all text-[10px] uppercase tracking-widest disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleConfirm}
+              disabled={!observation.trim() || isConfirming}
+              className="flex-1 bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center justify-center space-x-2 disabled:opacity-50 disabled:hover:scale-100 disabled:cursor-not-allowed"
+            >
+              {isConfirming ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Ban className="w-3.5 h-3.5" />
+              )}
+              <span>{isConfirming ? 'Procesando...' : 'Anular'}</span>
             </button>
           </div>
         </div>

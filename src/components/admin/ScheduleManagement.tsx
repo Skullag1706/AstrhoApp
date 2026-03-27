@@ -303,16 +303,11 @@ export function ScheduleManagement({ hasPermission }: ScheduleManagementProps) {
       // 5. Process pending employee assignments and deletions
       // We need to map the pending assignments to the correct horarioDiaId
       const savedDays = savedHorario ? extractArray(savedHorario) : [];
-<<<<<<< HEAD
-
-      if (savedHorario && savedDays.length > 0) {
-=======
-      
       // 🔥 Validación estricta: si no hay días cargados, no podemos mapear empleados
       if (!savedHorario || !savedDays.length) {
         const errorMsg = 'No se pudo mapear las asignaciones de empleados porque no se obtuvieron los detalles de los días del servidor.';
         console.error(`[ScheduleManagement] ${errorMsg}`, savedHorario);
-        
+
         if (assignmentsToCreate.length > 0) {
           showAlert('error', 'El horario se guardó, pero no se pudieron asignar los empleados automáticamente. Intenta asignarlos nuevamente editando el horario.');
           setSaving(false);
@@ -320,8 +315,8 @@ export function ScheduleManagement({ hasPermission }: ScheduleManagementProps) {
         }
       }
 
-      if (savedDays.length > 0) {
->>>>>>> 64143522d61ffc3e55b98513028f529f33ca6c40
+      // ✅ condición correcta combinada
+      if (savedHorario && savedDays.length > 0) {
         // Group assignments by the new IDs from server
         const assignmentsByDay: Record<number, string[]> = {};
 
@@ -426,13 +421,7 @@ export function ScheduleManagement({ hasPermission }: ScheduleManagementProps) {
 
       console.log('[ScheduleManagement] Enviando asignación individual bulk:', JSON.stringify(bulkData, null, 2));
       await horarioEmpleadoService.createBulk(bulkData);
-<<<<<<< HEAD
-
-      showAlert('success', `${documentosEmpleado.length} empleado(s) asignado(s) correctamente`);
-=======
-      
       showAlert('success', `${validEmpleados.length} empleado(s) asignado(s) correctamente`);
->>>>>>> 64143522d61ffc3e55b98513028f529f33ca6c40
       setShowAssignModal(false);
       await loadData();
     } catch (error) {
@@ -1075,8 +1064,8 @@ function ScheduleModal({ group, horarios, empleados, existingAssignments, onClos
                         type="button"
                         onClick={() => toggleDay(day.dia)}
                         className={`py-2 px-1 rounded-lg text-[10px] font-black uppercase tracking-tighter transition-all border ${day.enabled
-                            ? 'bg-purple-600 border-purple-600 text-white shadow-sm'
-                            : 'bg-white border-gray-100 text-gray-400 hover:border-purple-200'
+                          ? 'bg-purple-600 border-purple-600 text-white shadow-sm'
+                          : 'bg-white border-gray-100 text-gray-400 hover:border-purple-200'
                           }`}
                       >
                         {day.dia.substring(0, 3)}
@@ -1143,8 +1132,8 @@ function ScheduleModal({ group, horarios, empleados, existingAssignments, onClos
                                 type="button"
                                 onClick={() => setSelectedDayForAssign(d.dia)}
                                 className={`px-2.5 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all border ${selectedDayForAssign === d.dia
-                                    ? 'bg-blue-500 border-blue-500 text-white shadow-sm'
-                                    : 'bg-white border-gray-100 text-gray-400 hover:border-blue-200'
+                                  ? 'bg-blue-500 border-blue-500 text-white shadow-sm'
+                                  : 'bg-white border-gray-100 text-gray-400 hover:border-blue-200'
                                   }`}
                               >
                                 {d.dia.substring(0, 3)}
@@ -1222,8 +1211,8 @@ function ScheduleModal({ group, horarios, empleados, existingAssignments, onClos
                                   <div
                                     key={emp.documentoEmpleado}
                                     className={`flex items-center justify-between p-3 rounded-xl border transition-all ${isOverlapping
-                                        ? 'bg-red-50 border-red-100 opacity-60'
-                                        : 'bg-white border-gray-100 hover:border-blue-200 hover:shadow-sm'
+                                      ? 'bg-red-50 border-red-100 opacity-60'
+                                      : 'bg-white border-gray-100 hover:border-blue-200 hover:shadow-sm'
                                       }`}
                                   >
                                     <div className="flex items-center space-x-3">
@@ -1722,8 +1711,8 @@ function AssignEmployeeModal({ group, horarios, empleados, existingAssignments, 
                   type="button"
                   onClick={() => { setSelectedDayId(d.horarioDiaId!); setSelectedEmpleados([]); }}
                   className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${selectedDayId === d.horarioDiaId
-                      ? 'bg-purple-600 border-purple-600 text-white shadow-sm'
-                      : 'bg-white border-gray-100 text-gray-400 hover:border-purple-200'
+                    ? 'bg-purple-600 border-purple-600 text-white shadow-sm'
+                    : 'bg-white border-gray-100 text-gray-400 hover:border-purple-200'
                     }`}
                 >
                   {d.diaSemana?.substring(0, 3) || '---'}
@@ -1771,10 +1760,10 @@ function AssignEmployeeModal({ group, horarios, empleados, existingAssignments, 
                     <label
                       key={emp.documentoEmpleado}
                       className={`flex items-center space-x-3 p-3 rounded-xl border transition-all cursor-pointer group ${isOverlapping
-                          ? 'opacity-50 cursor-not-allowed bg-red-50 border-red-100'
-                          : selectedEmpleados.includes(emp.documentoEmpleado)
-                            ? 'border-purple-500 bg-purple-50 shadow-sm'
-                            : 'border-gray-100 hover:border-purple-200 hover:bg-gray-50'
+                        ? 'opacity-50 cursor-not-allowed bg-red-50 border-red-100'
+                        : selectedEmpleados.includes(emp.documentoEmpleado)
+                          ? 'border-purple-500 bg-purple-50 shadow-sm'
+                          : 'border-gray-100 hover:border-purple-200 hover:bg-gray-50'
                         }`}
                     >
                       <div className="relative flex items-center justify-center">
@@ -1788,8 +1777,8 @@ function AssignEmployeeModal({ group, horarios, empleados, existingAssignments, 
                           className="sr-only"
                         />
                         <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${selectedEmpleados.includes(emp.documentoEmpleado)
-                            ? 'border-purple-600 bg-purple-600'
-                            : 'border-gray-300'
+                          ? 'border-purple-600 bg-purple-600'
+                          : 'border-gray-300'
                           }`}>
                           {selectedEmpleados.includes(emp.documentoEmpleado) && (
                             <CheckCircle className="w-3.5 h-3.5 text-white" />
